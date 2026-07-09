@@ -952,6 +952,66 @@ function StatusBox({ feedback, analysis }: { feedback?: MappingFeedback; analysi
   );
 }
 
+function mappedColumn(feedback: MappingFeedback, label: string) {
+  return feedback.mappedColumns[label] ?? feedback.optionalColumns[label] ?? "Not mapped";
+}
+
+function DataDetectedCard({
+  feedback,
+  rowCount,
+  onEdit,
+}: {
+  feedback?: MappingFeedback;
+  rowCount: number;
+  onEdit: () => void;
+}) {
+  if (!feedback) {
+    return null;
+  }
+
+  const statusText =
+    feedback.status === "success"
+      ? "Auto-mapped successfully"
+      : feedback.status === "warning"
+        ? "Auto-mapped with warnings"
+        : "Manual mapping applied";
+
+  return (
+    <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h3 className="font-semibold text-ink">Data detected</h3>
+          <p className="mt-1 text-sm text-slate-500">
+            {feedback.salesSheetName}, header row {feedback.headerRow}, {number(rowCount)} valid rows
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="inline-flex items-center justify-center rounded-md border border-line bg-white px-3 py-2 text-sm font-semibold text-ink transition hover:border-brand-500"
+        >
+          Edit column mapping
+        </button>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          ["Mapping status", statusText],
+          ["Revenue column", feedback.revenueSource],
+          ["Units column", mappedColumn(feedback, "Units")],
+          ["Product column", mappedColumn(feedback, "Product")],
+          ["Category column", mappedColumn(feedback, "Category")],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-md border border-line bg-slate-50 px-3 py-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
+            <p className="mt-1 truncate text-sm font-semibold text-ink">{value}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function FeedbackPanel({ feedback }: { feedback?: MappingFeedback }) {
   if (!feedback) {
     return null;
@@ -960,7 +1020,8 @@ function FeedbackPanel({ feedback }: { feedback?: MappingFeedback }) {
   const optionalEntries = Object.entries(feedback.optionalColumns);
 
   return (
-    <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
+    <details className="rounded-lg border border-line bg-white p-5 shadow-sm">
+      <summary className="cursor-pointer text-sm font-semibold text-ink">View detection details</summary>
       <div className="flex items-start gap-3">
         <Info className="mt-0.5 h-5 w-5 text-brand-700" aria-hidden="true" />
         <div className="min-w-0 flex-1">
@@ -1001,7 +1062,7 @@ function FeedbackPanel({ feedback }: { feedback?: MappingFeedback }) {
           </div>
         </div>
       </div>
-    </div>
+    </details>
   );
 }
 
@@ -1101,6 +1162,7 @@ export default function UploadDashboard() {
   const [analysis, setAnalysis] = useState<WorkbookAnalysis | null>(null);
   const [selectedSheet, setSelectedSheet] = useState("");
   const [manualMappings, setManualMappings] = useState<ManualMappings>(emptyManualMappings);
+  const [showManualMapping, setShowManualMapping] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -1110,6 +1172,8 @@ export default function UploadDashboard() {
   const showGrossProfit = hasData && metrics.hasGrossProfit;
   const showCosts = hasData && Boolean(data?.feedback.costs);
   const showBudget = hasData && Boolean(data?.feedback.budget);
+  const manualMappingRequired = Boolean(analysis && !data);
+  const shouldShowManualMapping = manualMappingRequired || showManualMapping;
 
   function selectSheet(sheetName: string, workbookAnalysis = analysis) {
     if (!workbookAnalysis) {
@@ -1136,6 +1200,7 @@ export default function UploadDashboard() {
       setAnalysis(parsed.analysis);
       selectSheet(best.name, parsed.analysis);
       setData(parsed.autoResult);
+      setShowManualMapping(!parsed.autoResult);
 
       if (!parsed.autoResult) {
         setError(
@@ -1149,6 +1214,7 @@ export default function UploadDashboard() {
       setAnalysis(null);
       setSelectedSheet("");
       setManualMappings(emptyManualMappings);
+      setShowManualMapping(false);
       setError(error instanceof Error ? error.message : "The spreadsheet could not be parsed.");
     } finally {
       setIsLoading(false);
@@ -1173,6 +1239,7 @@ export default function UploadDashboard() {
         manual: true,
       });
       setData(result);
+      setShowManualMapping(false);
       setError("");
     } catch (error) {
       setData(null);
@@ -1271,15 +1338,18 @@ export default function UploadDashboard() {
           </div>
 
           <StatusBox feedback={data?.feedback} analysis={analysis} />
-          <ManualMappingPanel
-            analysis={analysis}
-            selectedSheet={selectedSheet}
-            mappings={manualMappings}
-            onSheetChange={(sheetName) => selectSheet(sheetName)}
-            onMappingChange={(field, column) => setManualMappings((current) => ({ ...current, [field]: column }))}
-            onApply={applyManualMappings}
-          />
-          <FeedbackPanel feedback={data?.feedback} />
+          <DataDetectedCard feedback={data?.feedback} rowCount={metrics.rowCount} onEdit={() => setShowManualMapping(true)} />
+
+          {shouldShowManualMapping ? (
+            <ManualMappingPanel
+              analysis={analysis}
+              selectedSheet={selectedSheet}
+              mappings={manualMappings}
+              onSheetChange={(sheetName) => selectSheet(sheetName)}
+              onMappingChange={(field, column) => setManualMappings((current) => ({ ...current, [field]: column }))}
+              onApply={applyManualMappings}
+            />
+          ) : null}
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <KpiCard
@@ -1321,6 +1391,8 @@ export default function UploadDashboard() {
               />
             ) : null}
           </div>
+
+          <FeedbackPanel feedback={data?.feedback} />
 
           {showBudget ? (
             <div className="grid gap-4 sm:grid-cols-3">
