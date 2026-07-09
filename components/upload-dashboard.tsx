@@ -66,12 +66,17 @@ type BudgetSummary = {
   result: number;
 };
 
+type MappingStatus = "success" | "warning" | "manual";
+
 type MappingFeedback = {
   salesSheetName: string;
   detectedSheets: string[];
+  headerRow: number;
   mappedColumns: Record<string, string>;
   optionalColumns: Record<string, string>;
   revenueSource: string;
+  status: MappingStatus;
+  warnings: string[];
   costs?: OptionalSheetSummary;
   budget?: BudgetSummary;
 };
@@ -80,15 +85,6 @@ type ParseResult = {
   rows: SaleRow[];
   fileName: string;
   feedback: MappingFeedback;
-};
-
-type SheetCandidate = {
-  name: string;
-  rows: unknown[][];
-  headers: string[];
-  headerIndex: number;
-  mappings: FieldMappings;
-  score: number;
 };
 
 type FieldKey =
@@ -105,7 +101,41 @@ type FieldKey =
   | "cost"
   | "unitPrice";
 
+type RequiredManualField = "dateOrMonth" | "product" | "category" | "units" | "revenue";
+type OptionalManualField = "cost" | "grossProfit" | "grossMargin";
+type ManualField = RequiredManualField | OptionalManualField;
 type FieldMappings = Partial<Record<FieldKey, string>>;
+type ManualMappings = Record<ManualField, string>;
+
+type SheetCandidate = {
+  name: string;
+  rows: unknown[][];
+  headers: string[];
+  headerIndex: number;
+  mappings: FieldMappings;
+  score: number;
+  confidence: number;
+  missingFields: string[];
+};
+
+type WorkbookAnalysis = {
+  fileName: string;
+  detectedSheets: string[];
+  candidates: SheetCandidate[];
+  costs?: OptionalSheetSummary;
+  budget?: BudgetSummary;
+};
+
+const emptyManualMappings: ManualMappings = {
+  dateOrMonth: "",
+  product: "",
+  category: "",
+  units: "",
+  revenue: "",
+  cost: "",
+  grossProfit: "",
+  grossMargin: "",
+};
 
 const chartColors = ["#0891b2", "#f97316", "#22c55e", "#6366f1", "#e11d48", "#14b8a6"];
 
@@ -125,65 +155,91 @@ const fieldLabels: Record<FieldKey, string> = {
 };
 
 const aliases: Record<FieldKey, string[]> = {
-  date: ["Date", "Dato"],
-  month: ["Month", "Måned", "Maaned"],
-  product: ["Product", "Produkt"],
-  category: ["Category", "Kategori"],
-  units: ["Units", "Antal", "Quantity", "Qty"],
-  netRevenue: ["Nettoomsætning", "Nettoomsaetning", "Net revenue"],
-  grossRevenue: ["Bruttoomsætning", "Bruttoomsaetning", "Gross revenue"],
-  revenue: ["Revenue", "Sales", "Budget revenue", "Budget omsætning", "Budget omsaetning"],
-  grossProfit: ["Gross profit", "Dækningsbidrag", "Daekningsbidrag", "Contribution margin"],
-  grossMargin: ["Gross margin", "Dækningsgrad", "Daekningsgrad", "Margin %"],
-  cost: [
-    "Cost",
-    "Costs",
-    "Vareforbrug",
-    "Kostpris pr. stk.",
-    "Omkostning",
-    "Omkostninger",
-    "Budget costs",
-    "Budget cost",
-    "Budget omkostninger",
-    "Amount",
-    "Beløb",
+  date: ["date", "dato", "salgsdato", "order date", "transaction date", "fakturadato"],
+  month: ["month", "maaned", "m\u00e5ned", "periode", "period"],
+  product: ["product", "produkt", "varenavn", "item", "item name", "product name", "sku", "vare"],
+  category: ["category", "kategori", "produktkategori", "product category", "varegruppe", "segment"],
+  units: ["units", "antal", "quantity", "qty", "solgt antal", "quantity sold", "stk", "pieces"],
+  netRevenue: ["nettoomsaetning", "nettooms\u00e6tning", "net revenue"],
+  grossRevenue: ["bruttoomsaetning", "bruttooms\u00e6tning", "gross revenue"],
+  revenue: [
+    "omsaetning",
+    "oms\u00e6tning",
+    "revenue",
+    "sales",
+    "salg",
+    "total sales",
+    "amount",
+    "beloeb",
+    "bel\u00f8b",
+    "sales amount",
+    "salg ekskl moms",
+    "salg inkl moms",
+    "budget revenue",
+    "budget omsaetning",
+    "budget oms\u00e6tning",
   ],
-  unitPrice: ["Price", "Unit price", "Pris pr. stk.", "Pris", "Sales price"],
+  grossProfit: [
+    "daekningsbidrag",
+    "d\u00e6kningsbidrag",
+    "gross profit",
+    "contribution margin",
+    "profit",
+    "bruttofortjeneste",
+  ],
+  grossMargin: ["daekningsgrad", "d\u00e6kningsgrad", "gross margin", "margin", "margin %", "db %"],
+  cost: [
+    "omkostninger",
+    "omkostning",
+    "cost",
+    "costs",
+    "vareforbrug",
+    "cogs",
+    "cost of goods sold",
+    "kostpris",
+    "kostpris pr stk",
+    "kostpris pr. stk.",
+    "total cost",
+    "budget costs",
+    "budget cost",
+    "budget omkostninger",
+  ],
+  unitPrice: ["price", "unit price", "pris", "pris pr stk", "pris pr. stk.", "sales price"],
 };
 
 const sampleRows = [
   {
     Dato: "2026-01-12",
-    "Måned": "Januar",
+    Maaned: "Januar",
     Produkt: "Cortado",
     Kategori: "Kaffe",
     Antal: 120,
     "Pris pr. stk.": 42,
-    "Nettoomsætning": 5040,
-    "Dækningsbidrag": 3100,
-    "Dækningsgrad": "61.5%",
+    Nettoomsaetning: 5040,
+    Daekningsbidrag: 3100,
+    Daekningsgrad: "61.5%",
   },
   {
     Dato: "2026-02-03",
-    "Måned": "Februar",
+    Maaned: "Februar",
     Produkt: "Surdejsbolle",
     Kategori: "Bageri",
     Antal: 84,
     "Pris pr. stk.": 38,
-    "Nettoomsætning": 3192,
-    "Dækningsbidrag": 1760,
-    "Dækningsgrad": "55.1%",
+    Nettoomsaetning: 3192,
+    Daekningsbidrag: 1760,
+    Daekningsgrad: "55.1%",
   },
   {
     Dato: "2026-03-18",
-    "Måned": "Marts",
+    Maaned: "Marts",
     Produkt: "Morgenmenu",
     Kategori: "Menu",
     Antal: 64,
     "Pris pr. stk.": 89,
-    "Nettoomsætning": 5696,
-    "Dækningsbidrag": 3410,
-    "Dækningsgrad": "59.9%",
+    Nettoomsaetning: 5696,
+    Daekningsbidrag: 3410,
+    Daekningsgrad: "59.9%",
   },
 ];
 
@@ -241,9 +297,9 @@ function toDate(value: unknown) {
     return null;
   }
 
-  const danishDate = /^(\d{1,2})[.-/](\d{1,2})[.-/](\d{2,4})$/.exec(text);
-  if (danishDate) {
-    const [, day, month, rawYear] = danishDate;
+  const localDate = /^(\d{1,2})[.-/](\d{1,2})[.-/](\d{2,4})$/.exec(text);
+  if (localDate) {
+    const [, day, month, rawYear] = localDate;
     const year = rawYear.length === 2 ? Number(`20${rawYear}`) : Number(rawYear);
     return new Date(year, Number(month) - 1, Number(day));
   }
@@ -300,37 +356,20 @@ function buildMappings(headers: string[]) {
   }, {});
 }
 
-function detectHeaderRow(rows: unknown[][]) {
-  let bestIndex = 0;
-  let bestScore = -1;
-
-  rows.slice(0, 10).forEach((row, index) => {
-    const headers = row.map((cell) => String(cell ?? "").trim()).filter(Boolean);
-    const mappings = buildMappings(headers);
-    const score = scoreMappings(mappings);
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestIndex = index;
-    }
-  });
-
-  return bestIndex;
-}
-
 function scoreMappings(mappings: FieldMappings) {
   let score = 0;
   if (mappings.date) score += 3;
-  if (mappings.month) score += 1;
-  if (mappings.product) score += 3;
-  if (mappings.category) score += 2;
-  if (mappings.units) score += 3;
-  if (mappings.netRevenue) score += 4;
-  if (mappings.grossRevenue) score += 3;
-  if (mappings.revenue) score += 3;
-  if (mappings.unitPrice) score += 1;
+  if (mappings.month) score += 2;
+  if (mappings.product) score += 4;
+  if (mappings.category) score += 3;
+  if (mappings.units) score += 4;
+  if (mappings.netRevenue) score += 5;
+  if (mappings.grossRevenue) score += 4;
+  if (mappings.revenue) score += 4;
+  if (mappings.unitPrice) score += 2;
   if (mappings.grossProfit) score += 1;
   if (mappings.grossMargin) score += 1;
+  if (mappings.cost) score += 1;
   return score;
 }
 
@@ -340,6 +379,31 @@ function sheetToRows(sheet: XLSX.WorkSheet) {
     defval: "",
     raw: true,
   });
+}
+
+function rowToHeaders(row: unknown[]) {
+  return row.map((cell) => String(cell ?? "").trim()).filter(Boolean);
+}
+
+function detectHeaderRow(rows: unknown[][]) {
+  let bestIndex = 0;
+  let bestScore = -1;
+
+  rows.slice(0, 40).forEach((row, index) => {
+    const headers = rowToHeaders(row);
+    const mappings = buildMappings(headers);
+    const uniqueHeaders = new Set(headers.map(normalizeHeader)).size;
+    const textCells = headers.filter((header) => Number.isNaN(Number(header))).length;
+    const tableShapeBonus = uniqueHeaders >= 4 && textCells >= 3 ? 2 : 0;
+    const score = scoreMappings(mappings) + tableShapeBonus;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  });
+
+  return bestIndex;
 }
 
 function rowsToRecords(rows: unknown[][], headerIndex: number, headers: string[]) {
@@ -353,13 +417,28 @@ function rowsToRecords(rows: unknown[][], headerIndex: number, headers: string[]
   );
 }
 
-function findSalesSheet(workbook: XLSX.WorkBook) {
-  const candidates = workbook.SheetNames.map((name) => {
+function getMissingFields(mappings: FieldMappings) {
+  const missing: string[] = [];
+  if (!mappings.product) missing.push("Product / Produkt");
+  if (!mappings.category) missing.push("Category / Kategori");
+  if (!mappings.units) missing.push("Units / Antal");
+  if (!mappings.date && !mappings.month) missing.push("Date / Dato or Month / Maaned");
+  if (!mappings.netRevenue && !mappings.grossRevenue && !mappings.revenue && !mappings.unitPrice) {
+    missing.push("Revenue / Nettoomsaetning / Bruttoomsaetning or Units x Price");
+  }
+  return missing;
+}
+
+function buildCandidates(workbook: XLSX.WorkBook) {
+  return workbook.SheetNames.map((name) => {
     const rows = sheetToRows(workbook.Sheets[name]);
     const headerIndex = detectHeaderRow(rows);
-    const headers = (rows[headerIndex] ?? []).map((cell) => String(cell ?? "").trim()).filter(Boolean);
+    const headers = rowToHeaders(rows[headerIndex] ?? []);
     const mappings = buildMappings(headers);
-    const nameBonus = normalizeHeader(name).includes("salg") || normalizeHeader(name).includes("sales") ? 2 : 0;
+    const nameBonus = normalizeHeader(name).includes("salg") || normalizeHeader(name).includes("sales") ? 3 : 0;
+    const score = scoreMappings(mappings) + nameBonus;
+    const missingFields = getMissingFields(mappings);
+    const confidence = Math.min(100, Math.round((score / 27) * 100));
 
     return {
       name,
@@ -367,11 +446,11 @@ function findSalesSheet(workbook: XLSX.WorkBook) {
       headers,
       headerIndex,
       mappings,
-      score: scoreMappings(mappings) + nameBonus,
+      score,
+      confidence,
+      missingFields,
     };
   }).sort((a, b) => b.score - a.score);
-
-  return candidates[0] ?? null;
 }
 
 function getRevenue(row: Record<string, unknown>, mappings: FieldMappings) {
@@ -399,47 +478,82 @@ function getRevenue(row: Record<string, unknown>, mappings: FieldMappings) {
   return { value: null, source: "" };
 }
 
-function getMissingFields(candidate: SheetCandidate) {
-  const missing: string[] = [];
-  if (!candidate.mappings.product) missing.push("Product / Produkt");
-  if (!candidate.mappings.category) missing.push("Category / Kategori");
-  if (!candidate.mappings.units) missing.push("Units / Antal");
-  if (!candidate.mappings.date && !candidate.mappings.month) missing.push("Date / Dato or Month / Måned");
-  if (!candidate.mappings.netRevenue && !candidate.mappings.grossRevenue && !candidate.mappings.revenue && !candidate.mappings.unitPrice) {
-    missing.push("Revenue / Nettoomsætning / Bruttoomsætning or Units x Price");
-  }
-  return missing;
+function manualToFieldMappings(manual: ManualMappings): FieldMappings {
+  return {
+    product: manual.product || undefined,
+    category: manual.category || undefined,
+    units: manual.units || undefined,
+    revenue: manual.revenue || undefined,
+    date: manual.dateOrMonth || undefined,
+    month: manual.dateOrMonth || undefined,
+    cost: manual.cost || undefined,
+    grossProfit: manual.grossProfit || undefined,
+    grossMargin: manual.grossMargin || undefined,
+  };
 }
 
-function parseSalesRows(candidate: SheetCandidate) {
-  const missingFields = getMissingFields(candidate);
-  if (missingFields.length) {
-    throw new Error(
-      `Could not map the required sales fields. Missing: ${missingFields.join(
-        ", ",
-      )}. Columns found on "${candidate.name}": ${candidate.headers.join(", ") || "none"}.`,
-    );
+function manualToFieldMappingsForCandidate(manual: ManualMappings, candidate: SheetCandidate): FieldMappings {
+  const mappings = manualToFieldMappings(manual);
+
+  if (manual.dateOrMonth) {
+    const sampleRecord = rowsToRecords(candidate.rows, candidate.headerIndex, candidate.headers)[0] ?? {};
+    const sampleValue = sampleRecord[manual.dateOrMonth];
+    const selectedColumnLooksLikeDate = toDate(sampleValue) !== null;
+
+    mappings.date = selectedColumnLooksLikeDate ? manual.dateOrMonth : undefined;
+    mappings.month = selectedColumnLooksLikeDate ? undefined : manual.dateOrMonth;
   }
 
+  return mappings;
+}
+
+function initialManualMappings(candidate: SheetCandidate): ManualMappings {
+  return {
+    dateOrMonth: candidate.mappings.date ?? candidate.mappings.month ?? "",
+    product: candidate.mappings.product ?? "",
+    category: candidate.mappings.category ?? "",
+    units: candidate.mappings.units ?? "",
+    revenue: candidate.mappings.netRevenue ?? candidate.mappings.grossRevenue ?? candidate.mappings.revenue ?? "",
+    cost: candidate.mappings.cost ?? "",
+    grossProfit: candidate.mappings.grossProfit ?? "",
+    grossMargin: candidate.mappings.grossMargin ?? "",
+  };
+}
+
+function getStatus(candidate: SheetCandidate, rows: SaleRow[]): MappingStatus {
+  if (candidate.missingFields.length) {
+    return "manual";
+  }
+
+  if (candidate.confidence < 70 || rows.length < 2) {
+    return "warning";
+  }
+
+  return "success";
+}
+
+function parseSalesRows(candidate: SheetCandidate, mappings = candidate.mappings) {
   const records = rowsToRecords(candidate.rows, candidate.headerIndex, candidate.headers);
   const skippedRows: number[] = [];
   let revenueSource = "";
 
   const rows = records
     .map((row, index) => {
-      const date = toDate(getCell(row, candidate.mappings, "date"));
-      const month = date ? monthLabel(date) : cleanMonth(getCell(row, candidate.mappings, "month"));
-      const product = String(getCell(row, candidate.mappings, "product") ?? "").trim();
-      const category = String(getCell(row, candidate.mappings, "category") ?? "").trim();
-      const units = toNumber(getCell(row, candidate.mappings, "units"));
-      const revenue = getRevenue(row, candidate.mappings);
-      const grossProfit = toNumber(getCell(row, candidate.mappings, "grossProfit"));
-      const rawGrossMargin = toNumber(getCell(row, candidate.mappings, "grossMargin"));
+      const rawDate = getCell(row, mappings, "date");
+      const date = toDate(rawDate);
+      const month = date ? monthLabel(date) : cleanMonth(getCell(row, mappings, "month"));
+      const product = String(getCell(row, mappings, "product") ?? "").trim();
+      const category = String(getCell(row, mappings, "category") ?? "").trim();
+      const units = toNumber(getCell(row, mappings, "units"));
+      const revenue = getRevenue(row, mappings);
+      const grossProfit = toNumber(getCell(row, mappings, "grossProfit"));
+      const rawGrossMargin = toNumber(getCell(row, mappings, "grossMargin"));
       const grossMargin = rawGrossMargin !== null && rawGrossMargin > 1 ? rawGrossMargin / 100 : rawGrossMargin;
-      const cost = toNumber(getCell(row, candidate.mappings, "cost"));
+      const cost = toNumber(getCell(row, mappings, "cost"));
 
-      const isBlankRow = !date && !product && !category && units === null && revenue.value === null;
-      if (isBlankRow) {
+      const isBlankRow = !rawDate && !product && !category && units === null && revenue.value === null;
+      const looksLikeSummaryRow = product && /total|sum|i alt|subtotal|grand total/i.test(product);
+      if (isBlankRow || looksLikeSummaryRow) {
         return null;
       }
 
@@ -464,17 +578,79 @@ function parseSalesRows(candidate: SheetCandidate) {
     })
     .filter((row): row is SaleRow => Boolean(row));
 
-  if (!rows.length) {
-    throw new Error(`No valid sales rows found on "${candidate.name}". Check that mapped columns contain values.`);
+  return { rows, revenueSource, skippedRows };
+}
+
+function buildMappedColumns(mappings: FieldMappings) {
+  const required: FieldKey[] = ["date", "month", "product", "category", "units", "netRevenue", "grossRevenue", "revenue", "unitPrice"];
+  return required.reduce<Record<string, string>>((result, field) => {
+    const column = mappings[field];
+    if (column) {
+      result[fieldLabels[field]] = column;
+    }
+    return result;
+  }, {});
+}
+
+function buildOptionalColumns(mappings: FieldMappings) {
+  const optional: FieldKey[] = ["grossProfit", "grossMargin", "cost"];
+  return optional.reduce<Record<string, string>>((result, field) => {
+    const column = mappings[field];
+    if (column) {
+      result[fieldLabels[field]] = column;
+    }
+    return result;
+  }, {});
+}
+
+function buildParseResult({
+  fileName,
+  analysis,
+  candidate,
+  mappings,
+  manual,
+}: {
+  fileName: string;
+  analysis: WorkbookAnalysis;
+  candidate: SheetCandidate;
+  mappings: FieldMappings;
+  manual: boolean;
+}) {
+  const missingFields = manual ? getMissingFields(mappings) : candidate.missingFields;
+
+  if (missingFields.length) {
+    throw new Error(`Missing required mappings: ${missingFields.join(", ")}.`);
   }
 
-  if (skippedRows.length) {
-    throw new Error(
-      `Rows ${skippedRows.slice(0, 8).join(", ")} on "${candidate.name}" have invalid or missing values. Fix those rows and upload again.`,
-    );
+  const parsed = parseSalesRows(candidate, mappings);
+
+  if (!parsed.rows.length) {
+    throw new Error(`No valid sales rows found on "${candidate.name}". Try selecting the worksheet and columns manually.`);
   }
 
-  return { rows, revenueSource };
+  const status = manual ? "warning" : getStatus(candidate, parsed.rows);
+  const warnings = [
+    ...(manual ? ["Manual column mapping is being used."] : []),
+    ...(status === "warning" && !manual ? ["Auto mapping looks usable, but confidence is below the ideal threshold."] : []),
+    ...(parsed.skippedRows.length ? [`Ignored ${parsed.skippedRows.length} incomplete or non-data rows.`] : []),
+  ];
+
+  return {
+    rows: parsed.rows,
+    fileName,
+    feedback: {
+      salesSheetName: candidate.name,
+      detectedSheets: analysis.detectedSheets,
+      headerRow: candidate.headerIndex + 1,
+      mappedColumns: buildMappedColumns(mappings),
+      optionalColumns: buildOptionalColumns(mappings),
+      revenueSource: parsed.revenueSource || "Selected revenue column",
+      status,
+      warnings,
+      costs: analysis.costs,
+      budget: analysis.budget,
+    },
+  };
 }
 
 function groupRows(rows: SaleRow[], keyGetter: (row: SaleRow) => string) {
@@ -525,7 +701,7 @@ function parseCostSheet(workbook: XLSX.WorkBook) {
 
   const rows = sheetToRows(workbook.Sheets[costSheetName]);
   const headerIndex = detectHeaderRow(rows);
-  const headers = (rows[headerIndex] ?? []).map((cell) => String(cell ?? "").trim()).filter(Boolean);
+  const headers = rowToHeaders(rows[headerIndex] ?? []);
   const categoryHeader =
     findMatchingHeader(headers, "category") ??
     headers.find((header) => ["type", "omkostningskategori", "costcategory"].includes(normalizeHeader(header)));
@@ -566,7 +742,7 @@ function parseBudgetSheet(workbook: XLSX.WorkBook) {
 
   const rows = sheetToRows(workbook.Sheets[budgetSheetName]);
   const headerIndex = detectHeaderRow(rows);
-  const headers = (rows[headerIndex] ?? []).map((cell) => String(cell ?? "").trim()).filter(Boolean);
+  const headers = rowToHeaders(rows[headerIndex] ?? []);
   const mappings = buildMappings(headers);
   const records = rowsToRecords(rows, headerIndex, headers);
 
@@ -596,29 +772,7 @@ function parseBudgetSheet(workbook: XLSX.WorkBook) {
   };
 }
 
-function mappedColumnsFor(candidate: SheetCandidate) {
-  const required: FieldKey[] = ["date", "month", "product", "category", "units", "netRevenue", "grossRevenue", "revenue", "unitPrice"];
-  return required.reduce<Record<string, string>>((result, field) => {
-    const column = candidate.mappings[field];
-    if (column) {
-      result[fieldLabels[field]] = column;
-    }
-    return result;
-  }, {});
-}
-
-function optionalColumnsFor(candidate: SheetCandidate) {
-  const optional: FieldKey[] = ["grossProfit", "grossMargin", "cost"];
-  return optional.reduce<Record<string, string>>((result, field) => {
-    const column = candidate.mappings[field];
-    if (column) {
-      result[fieldLabels[field]] = column;
-    }
-    return result;
-  }, {});
-}
-
-function parseWorkbook(file: File): Promise<ParseResult> {
+function analyzeWorkbook(file: File): Promise<{ analysis: WorkbookAnalysis; autoResult: ParseResult | null }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
@@ -626,30 +780,35 @@ function parseWorkbook(file: File): Promise<ParseResult> {
       try {
         const buffer = event.target?.result;
         const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
-        const salesSheet = findSalesSheet(workbook);
+        const candidates = buildCandidates(workbook);
 
-        if (!salesSheet) {
+        if (!candidates.length) {
           reject(new Error("No worksheets found in this Excel file."));
           return;
         }
 
-        const { rows, revenueSource } = parseSalesRows(salesSheet);
-        const costs = parseCostSheet(workbook);
-        const budget = parseBudgetSheet(workbook);
-
-        resolve({
-          rows,
+        const analysis = {
           fileName: file.name,
-          feedback: {
-            salesSheetName: salesSheet.name,
-            detectedSheets: workbook.SheetNames,
-            mappedColumns: mappedColumnsFor(salesSheet),
-            optionalColumns: optionalColumnsFor(salesSheet),
-            revenueSource,
-            costs,
-            budget,
-          },
-        });
+          detectedSheets: workbook.SheetNames,
+          candidates,
+          costs: parseCostSheet(workbook),
+          budget: parseBudgetSheet(workbook),
+        };
+
+        const best = candidates[0];
+        let autoResult: ParseResult | null = null;
+
+        if (!best.missingFields.length) {
+          autoResult = buildParseResult({
+            fileName: file.name,
+            analysis,
+            candidate: best,
+            mappings: best.mappings,
+            manual: false,
+          });
+        }
+
+        resolve({ analysis, autoResult });
       } catch (error) {
         reject(error);
       }
@@ -736,19 +895,19 @@ function downloadSampleExcel() {
   XLSX.utils.book_append_sheet(
     workbook,
     XLSX.utils.json_to_sheet([
-      { Kategori: "Løn", Omkostninger: 8200 },
-      { Kategori: "Råvarer", Omkostninger: 5100 },
+      { Kategori: "Lon", Omkostninger: 8200 },
+      { Kategori: "Raavarer", Omkostninger: 5100 },
       { Kategori: "Lokale", Omkostninger: 3400 },
     ]),
     "Omkostninger",
   );
   XLSX.utils.book_append_sheet(
     workbook,
-    XLSX.utils.json_to_sheet([{ "Nettoomsætning": 18000, Omkostninger: 12000 }]),
+    XLSX.utils.json_to_sheet([{ Nettoomsaetning: 18000, Omkostninger: 12000 }]),
     "Budget",
   );
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["Brief"], ["Sample workbook for DataBrief AI"]]), "Brief");
-  XLSX.writeFile(workbook, "databrief-ai-cafe-nord-sample.xlsx");
+  XLSX.writeFile(workbook, "databrief-ai-sample-workbook.xlsx");
 }
 
 function KpiCard({ label, value, detail }: { label: string; value: string; detail: string }) {
@@ -769,6 +928,30 @@ function EmptyChart({ message }: { message: string }) {
   );
 }
 
+function StatusBox({ feedback, analysis }: { feedback?: MappingFeedback; analysis?: WorkbookAnalysis | null }) {
+  const status = feedback?.status ?? (analysis ? "manual" : undefined);
+  if (!status) {
+    return null;
+  }
+
+  const label =
+    status === "success" ? "Auto-mapped successfully" : status === "warning" ? "Auto-mapped with warnings" : "Manual mapping required";
+  const classes =
+    status === "success"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+      : status === "warning"
+        ? "border-amber-200 bg-amber-50 text-amber-800"
+        : "border-red-200 bg-red-50 text-red-800";
+
+  return (
+    <div className={`rounded-lg border px-4 py-3 text-sm ${classes}`}>
+      <p className="font-semibold">{label}</p>
+      {feedback?.warnings.length ? <p className="mt-1">{feedback.warnings.join(" ")}</p> : null}
+      {!feedback && analysis ? <p className="mt-1">Choose a worksheet and map the required columns below.</p> : null}
+    </div>
+  );
+}
+
 function FeedbackPanel({ feedback }: { feedback?: MappingFeedback }) {
   if (!feedback) {
     return null;
@@ -783,7 +966,8 @@ function FeedbackPanel({ feedback }: { feedback?: MappingFeedback }) {
         <div className="min-w-0 flex-1">
           <h3 className="font-semibold text-ink">Workbook detection</h3>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Sales worksheet: <span className="font-semibold text-ink">{feedback.salesSheetName}</span>. Detected sheets:{" "}
+            Sales worksheet: <span className="font-semibold text-ink">{feedback.salesSheetName}</span>. Header row:{" "}
+            <span className="font-semibold text-ink">{feedback.headerRow}</span>. Detected sheets:{" "}
             {feedback.detectedSheets.join(", ")}.
           </p>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -821,8 +1005,102 @@ function FeedbackPanel({ feedback }: { feedback?: MappingFeedback }) {
   );
 }
 
+function ManualMappingPanel({
+  analysis,
+  selectedSheet,
+  mappings,
+  onSheetChange,
+  onMappingChange,
+  onApply,
+}: {
+  analysis: WorkbookAnalysis | null;
+  selectedSheet: string;
+  mappings: ManualMappings;
+  onSheetChange: (sheetName: string) => void;
+  onMappingChange: (field: ManualField, column: string) => void;
+  onApply: () => void;
+}) {
+  if (!analysis) {
+    return null;
+  }
+
+  const candidate = analysis.candidates.find((sheet) => sheet.name === selectedSheet) ?? analysis.candidates[0];
+  const fields: Array<{ key: ManualField; label: string; required: boolean }> = [
+    { key: "dateOrMonth", label: "Date or Month", required: true },
+    { key: "product", label: "Product", required: true },
+    { key: "category", label: "Category", required: true },
+    { key: "units", label: "Units", required: true },
+    { key: "revenue", label: "Revenue", required: true },
+    { key: "cost", label: "Cost", required: false },
+    { key: "grossProfit", label: "Gross profit", required: false },
+    { key: "grossMargin", label: "Gross margin", required: false },
+  ];
+
+  return (
+    <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h3 className="font-semibold text-ink">Manual column mapping</h3>
+          <p className="mt-1 text-sm text-slate-500">
+            Worksheet candidates can use different header rows. Current header row: {candidate.headerIndex + 1}.
+          </p>
+        </div>
+        <div className="text-sm text-slate-500">Confidence: {candidate.confidence}%</div>
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <label className="block text-sm font-semibold text-ink">
+          Worksheet
+          <select
+            value={selectedSheet}
+            onChange={(event) => onSheetChange(event.target.value)}
+            className="mt-2 w-full rounded-md border border-line bg-white px-3 py-2 text-sm font-normal text-ink"
+          >
+            {analysis.candidates.map((sheet) => (
+              <option key={sheet.name} value={sheet.name}>
+                {sheet.name} - row {sheet.headerIndex + 1} - {sheet.confidence}%
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {fields.map((field) => (
+          <label key={field.key} className="block text-sm font-semibold text-ink">
+            {field.label} {field.required ? <span className="text-red-600">*</span> : null}
+            <select
+              value={mappings[field.key]}
+              onChange={(event) => onMappingChange(field.key, event.target.value)}
+              className="mt-2 w-full rounded-md border border-line bg-white px-3 py-2 text-sm font-normal text-ink"
+            >
+              <option value="">Not mapped</option>
+              {candidate.headers.map((header) => (
+                <option key={header} value={header}>
+                  {header}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={onApply}
+        className="mt-5 inline-flex items-center justify-center rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+      >
+        Apply selected mappings
+      </button>
+    </div>
+  );
+}
+
 export default function UploadDashboard() {
   const [data, setData] = useState<ParseResult | null>(null);
+  const [analysis, setAnalysis] = useState<WorkbookAnalysis | null>(null);
+  const [selectedSheet, setSelectedSheet] = useState("");
+  const [manualMappings, setManualMappings] = useState<ManualMappings>(emptyManualMappings);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -832,6 +1110,16 @@ export default function UploadDashboard() {
   const showGrossProfit = hasData && metrics.hasGrossProfit;
   const showCosts = hasData && Boolean(data?.feedback.costs);
   const showBudget = hasData && Boolean(data?.feedback.budget);
+
+  function selectSheet(sheetName: string, workbookAnalysis = analysis) {
+    if (!workbookAnalysis) {
+      return;
+    }
+
+    const candidate = workbookAnalysis.candidates.find((sheet) => sheet.name === sheetName) ?? workbookAnalysis.candidates[0];
+    setSelectedSheet(candidate.name);
+    setManualMappings(initialManualMappings(candidate));
+  }
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -843,14 +1131,52 @@ export default function UploadDashboard() {
     setError("");
 
     try {
-      const parsed = await parseWorkbook(file);
-      setData(parsed);
+      const parsed = await analyzeWorkbook(file);
+      const best = parsed.analysis.candidates[0];
+      setAnalysis(parsed.analysis);
+      selectSheet(best.name, parsed.analysis);
+      setData(parsed.autoResult);
+
+      if (!parsed.autoResult) {
+        setError(
+          `Manual mapping required. Best worksheet "${best.name}" is missing: ${best.missingFields.join(
+            ", ",
+          )}. Columns found: ${best.headers.join(", ") || "none"}.`,
+        );
+      }
     } catch (error) {
       setData(null);
+      setAnalysis(null);
+      setSelectedSheet("");
+      setManualMappings(emptyManualMappings);
       setError(error instanceof Error ? error.message : "The spreadsheet could not be parsed.");
     } finally {
       setIsLoading(false);
       event.target.value = "";
+    }
+  }
+
+  function applyManualMappings() {
+    if (!analysis) {
+      return;
+    }
+
+    const candidate = analysis.candidates.find((sheet) => sheet.name === selectedSheet) ?? analysis.candidates[0];
+    const mappings = manualToFieldMappingsForCandidate(manualMappings, candidate);
+
+    try {
+      const result = buildParseResult({
+        fileName: analysis.fileName,
+        analysis,
+        candidate,
+        mappings,
+        manual: true,
+      });
+      setData(result);
+      setError("");
+    } catch (error) {
+      setData(null);
+      setError(error instanceof Error ? error.message : "Manual mapping failed. Check the selected columns.");
     }
   }
 
@@ -889,7 +1215,7 @@ export default function UploadDashboard() {
               <span className="mt-3 text-sm font-semibold text-ink">
                 {isLoading ? "Reading spreadsheet..." : "Choose an Excel file"}
               </span>
-              <span className="mt-1 text-xs text-slate-500">.xlsx with English or Danish sales columns</span>
+              <span className="mt-1 text-xs text-slate-500">.xlsx with flexible English or Danish sales columns</span>
               <input
                 type="file"
                 accept=".xlsx"
@@ -919,8 +1245,8 @@ export default function UploadDashboard() {
               <div>
                 <h2 className="font-semibold text-ink">Supported columns</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  The app detects English and Danish headers including Dato, Produkt, Kategori, Antal, Nettoomsætning,
-                  Bruttoomsætning, Dækningsbidrag, and Dækningsgrad.
+                  The app scans messy worksheets, detects likely header rows, maps common English and Danish aliases,
+                  and lets you manually pick columns when needed.
                 </p>
               </div>
             </div>
@@ -931,7 +1257,7 @@ export default function UploadDashboard() {
           <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="text-sm font-semibold text-brand-700">{data?.fileName ?? "No file uploaded yet"}</p>
+                <p className="text-sm font-semibold text-brand-700">{data?.fileName ?? analysis?.fileName ?? "No file uploaded yet"}</p>
                 <h2 className="mt-1 text-3xl font-semibold tracking-tight text-ink">Sales dashboard</h2>
                 <p className="mt-2 text-sm text-slate-500">
                   {hasData ? `${number(metrics.rowCount)} rows included in this report.` : "Upload an Excel file to populate this dashboard."}
@@ -944,6 +1270,15 @@ export default function UploadDashboard() {
             </div>
           </div>
 
+          <StatusBox feedback={data?.feedback} analysis={analysis} />
+          <ManualMappingPanel
+            analysis={analysis}
+            selectedSheet={selectedSheet}
+            mappings={manualMappings}
+            onSheetChange={(sheetName) => selectSheet(sheetName)}
+            onMappingChange={(field, column) => setManualMappings((current) => ({ ...current, [field]: column }))}
+            onApply={applyManualMappings}
+          />
           <FeedbackPanel feedback={data?.feedback} />
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -973,16 +1308,10 @@ export default function UploadDashboard() {
               detail={metrics.bestMonth ? `${currency(metrics.bestMonth.revenue)} revenue` : "Calculated after upload"}
             />
             {showGrossProfit ? (
-              <KpiCard
-                label="Gross profit"
-                value={currency(metrics.totalGrossProfit)}
-                detail="From Dækningsbidrag / gross profit"
-              />
+              <KpiCard label="Gross profit" value={currency(metrics.totalGrossProfit)} detail="From gross profit / contribution margin" />
             ) : null}
-            {hasData && metrics.hasGrossMargin ? (
-              <KpiCard label="Gross margin" value={percent(metrics.grossMargin)} detail="From Dækningsgrad / margin" />
-            ) : null}
-            {showCosts ? <KpiCard label="Total costs" value={currency(metrics.totalCosts)} detail="From Omkostninger sheet" /> : null}
+            {hasData && metrics.hasGrossMargin ? <KpiCard label="Gross margin" value={percent(metrics.grossMargin)} detail="From margin column" /> : null}
+            {showCosts ? <KpiCard label="Total costs" value={currency(metrics.totalCosts)} detail="From costs sheet" /> : null}
             {showCosts ? <KpiCard label="Result" value={currency(metrics.actualResult)} detail="Revenue minus costs" /> : null}
             {showBudget ? (
               <KpiCard
@@ -1085,7 +1414,7 @@ export default function UploadDashboard() {
             <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
               <div className="mb-5">
                 <h3 className="font-semibold text-ink">Gross profit by category</h3>
-                <p className="text-sm text-slate-500">Shown when Dækningsbidrag is detected</p>
+                <p className="text-sm text-slate-500">Shown when gross profit is mapped</p>
               </div>
               {showGrossProfit && metrics.grossProfitByCategory.length ? (
                 <div className="h-72">
@@ -1104,7 +1433,7 @@ export default function UploadDashboard() {
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <EmptyChart message="Upload data with Dækningsbidrag / gross profit to show this chart." />
+                <EmptyChart message="Upload data with gross profit / contribution margin to show this chart." />
               )}
             </div>
           </div>
@@ -1113,7 +1442,7 @@ export default function UploadDashboard() {
             <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
               <div className="mb-5">
                 <h3 className="font-semibold text-ink">Costs by category</h3>
-                <p className="text-sm text-slate-500">Shown when an Omkostninger sheet is detected</p>
+                <p className="text-sm text-slate-500">Shown when a costs sheet is detected</p>
               </div>
               {showCosts && data?.feedback.costs?.byCategory.length ? (
                 <div className="h-72">
@@ -1132,7 +1461,7 @@ export default function UploadDashboard() {
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <EmptyChart message="Upload a workbook with an Omkostninger / Costs sheet to show costs by category." />
+                <EmptyChart message="Upload a workbook with a Costs / Omkostninger sheet to show costs by category." />
               )}
             </div>
 
