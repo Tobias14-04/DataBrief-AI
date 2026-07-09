@@ -33,7 +33,7 @@ export default function Home() {
           href="/upload"
           className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-4 py-2 text-sm font-semibold text-ink shadow-sm transition hover:border-brand-500"
         >
-          Try demo
+          Open upload
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Link>
       </header>
@@ -83,10 +83,10 @@ export default function Home() {
           <div className="grid gap-4 p-5">
             <div className="grid gap-4 sm:grid-cols-2">
               {[
-                ["Revenue", "$248.4K", "+18% vs prior month"],
-                ["Units sold", "7,940", "Top SKU: Starter Kit"],
-                ["Best category", "Accessories", "42% of revenue"],
-                ["Best month", "June", "$58.2K revenue"],
+                ["Revenue", "Calculated", "Summed from Revenue"],
+                ["Units sold", "Calculated", "Summed from Units"],
+                ["Best category", "Calculated", "Ranked by revenue"],
+                ["Best month", "Calculated", "Ranked by revenue"],
               ].map(([label, value, detail]) => (
                 <div key={label} className="rounded-md border border-line p-4">
                   <p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">{label}</p>
@@ -139,7 +139,7 @@ export default function Home() {
             <p className="text-sm font-semibold uppercase tracking-[0.14em] text-brand-700">Sample file structure</p>
             <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink">Bring a simple sales worksheet.</h2>
             <p className="mt-4 leading-7 text-slate-600">
-              The demo reads the first worksheet and looks for common column names. Keep one sale per row for the
+              The demo reads the first worksheet and requires these column names. Keep one sale per row for the
               cleanest dashboard.
             </p>
           </div>
