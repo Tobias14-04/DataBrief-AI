@@ -30,46 +30,172 @@ import {
 import { ChangeEvent, useMemo, useState } from "react";
 
 type SaleRow = {
-  date: Date;
+  date: Date | null;
+  month: string;
   product: string;
   category: string;
   revenue: number;
   units: number;
-};
-
-type ParseResult = {
-  rows: SaleRow[];
-  fileName: string;
+  grossProfit: number | null;
+  grossMargin: number | null;
+  cost: number | null;
 };
 
 type GroupedValue = {
   name: string;
   revenue: number;
   units: number;
+  grossProfit: number;
+  cost: number;
 };
 
 type MonthValue = GroupedValue & {
   sortKey: number;
 };
 
-const requiredColumns = ["Date", "Product", "Category", "Revenue", "Units"] as const;
+type OptionalSheetSummary = {
+  sheetName: string;
+  total: number;
+  byCategory: GroupedValue[];
+};
+
+type BudgetSummary = {
+  sheetName: string;
+  revenue: number;
+  costs: number;
+  result: number;
+};
+
+type MappingFeedback = {
+  salesSheetName: string;
+  detectedSheets: string[];
+  mappedColumns: Record<string, string>;
+  optionalColumns: Record<string, string>;
+  revenueSource: string;
+  costs?: OptionalSheetSummary;
+  budget?: BudgetSummary;
+};
+
+type ParseResult = {
+  rows: SaleRow[];
+  fileName: string;
+  feedback: MappingFeedback;
+};
+
+type SheetCandidate = {
+  name: string;
+  rows: unknown[][];
+  headers: string[];
+  headerIndex: number;
+  mappings: FieldMappings;
+  score: number;
+};
+
+type FieldKey =
+  | "date"
+  | "month"
+  | "product"
+  | "category"
+  | "units"
+  | "netRevenue"
+  | "grossRevenue"
+  | "revenue"
+  | "grossProfit"
+  | "grossMargin"
+  | "cost"
+  | "unitPrice";
+
+type FieldMappings = Partial<Record<FieldKey, string>>;
+
 const chartColors = ["#0891b2", "#f97316", "#22c55e", "#6366f1", "#e11d48", "#14b8a6"];
 
+const fieldLabels: Record<FieldKey, string> = {
+  date: "Date",
+  month: "Month",
+  product: "Product",
+  category: "Category",
+  units: "Units",
+  netRevenue: "Net revenue",
+  grossRevenue: "Gross revenue",
+  revenue: "Revenue",
+  grossProfit: "Gross profit",
+  grossMargin: "Gross margin",
+  cost: "Cost",
+  unitPrice: "Unit price",
+};
+
+const aliases: Record<FieldKey, string[]> = {
+  date: ["Date", "Dato"],
+  month: ["Month", "Måned", "Maaned"],
+  product: ["Product", "Produkt"],
+  category: ["Category", "Kategori"],
+  units: ["Units", "Antal", "Quantity", "Qty"],
+  netRevenue: ["Nettoomsætning", "Nettoomsaetning", "Net revenue"],
+  grossRevenue: ["Bruttoomsætning", "Bruttoomsaetning", "Gross revenue"],
+  revenue: ["Revenue", "Sales", "Budget revenue", "Budget omsætning", "Budget omsaetning"],
+  grossProfit: ["Gross profit", "Dækningsbidrag", "Daekningsbidrag", "Contribution margin"],
+  grossMargin: ["Gross margin", "Dækningsgrad", "Daekningsgrad", "Margin %"],
+  cost: [
+    "Cost",
+    "Costs",
+    "Vareforbrug",
+    "Kostpris pr. stk.",
+    "Omkostning",
+    "Omkostninger",
+    "Budget costs",
+    "Budget cost",
+    "Budget omkostninger",
+    "Amount",
+    "Beløb",
+  ],
+  unitPrice: ["Price", "Unit price", "Pris pr. stk.", "Pris", "Sales price"],
+};
+
 const sampleRows = [
-  { Date: "2026-01-12", Product: "Analytics Starter", Category: "Software", Revenue: 4900, Units: 14 },
-  { Date: "2026-01-28", Product: "Insight Pack", Category: "Add-ons", Revenue: 2700, Units: 18 },
-  { Date: "2026-02-03", Product: "Team Onboarding", Category: "Services", Revenue: 8400, Units: 6 },
-  { Date: "2026-02-19", Product: "Analytics Starter", Category: "Software", Revenue: 5200, Units: 16 },
-  { Date: "2026-03-10", Product: "Forecast Pro", Category: "Software", Revenue: 11800, Units: 11 },
-  { Date: "2026-03-22", Product: "Insight Pack", Category: "Add-ons", Revenue: 3900, Units: 26 },
-  { Date: "2026-04-07", Product: "Forecast Pro", Category: "Software", Revenue: 13600, Units: 13 },
-  { Date: "2026-04-23", Product: "Team Onboarding", Category: "Services", Revenue: 10100, Units: 7 },
+  {
+    Dato: "2026-01-12",
+    "Måned": "Januar",
+    Produkt: "Cortado",
+    Kategori: "Kaffe",
+    Antal: 120,
+    "Pris pr. stk.": 42,
+    "Nettoomsætning": 5040,
+    "Dækningsbidrag": 3100,
+    "Dækningsgrad": "61.5%",
+  },
+  {
+    Dato: "2026-02-03",
+    "Måned": "Februar",
+    Produkt: "Surdejsbolle",
+    Kategori: "Bageri",
+    Antal: 84,
+    "Pris pr. stk.": 38,
+    "Nettoomsætning": 3192,
+    "Dækningsbidrag": 1760,
+    "Dækningsgrad": "55.1%",
+  },
+  {
+    Dato: "2026-03-18",
+    "Måned": "Marts",
+    Produkt: "Morgenmenu",
+    Kategori: "Menu",
+    Antal: 64,
+    "Pris pr. stk.": 89,
+    "Nettoomsætning": 5696,
+    "Dækningsbidrag": 3410,
+    "Dækningsgrad": "59.9%",
+  },
 ];
 
 function normalizeHeader(value: unknown) {
   return String(value ?? "")
     .trim()
     .toLowerCase()
+    .replace(/æ/g, "ae")
+    .replace(/ø/g, "o")
+    .replace(/å/g, "a")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]/g, "");
 }
 
@@ -78,11 +204,24 @@ function toNumber(value: unknown) {
     return Number.isFinite(value) ? value : null;
   }
 
-  const cleaned = String(value ?? "")
-    .replace(/[$,\s]/g, "")
-    .replace(/[^\d.-]/g, "");
-  const parsed = Number(cleaned);
-  return Number.isFinite(parsed) ? parsed : null;
+  const text = String(value ?? "").trim();
+  if (!text) {
+    return null;
+  }
+
+  const isPercent = text.includes("%");
+  const normalized = text
+    .replace(/\s/g, "")
+    .replace(/[^\d,.-]/g, "")
+    .replace(/\.(?=\d{3}(\D|$))/g, "")
+    .replace(",", ".");
+  const parsed = Number(normalized);
+
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+
+  return isPercent && parsed > 1 ? parsed / 100 : parsed;
 }
 
 function toDate(value: unknown) {
@@ -97,12 +236,29 @@ function toDate(value: unknown) {
     }
   }
 
-  const date = new Date(String(value ?? ""));
+  const text = String(value ?? "").trim();
+  if (!text) {
+    return null;
+  }
+
+  const danishDate = /^(\d{1,2})[.-/](\d{1,2})[.-/](\d{2,4})$/.exec(text);
+  if (danishDate) {
+    const [, day, month, rawYear] = danishDate;
+    const year = rawYear.length === 2 ? Number(`20${rawYear}`) : Number(rawYear);
+    return new Date(year, Number(month) - 1, Number(day));
+  }
+
+  const date = new Date(text);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function monthLabel(date: Date) {
   return new Intl.DateTimeFormat("en", { month: "short", year: "numeric" }).format(date);
+}
+
+function cleanMonth(value: unknown) {
+  const text = String(value ?? "").trim();
+  return text || "Unknown month";
 }
 
 function currency(value: number) {
@@ -113,18 +269,224 @@ function currency(value: number) {
   }).format(value);
 }
 
+function percent(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "percent",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
 function number(value: number) {
   return new Intl.NumberFormat("en-US").format(value);
+}
+
+function getCell(row: Record<string, unknown>, mappings: FieldMappings, field: FieldKey) {
+  const header = mappings[field];
+  return header ? row[header] : undefined;
+}
+
+function findMatchingHeader(headers: string[], field: FieldKey) {
+  const normalizedAliases = aliases[field].map(normalizeHeader);
+  return headers.find((header) => normalizedAliases.includes(normalizeHeader(header)));
+}
+
+function buildMappings(headers: string[]) {
+  return (Object.keys(aliases) as FieldKey[]).reduce<FieldMappings>((result, field) => {
+    const match = findMatchingHeader(headers, field);
+    if (match) {
+      result[field] = match;
+    }
+    return result;
+  }, {});
+}
+
+function detectHeaderRow(rows: unknown[][]) {
+  let bestIndex = 0;
+  let bestScore = -1;
+
+  rows.slice(0, 10).forEach((row, index) => {
+    const headers = row.map((cell) => String(cell ?? "").trim()).filter(Boolean);
+    const mappings = buildMappings(headers);
+    const score = scoreMappings(mappings);
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  });
+
+  return bestIndex;
+}
+
+function scoreMappings(mappings: FieldMappings) {
+  let score = 0;
+  if (mappings.date) score += 3;
+  if (mappings.month) score += 1;
+  if (mappings.product) score += 3;
+  if (mappings.category) score += 2;
+  if (mappings.units) score += 3;
+  if (mappings.netRevenue) score += 4;
+  if (mappings.grossRevenue) score += 3;
+  if (mappings.revenue) score += 3;
+  if (mappings.unitPrice) score += 1;
+  if (mappings.grossProfit) score += 1;
+  if (mappings.grossMargin) score += 1;
+  return score;
+}
+
+function sheetToRows(sheet: XLSX.WorkSheet) {
+  return XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
+    defval: "",
+    raw: true,
+  });
+}
+
+function rowsToRecords(rows: unknown[][], headerIndex: number, headers: string[]) {
+  return rows.slice(headerIndex + 1).map((row) =>
+    headers.reduce<Record<string, unknown>>((record, header, index) => {
+      if (header) {
+        record[header] = row[index];
+      }
+      return record;
+    }, {}),
+  );
+}
+
+function findSalesSheet(workbook: XLSX.WorkBook) {
+  const candidates = workbook.SheetNames.map((name) => {
+    const rows = sheetToRows(workbook.Sheets[name]);
+    const headerIndex = detectHeaderRow(rows);
+    const headers = (rows[headerIndex] ?? []).map((cell) => String(cell ?? "").trim()).filter(Boolean);
+    const mappings = buildMappings(headers);
+    const nameBonus = normalizeHeader(name).includes("salg") || normalizeHeader(name).includes("sales") ? 2 : 0;
+
+    return {
+      name,
+      rows,
+      headers,
+      headerIndex,
+      mappings,
+      score: scoreMappings(mappings) + nameBonus,
+    };
+  }).sort((a, b) => b.score - a.score);
+
+  return candidates[0] ?? null;
+}
+
+function getRevenue(row: Record<string, unknown>, mappings: FieldMappings) {
+  const netRevenue = toNumber(getCell(row, mappings, "netRevenue"));
+  if (netRevenue !== null) {
+    return { value: netRevenue, source: mappings.netRevenue ?? "Net revenue" };
+  }
+
+  const grossRevenue = toNumber(getCell(row, mappings, "grossRevenue"));
+  if (grossRevenue !== null) {
+    return { value: grossRevenue, source: mappings.grossRevenue ?? "Gross revenue" };
+  }
+
+  const revenue = toNumber(getCell(row, mappings, "revenue"));
+  if (revenue !== null) {
+    return { value: revenue, source: mappings.revenue ?? "Revenue" };
+  }
+
+  const units = toNumber(getCell(row, mappings, "units"));
+  const unitPrice = toNumber(getCell(row, mappings, "unitPrice"));
+  if (units !== null && unitPrice !== null) {
+    return { value: units * unitPrice, source: `${mappings.units ?? "Units"} x ${mappings.unitPrice ?? "Price"}` };
+  }
+
+  return { value: null, source: "" };
+}
+
+function getMissingFields(candidate: SheetCandidate) {
+  const missing: string[] = [];
+  if (!candidate.mappings.product) missing.push("Product / Produkt");
+  if (!candidate.mappings.category) missing.push("Category / Kategori");
+  if (!candidate.mappings.units) missing.push("Units / Antal");
+  if (!candidate.mappings.date && !candidate.mappings.month) missing.push("Date / Dato or Month / Måned");
+  if (!candidate.mappings.netRevenue && !candidate.mappings.grossRevenue && !candidate.mappings.revenue && !candidate.mappings.unitPrice) {
+    missing.push("Revenue / Nettoomsætning / Bruttoomsætning or Units x Price");
+  }
+  return missing;
+}
+
+function parseSalesRows(candidate: SheetCandidate) {
+  const missingFields = getMissingFields(candidate);
+  if (missingFields.length) {
+    throw new Error(
+      `Could not map the required sales fields. Missing: ${missingFields.join(
+        ", ",
+      )}. Columns found on "${candidate.name}": ${candidate.headers.join(", ") || "none"}.`,
+    );
+  }
+
+  const records = rowsToRecords(candidate.rows, candidate.headerIndex, candidate.headers);
+  const skippedRows: number[] = [];
+  let revenueSource = "";
+
+  const rows = records
+    .map((row, index) => {
+      const date = toDate(getCell(row, candidate.mappings, "date"));
+      const month = date ? monthLabel(date) : cleanMonth(getCell(row, candidate.mappings, "month"));
+      const product = String(getCell(row, candidate.mappings, "product") ?? "").trim();
+      const category = String(getCell(row, candidate.mappings, "category") ?? "").trim();
+      const units = toNumber(getCell(row, candidate.mappings, "units"));
+      const revenue = getRevenue(row, candidate.mappings);
+      const grossProfit = toNumber(getCell(row, candidate.mappings, "grossProfit"));
+      const rawGrossMargin = toNumber(getCell(row, candidate.mappings, "grossMargin"));
+      const grossMargin = rawGrossMargin !== null && rawGrossMargin > 1 ? rawGrossMargin / 100 : rawGrossMargin;
+      const cost = toNumber(getCell(row, candidate.mappings, "cost"));
+
+      const isBlankRow = !date && !product && !category && units === null && revenue.value === null;
+      if (isBlankRow) {
+        return null;
+      }
+
+      if (!product || !category || units === null || revenue.value === null || (!date && !month)) {
+        skippedRows.push(candidate.headerIndex + index + 2);
+        return null;
+      }
+
+      revenueSource ||= revenue.source;
+
+      return {
+        date,
+        month,
+        product,
+        category,
+        revenue: revenue.value,
+        units,
+        grossProfit,
+        grossMargin,
+        cost,
+      };
+    })
+    .filter((row): row is SaleRow => Boolean(row));
+
+  if (!rows.length) {
+    throw new Error(`No valid sales rows found on "${candidate.name}". Check that mapped columns contain values.`);
+  }
+
+  if (skippedRows.length) {
+    throw new Error(
+      `Rows ${skippedRows.slice(0, 8).join(", ")} on "${candidate.name}" have invalid or missing values. Fix those rows and upload again.`,
+    );
+  }
+
+  return { rows, revenueSource };
 }
 
 function groupRows(rows: SaleRow[], keyGetter: (row: SaleRow) => string) {
   const groups = new Map<string, GroupedValue>();
 
   rows.forEach((row) => {
-    const key = keyGetter(row);
-    const current = groups.get(key) ?? { name: key, revenue: 0, units: 0 };
+    const key = keyGetter(row) || "Uncategorized";
+    const current = groups.get(key) ?? { name: key, revenue: 0, units: 0, grossProfit: 0, cost: 0 };
     current.revenue += row.revenue;
     current.units += row.units;
+    current.grossProfit += row.grossProfit ?? 0;
+    current.cost += row.cost ?? 0;
     groups.set(key, current);
   });
 
@@ -132,70 +494,128 @@ function groupRows(rows: SaleRow[], keyGetter: (row: SaleRow) => string) {
 }
 
 function groupRowsByMonth(rows: SaleRow[]) {
-  const groups = new Map<number, MonthValue>();
+  const groups = new Map<string, MonthValue>();
 
-  rows.forEach((row) => {
-    const sortKey = new Date(row.date.getFullYear(), row.date.getMonth(), 1).getTime();
-    const current = groups.get(sortKey) ?? { name: monthLabel(row.date), revenue: 0, units: 0, sortKey };
+  rows.forEach((row, index) => {
+    const sortKey = row.date ? new Date(row.date.getFullYear(), row.date.getMonth(), 1).getTime() : index;
+    const key = row.date ? String(sortKey) : row.month;
+    const current = groups.get(key) ?? {
+      name: row.date ? monthLabel(row.date) : row.month,
+      revenue: 0,
+      units: 0,
+      grossProfit: 0,
+      cost: 0,
+      sortKey,
+    };
     current.revenue += row.revenue;
     current.units += row.units;
-    groups.set(sortKey, current);
+    current.grossProfit += row.grossProfit ?? 0;
+    current.cost += row.cost ?? 0;
+    groups.set(key, current);
   });
 
   return Array.from(groups.values()).sort((a, b) => a.sortKey - b.sortKey);
 }
 
-function buildSummary(metrics: ReturnType<typeof calculateMetrics>) {
-  if (!metrics.rowCount || !metrics.bestProduct || !metrics.bestCategory || !metrics.bestMonth) {
-    return "Upload an Excel file to generate a concise business summary from your sales data.";
+function parseCostSheet(workbook: XLSX.WorkBook) {
+  const costSheetName = workbook.SheetNames.find((name) => normalizeHeader(name).includes("omkost") || normalizeHeader(name).includes("cost"));
+  if (!costSheetName) {
+    return undefined;
   }
 
-  return `DataBrief AI analyzed ${number(metrics.rowCount)} sales rows totaling ${currency(
-    metrics.totalRevenue,
-  )} and ${number(metrics.totalUnits)} units sold. The best product is ${
-    metrics.bestProduct.name
-  }, contributing ${currency(metrics.bestProduct.revenue)} in revenue. ${
-    metrics.bestCategory.name
-  } is the leading category by revenue, and ${metrics.bestMonth.name} is the strongest month with ${currency(
-    metrics.bestMonth.revenue,
-  )}. The immediate business takeaway is to protect the top product and category while reviewing lower-performing products for pricing, promotion, or bundling opportunities.`;
-}
+  const rows = sheetToRows(workbook.Sheets[costSheetName]);
+  const headerIndex = detectHeaderRow(rows);
+  const headers = (rows[headerIndex] ?? []).map((cell) => String(cell ?? "").trim()).filter(Boolean);
+  const categoryHeader =
+    findMatchingHeader(headers, "category") ??
+    headers.find((header) => ["type", "omkostningskategori", "costcategory"].includes(normalizeHeader(header)));
+  const costHeader = findMatchingHeader(headers, "cost");
 
-function calculateMetrics(rows: SaleRow[]) {
-  const totalRevenue = rows.reduce((sum, row) => sum + row.revenue, 0);
-  const totalUnits = rows.reduce((sum, row) => sum + row.units, 0);
-  const productsByRevenue = groupRows(rows, (row) => row.product).sort((a, b) => b.revenue - a.revenue);
-  const productsByUnits = groupRows(rows, (row) => row.product).sort((a, b) => b.units - a.units);
-  const categories = groupRows(rows, (row) => row.category).sort((a, b) => b.revenue - a.revenue);
-  const monthly = groupRowsByMonth(rows);
-  const monthsByRevenue = [...monthly].sort((a, b) => b.revenue - a.revenue);
+  if (!costHeader) {
+    return undefined;
+  }
+
+  const groups = new Map<string, GroupedValue>();
+  let total = 0;
+
+  rowsToRecords(rows, headerIndex, headers).forEach((row) => {
+    const value = toNumber(row[costHeader]);
+    if (value === null) {
+      return;
+    }
+
+    const category = categoryHeader ? String(row[categoryHeader] ?? "Costs").trim() || "Costs" : "Costs";
+    const current = groups.get(category) ?? { name: category, revenue: 0, units: 0, grossProfit: 0, cost: 0 };
+    current.cost += Math.abs(value);
+    groups.set(category, current);
+    total += Math.abs(value);
+  });
 
   return {
-    totalRevenue,
-    totalUnits,
-    bestProduct: productsByRevenue[0],
-    bestCategory: categories[0],
-    bestMonth: monthsByRevenue[0],
-    monthly,
-    productsByUnits: productsByUnits.slice(0, 8),
-    categories: categories.slice(0, 8),
-    rowCount: rows.length,
+    sheetName: costSheetName,
+    total,
+    byCategory: Array.from(groups.values()).sort((a, b) => b.cost - a.cost),
   };
 }
 
-function getColumnMap(rawRows: Record<string, unknown>[]) {
-  const availableColumns = Object.keys(rawRows[0] ?? {});
-  const columnMap = new Map<string, string>();
+function parseBudgetSheet(workbook: XLSX.WorkBook) {
+  const budgetSheetName = workbook.SheetNames.find((name) => normalizeHeader(name).includes("budget"));
+  if (!budgetSheetName) {
+    return undefined;
+  }
 
-  requiredColumns.forEach((column) => {
-    const match = availableColumns.find((available) => normalizeHeader(available) === normalizeHeader(column));
-    if (match) {
-      columnMap.set(column, match);
-    }
+  const rows = sheetToRows(workbook.Sheets[budgetSheetName]);
+  const headerIndex = detectHeaderRow(rows);
+  const headers = (rows[headerIndex] ?? []).map((cell) => String(cell ?? "").trim()).filter(Boolean);
+  const mappings = buildMappings(headers);
+  const records = rowsToRecords(rows, headerIndex, headers);
+
+  let revenue = 0;
+  let costs = 0;
+
+  records.forEach((row) => {
+    const rowRevenue =
+      toNumber(getCell(row, mappings, "netRevenue")) ??
+      toNumber(getCell(row, mappings, "grossRevenue")) ??
+      toNumber(getCell(row, mappings, "revenue"));
+    const rowCosts = toNumber(getCell(row, mappings, "cost"));
+
+    revenue += rowRevenue ?? 0;
+    costs += Math.abs(rowCosts ?? 0);
   });
 
-  const missingColumns = requiredColumns.filter((column) => !columnMap.has(column));
-  return { columnMap, missingColumns };
+  if (!revenue && !costs) {
+    return undefined;
+  }
+
+  return {
+    sheetName: budgetSheetName,
+    revenue,
+    costs,
+    result: revenue - costs,
+  };
+}
+
+function mappedColumnsFor(candidate: SheetCandidate) {
+  const required: FieldKey[] = ["date", "month", "product", "category", "units", "netRevenue", "grossRevenue", "revenue", "unitPrice"];
+  return required.reduce<Record<string, string>>((result, field) => {
+    const column = candidate.mappings[field];
+    if (column) {
+      result[fieldLabels[field]] = column;
+    }
+    return result;
+  }, {});
+}
+
+function optionalColumnsFor(candidate: SheetCandidate) {
+  const optional: FieldKey[] = ["grossProfit", "grossMargin", "cost"];
+  return optional.reduce<Record<string, string>>((result, field) => {
+    const column = candidate.mappings[field];
+    if (column) {
+      result[fieldLabels[field]] = column;
+    }
+    return result;
+  }, {});
 }
 
 function parseWorkbook(file: File): Promise<ParseResult> {
@@ -206,75 +626,30 @@ function parseWorkbook(file: File): Promise<ParseResult> {
       try {
         const buffer = event.target?.result;
         const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
-        const firstSheetName = workbook.SheetNames[0];
+        const salesSheet = findSalesSheet(workbook);
 
-        if (!firstSheetName) {
-          reject(new Error("No worksheet found in this Excel file."));
+        if (!salesSheet) {
+          reject(new Error("No worksheets found in this Excel file."));
           return;
         }
 
-        const firstSheet = workbook.Sheets[firstSheetName];
-        const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, {
-          defval: "",
-          raw: true,
+        const { rows, revenueSource } = parseSalesRows(salesSheet);
+        const costs = parseCostSheet(workbook);
+        const budget = parseBudgetSheet(workbook);
+
+        resolve({
+          rows,
+          fileName: file.name,
+          feedback: {
+            salesSheetName: salesSheet.name,
+            detectedSheets: workbook.SheetNames,
+            mappedColumns: mappedColumnsFor(salesSheet),
+            optionalColumns: optionalColumnsFor(salesSheet),
+            revenueSource,
+            costs,
+            budget,
+          },
         });
-
-        if (!rawRows.length) {
-          reject(new Error("The first worksheet is empty."));
-          return;
-        }
-
-        const { columnMap, missingColumns } = getColumnMap(rawRows);
-
-        if (missingColumns.length) {
-          reject(new Error(`Missing required columns: ${missingColumns.join(", ")}.`));
-          return;
-        }
-
-        const skippedRows: number[] = [];
-        const rows = rawRows
-          .map((row, index) => {
-            const date = toDate(row[columnMap.get("Date") as string]);
-            const product = String(row[columnMap.get("Product") as string] ?? "").trim();
-            const category = String(row[columnMap.get("Category") as string] ?? "").trim();
-            const revenue = toNumber(row[columnMap.get("Revenue") as string]);
-            const units = toNumber(row[columnMap.get("Units") as string]);
-
-            const isBlankRow = !date && !product && !category && revenue === null && units === null;
-            if (isBlankRow) {
-              return null;
-            }
-
-            if (!date || !product || !category || revenue === null || units === null) {
-              skippedRows.push(index + 2);
-              return null;
-            }
-
-            return {
-              date,
-              product,
-              category,
-              revenue,
-              units,
-            };
-          })
-          .filter((row): row is SaleRow => Boolean(row));
-
-        if (!rows.length) {
-          reject(new Error("No valid sales rows found. Check that Date, Product, Category, Revenue, and Units contain values."));
-          return;
-        }
-
-        if (skippedRows.length) {
-          reject(
-            new Error(
-              `Rows ${skippedRows.slice(0, 8).join(", ")} have invalid or missing values. Fix those rows and upload again.`,
-            ),
-          );
-          return;
-        }
-
-        resolve({ rows, fileName: file.name });
       } catch (error) {
         reject(error);
       }
@@ -285,11 +660,95 @@ function parseWorkbook(file: File): Promise<ParseResult> {
   });
 }
 
+function calculateMetrics(rows: SaleRow[], feedback?: MappingFeedback) {
+  const totalRevenue = rows.reduce((sum, row) => sum + row.revenue, 0);
+  const totalUnits = rows.reduce((sum, row) => sum + row.units, 0);
+  const totalGrossProfit = rows.reduce((sum, row) => sum + (row.grossProfit ?? 0), 0);
+  const hasGrossProfit = rows.some((row) => row.grossProfit !== null);
+  const hasGrossMargin = rows.some((row) => row.grossMargin !== null);
+  const weightedGrossMargin = totalRevenue ? totalGrossProfit / totalRevenue : 0;
+  const averageGrossMargin =
+    rows.reduce((sum, row) => sum + (row.grossMargin ?? 0), 0) / Math.max(rows.filter((row) => row.grossMargin !== null).length, 1);
+  const totalCosts = feedback?.costs?.total ?? rows.reduce((sum, row) => sum + (row.cost ?? 0), 0);
+  const actualResult = totalRevenue - totalCosts;
+  const productsByRevenue = groupRows(rows, (row) => row.product).sort((a, b) => b.revenue - a.revenue);
+  const productsByUnits = groupRows(rows, (row) => row.product).sort((a, b) => b.units - a.units);
+  const categories = groupRows(rows, (row) => row.category).sort((a, b) => b.revenue - a.revenue);
+  const grossProfitByCategory = categories.filter((category) => category.grossProfit !== 0).sort((a, b) => b.grossProfit - a.grossProfit);
+  const monthly = groupRowsByMonth(rows);
+  const monthsByRevenue = [...monthly].sort((a, b) => b.revenue - a.revenue);
+
+  return {
+    totalRevenue,
+    totalUnits,
+    totalGrossProfit,
+    grossMargin: hasGrossProfit ? weightedGrossMargin : averageGrossMargin,
+    hasGrossProfit,
+    hasGrossMargin,
+    totalCosts,
+    actualResult,
+    budgetRevenue: feedback?.budget?.revenue ?? 0,
+    budgetCosts: feedback?.budget?.costs ?? 0,
+    budgetResult: feedback?.budget?.result ?? 0,
+    revenueVsBudget: feedback?.budget ? totalRevenue - feedback.budget.revenue : 0,
+    bestProduct: productsByRevenue[0],
+    bestCategory: categories[0],
+    bestMonth: monthsByRevenue[0],
+    monthly,
+    productsByUnits: productsByUnits.slice(0, 8),
+    categories: categories.slice(0, 8),
+    grossProfitByCategory: grossProfitByCategory.slice(0, 8),
+    rowCount: rows.length,
+  };
+}
+
+function buildSummary(metrics: ReturnType<typeof calculateMetrics>, feedback?: MappingFeedback) {
+  if (!metrics.rowCount || !metrics.bestProduct || !metrics.bestCategory || !metrics.bestMonth) {
+    return "Upload an Excel file to generate a concise business summary from your sales data.";
+  }
+
+  const profitText = metrics.hasGrossProfit
+    ? ` Gross profit is ${currency(metrics.totalGrossProfit)}, with a gross margin of ${percent(metrics.grossMargin)}.`
+    : "";
+  const costText = feedback?.costs
+    ? ` The ${feedback.costs.sheetName} sheet shows ${currency(metrics.totalCosts)} in costs, giving an actual result of ${currency(
+        metrics.actualResult,
+      )}.`
+    : "";
+  const budgetText = feedback?.budget
+    ? ` Against budget, actual revenue is ${currency(Math.abs(metrics.revenueVsBudget))} ${
+        metrics.revenueVsBudget >= 0 ? "above" : "below"
+      } budget revenue.`
+    : "";
+
+  return `DataBrief AI analyzed ${number(metrics.rowCount)} sales rows from ${
+    feedback?.salesSheetName ?? "the detected sales sheet"
+  }, totaling ${currency(metrics.totalRevenue)} and ${number(metrics.totalUnits)} units sold. The best product is ${
+    metrics.bestProduct.name
+  }, and ${metrics.bestCategory.name} is the leading category by revenue. ${
+    metrics.bestMonth.name
+  } is the strongest month with ${currency(metrics.bestMonth.revenue)}.${profitText}${costText}${budgetText}`;
+}
+
 function downloadSampleExcel() {
-  const worksheet = XLSX.utils.json_to_sheet(sampleRows, { header: [...requiredColumns] });
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Sales Data");
-  XLSX.writeFile(workbook, "databrief-ai-sample-sales.xlsx");
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(sampleRows), "Salgsdata");
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.json_to_sheet([
+      { Kategori: "Løn", Omkostninger: 8200 },
+      { Kategori: "Råvarer", Omkostninger: 5100 },
+      { Kategori: "Lokale", Omkostninger: 3400 },
+    ]),
+    "Omkostninger",
+  );
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.json_to_sheet([{ "Nettoomsætning": 18000, Omkostninger: 12000 }]),
+    "Budget",
+  );
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["Brief"], ["Sample workbook for DataBrief AI"]]), "Brief");
+  XLSX.writeFile(workbook, "databrief-ai-cafe-nord-sample.xlsx");
 }
 
 function KpiCard({ label, value, detail }: { label: string; value: string; detail: string }) {
@@ -310,14 +769,69 @@ function EmptyChart({ message }: { message: string }) {
   );
 }
 
+function FeedbackPanel({ feedback }: { feedback?: MappingFeedback }) {
+  if (!feedback) {
+    return null;
+  }
+
+  const optionalEntries = Object.entries(feedback.optionalColumns);
+
+  return (
+    <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
+      <div className="flex items-start gap-3">
+        <Info className="mt-0.5 h-5 w-5 text-brand-700" aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <h3 className="font-semibold text-ink">Workbook detection</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Sales worksheet: <span className="font-semibold text-ink">{feedback.salesSheetName}</span>. Detected sheets:{" "}
+            {feedback.detectedSheets.join(", ")}.
+          </p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-md border border-line bg-slate-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Mapped columns</p>
+              <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                {Object.entries(feedback.mappedColumns).map(([field, column]) => (
+                  <li key={field}>
+                    {field}: <span className="font-medium text-ink">{column}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs text-slate-500">Revenue source: {feedback.revenueSource}</p>
+            </div>
+            <div className="rounded-md border border-line bg-slate-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Optional data</p>
+              {optionalEntries.length ? (
+                <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                  {optionalEntries.map(([field, column]) => (
+                    <li key={field}>
+                      {field}: <span className="font-medium text-ink">{column}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm text-slate-600">No gross profit, gross margin, or cost columns found.</p>
+              )}
+              {feedback.costs ? <p className="mt-2 text-xs text-slate-500">Costs sheet: {feedback.costs.sheetName}</p> : null}
+              {feedback.budget ? <p className="mt-1 text-xs text-slate-500">Budget sheet: {feedback.budget.sheetName}</p> : null}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function UploadDashboard() {
   const [data, setData] = useState<ParseResult | null>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const metrics = useMemo(() => calculateMetrics(data?.rows ?? []), [data?.rows]);
-  const summary = useMemo(() => buildSummary(metrics), [metrics]);
+  const metrics = useMemo(() => calculateMetrics(data?.rows ?? [], data?.feedback), [data?.rows, data?.feedback]);
+  const summary = useMemo(() => buildSummary(metrics, data?.feedback), [metrics, data?.feedback]);
   const hasData = metrics.rowCount > 0;
+  const showGrossProfit = hasData && metrics.hasGrossProfit;
+  const showCosts = hasData && Boolean(data?.feedback.costs);
+  const showBudget = hasData && Boolean(data?.feedback.budget);
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -375,7 +889,7 @@ export default function UploadDashboard() {
               <span className="mt-3 text-sm font-semibold text-ink">
                 {isLoading ? "Reading spreadsheet..." : "Choose an Excel file"}
               </span>
-              <span className="mt-1 text-xs text-slate-500">.xlsx with Date, Product, Category, Revenue, Units</span>
+              <span className="mt-1 text-xs text-slate-500">.xlsx with English or Danish sales columns</span>
               <input
                 type="file"
                 accept=".xlsx"
@@ -403,9 +917,10 @@ export default function UploadDashboard() {
             <div className="flex items-start gap-3">
               <Info className="mt-0.5 h-5 w-5 text-brand-700" aria-hidden="true" />
               <div>
-                <h2 className="font-semibold text-ink">Required columns</h2>
+                <h2 className="font-semibold text-ink">Supported columns</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  The first worksheet must include Date, Product, Category, Revenue, and Units. Keep one sale per row.
+                  The app detects English and Danish headers including Dato, Produkt, Kategori, Antal, Nettoomsætning,
+                  Bruttoomsætning, Dækningsbidrag, and Dækningsgrad.
                 </p>
               </div>
             </div>
@@ -429,16 +944,18 @@ export default function UploadDashboard() {
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <FeedbackPanel feedback={data?.feedback} />
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <KpiCard
               label="Total revenue"
               value={hasData ? currency(metrics.totalRevenue) : "No data"}
-              detail={hasData ? `Across ${number(metrics.rowCount)} sales rows` : "Upload a workbook"}
+              detail={hasData ? `Source: ${data?.feedback.revenueSource}` : "Upload a workbook"}
             />
             <KpiCard
               label="Total units sold"
               value={hasData ? number(metrics.totalUnits) : "No data"}
-              detail={hasData ? "Summed from Units column" : "Upload a workbook"}
+              detail={hasData ? "Summed from detected units column" : "Upload a workbook"}
             />
             <KpiCard
               label="Best product"
@@ -455,14 +972,41 @@ export default function UploadDashboard() {
               value={metrics.bestMonth?.name ?? "No data"}
               detail={metrics.bestMonth ? `${currency(metrics.bestMonth.revenue)} revenue` : "Calculated after upload"}
             />
+            {showGrossProfit ? (
+              <KpiCard
+                label="Gross profit"
+                value={currency(metrics.totalGrossProfit)}
+                detail="From Dækningsbidrag / gross profit"
+              />
+            ) : null}
+            {hasData && metrics.hasGrossMargin ? (
+              <KpiCard label="Gross margin" value={percent(metrics.grossMargin)} detail="From Dækningsgrad / margin" />
+            ) : null}
+            {showCosts ? <KpiCard label="Total costs" value={currency(metrics.totalCosts)} detail="From Omkostninger sheet" /> : null}
+            {showCosts ? <KpiCard label="Result" value={currency(metrics.actualResult)} detail="Revenue minus costs" /> : null}
+            {showBudget ? (
+              <KpiCard
+                label="Revenue vs budget"
+                value={currency(metrics.revenueVsBudget)}
+                detail={`Budget revenue: ${currency(metrics.budgetRevenue)}`}
+              />
+            ) : null}
           </div>
+
+          {showBudget ? (
+            <div className="grid gap-4 sm:grid-cols-3">
+              <KpiCard label="Budget revenue" value={currency(metrics.budgetRevenue)} detail={data?.feedback.budget?.sheetName ?? "Budget"} />
+              <KpiCard label="Budget costs" value={currency(metrics.budgetCosts)} detail="Detected budget costs" />
+              <KpiCard label="Budget result" value={currency(metrics.budgetResult)} detail="Budget revenue minus costs" />
+            </div>
+          ) : null}
 
           <div className="grid gap-6 xl:grid-cols-2">
             <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
               <div className="mb-5 flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold text-ink">Revenue by month</h3>
-                  <p className="text-sm text-slate-500">Trend view from sales dates</p>
+                  <p className="text-sm text-slate-500">Uses Date, or Month when dates cannot be parsed</p>
                 </div>
                 <LineChart className="h-5 w-5 text-brand-700" aria-hidden="true" />
               </div>
@@ -513,7 +1057,7 @@ export default function UploadDashboard() {
             </div>
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="grid gap-6 xl:grid-cols-2">
             <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
               <div className="mb-5">
                 <h3 className="font-semibold text-ink">Revenue by category</h3>
@@ -535,6 +1079,60 @@ export default function UploadDashboard() {
                 </div>
               ) : (
                 <EmptyChart message="Upload an Excel file to chart revenue by category." />
+              )}
+            </div>
+
+            <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
+              <div className="mb-5">
+                <h3 className="font-semibold text-ink">Gross profit by category</h3>
+                <p className="text-sm text-slate-500">Shown when Dækningsbidrag is detected</p>
+              </div>
+              {showGrossProfit && metrics.grossProfitByCategory.length ? (
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={metrics.grossProfitByCategory} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+                      <CartesianGrid stroke="#e2e8f0" vertical={false} />
+                      <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
+                      <YAxis tickLine={false} axisLine={false} fontSize={12} tickFormatter={(value) => `$${value / 1000}k`} />
+                      <Tooltip formatter={(value: number) => currency(value)} />
+                      <Bar dataKey="grossProfit" radius={[6, 6, 0, 0]}>
+                        {metrics.grossProfitByCategory.map((entry, index) => (
+                          <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <EmptyChart message="Upload data with Dækningsbidrag / gross profit to show this chart." />
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+            <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
+              <div className="mb-5">
+                <h3 className="font-semibold text-ink">Costs by category</h3>
+                <p className="text-sm text-slate-500">Shown when an Omkostninger sheet is detected</p>
+              </div>
+              {showCosts && data?.feedback.costs?.byCategory.length ? (
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={data.feedback.costs.byCategory} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+                      <CartesianGrid stroke="#e2e8f0" vertical={false} />
+                      <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
+                      <YAxis tickLine={false} axisLine={false} fontSize={12} tickFormatter={(value) => `$${value / 1000}k`} />
+                      <Tooltip formatter={(value: number) => currency(value)} />
+                      <Bar dataKey="cost" radius={[6, 6, 0, 0]}>
+                        {data.feedback.costs.byCategory.map((entry, index) => (
+                          <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <EmptyChart message="Upload a workbook with an Omkostninger / Costs sheet to show costs by category." />
               )}
             </div>
 
