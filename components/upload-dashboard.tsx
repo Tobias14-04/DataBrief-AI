@@ -1290,6 +1290,93 @@ export default function UploadDashboard() {
     }
   }
 
+  if (!hasWorkbook) {
+    return (
+      <main className="min-h-screen">
+        <header className="border-b border-line bg-white/85 backdrop-blur">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 lg:px-8">
+            <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-ink">
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Home
+            </Link>
+            <div className="flex items-center gap-3">
+              <span className="grid h-9 w-9 place-items-center rounded-md bg-ink text-white">
+                <FileSpreadsheet className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <span className="font-semibold tracking-tight">DataBrief AI</span>
+            </div>
+          </div>
+        </header>
+
+        <section className="mx-auto max-w-xl px-6 py-8 lg:px-8">
+          <div className="space-y-5">
+            <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="grid h-11 w-11 place-items-center rounded-md bg-brand-50 text-brand-700">
+                  <Upload className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-semibold tracking-tight">Upload sales data</h1>
+                  <p className="text-sm text-slate-500">Upload an Excel file or use the demo dataset to generate a dashboard.</p>
+                </div>
+              </div>
+
+              <label className="group flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center transition hover:border-brand-500 hover:bg-brand-50/50">
+                <Upload className="h-8 w-8 text-brand-700" aria-hidden="true" />
+                <span className="mt-3 text-sm font-semibold text-ink">
+                  {isLoading ? "Reading spreadsheet..." : "Choose an Excel file"}
+                </span>
+                <span className="mt-1 text-xs text-slate-500">.xlsx with flexible English or Danish sales columns</span>
+                <input
+                  type="file"
+                  accept=".xlsx"
+                  className="sr-only"
+                  onChange={handleFileChange}
+                  disabled={isLoading}
+                />
+              </label>
+
+              {error ? (
+                <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={downloadSampleExcel}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md border border-line bg-white px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-brand-500"
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+                Download sample Excel file
+              </button>
+              <button
+                type="button"
+                onClick={loadDemoDataset}
+                disabled={isLoading}
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-line bg-white px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-brand-500 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Sparkles className="h-4 w-4" aria-hidden="true" />
+                Use demo dataset
+              </button>
+            </div>
+
+            <div className="rounded-lg border border-line bg-white p-5">
+              <div className="flex items-start gap-3">
+                <Info className="mt-0.5 h-5 w-5 text-brand-700" aria-hidden="true" />
+                <div>
+                  <h2 className="font-semibold text-ink">Supported columns</h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    The app scans messy worksheets, detects likely header rows, maps common English and Danish aliases,
+                    and lets you manually pick columns when needed.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen">
       <header className="border-b border-line bg-white/85 backdrop-blur">
