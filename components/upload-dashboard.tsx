@@ -889,7 +889,7 @@ function buildSummary(metrics: ReturnType<typeof calculateMetrics>, feedback?: M
   } is the strongest month with ${currency(metrics.bestMonth.revenue)}.${profitText}${costText}${budgetText}`;
 }
 
-function downloadSampleExcel() {
+function createSampleWorkbook() {
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(sampleRows), "Salgsdata");
   XLSX.utils.book_append_sheet(
@@ -907,6 +907,11 @@ function downloadSampleExcel() {
     "Budget",
   );
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["Brief"], ["Sample workbook for DataBrief AI"]]), "Brief");
+  return workbook;
+}
+
+function downloadSampleExcel() {
+  const workbook = createSampleWorkbook();
   XLSX.writeFile(workbook, "databrief-ai-sample-workbook.xlsx");
 }
 
@@ -1222,6 +1227,43 @@ export default function UploadDashboard() {
     }
   }
 
+  async function loadDemoDataset() {
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const workbook = createSampleWorkbook();
+      const workbookData = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+      const file = new File([workbookData], "DataBrief AI demo dataset.xlsx", {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const parsed = await analyzeWorkbook(file);
+      const best = parsed.analysis.candidates[0];
+
+      setAnalysis(parsed.analysis);
+      selectSheet(best.name, parsed.analysis);
+      setData(parsed.autoResult);
+      setShowManualMapping(!parsed.autoResult);
+
+      if (!parsed.autoResult) {
+        setError(
+          `Manual mapping required. Best worksheet "${best.name}" is missing: ${best.missingFields.join(
+            ", ",
+          )}. Columns found: ${best.headers.join(", ") || "none"}.`,
+        );
+      }
+    } catch (error) {
+      setData(null);
+      setAnalysis(null);
+      setSelectedSheet("");
+      setManualMappings(emptyManualMappings);
+      setShowManualMapping(false);
+      setError(error instanceof Error ? error.message : "The demo dataset could not be loaded.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   function applyManualMappings() {
     if (!analysis) {
       return;
@@ -1303,6 +1345,15 @@ export default function UploadDashboard() {
             >
               <Download className="h-4 w-4" aria-hidden="true" />
               Download sample Excel file
+            </button>
+            <button
+              type="button"
+              onClick={loadDemoDataset}
+              disabled={isLoading}
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-line bg-white px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-brand-500 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
+              Use demo dataset
             </button>
           </div>
 
