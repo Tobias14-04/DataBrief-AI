@@ -1394,11 +1394,7 @@ export default function UploadDashboard() {
         </div>
       </header>
 
-      <section
-        className={`mx-auto grid gap-8 px-6 py-8 lg:px-8 ${
-          hasWorkbook ? "max-w-7xl lg:grid-cols-[360px_1fr]" : "max-w-xl"
-        }`}
-      >
+      <section className="mx-auto grid max-w-7xl gap-8 px-6 py-8 lg:grid-cols-[360px_1fr] lg:px-8">
         <aside className="space-y-5">
           <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
             <div className="mb-4 flex items-center gap-3">
@@ -1463,7 +1459,6 @@ export default function UploadDashboard() {
           </div>
         </aside>
 
-        {hasWorkbook ? (
         <section className="space-y-6">
           <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -1695,7 +1690,6 @@ export default function UploadDashboard() {
             </div>
           </div>
         </section>
-        ) : null}
       </section>
     </main>
   );
