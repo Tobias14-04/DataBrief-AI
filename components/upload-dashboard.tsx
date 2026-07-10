@@ -207,41 +207,54 @@ const aliases: Record<FieldKey, string[]> = {
   unitPrice: ["price", "unit price", "pris", "pris pr stk", "pris pr. stk.", "sales price"],
 };
 
-const sampleRows = [
-  {
-    Dato: "2026-01-12",
-    Maaned: "Januar",
-    Produkt: "Cortado",
-    Kategori: "Kaffe",
-    Antal: 120,
-    "Pris pr. stk.": 42,
-    Nettoomsaetning: 5040,
-    Daekningsbidrag: 3100,
-    Daekningsgrad: "61.5%",
-  },
-  {
-    Dato: "2026-02-03",
-    Maaned: "Februar",
-    Produkt: "Surdejsbolle",
-    Kategori: "Bageri",
-    Antal: 84,
-    "Pris pr. stk.": 38,
-    Nettoomsaetning: 3192,
-    Daekningsbidrag: 1760,
-    Daekningsgrad: "55.1%",
-  },
-  {
-    Dato: "2026-03-18",
-    Maaned: "Marts",
-    Produkt: "Morgenmenu",
-    Kategori: "Menu",
-    Antal: 64,
-    "Pris pr. stk.": 89,
-    Nettoomsaetning: 5696,
-    Daekningsbidrag: 3410,
-    Daekningsgrad: "59.9%",
-  },
+const demoProducts = [
+  { product: "Morgenmenu", category: "Menu", price: 96, unitCost: 39, baseUnits: 42 },
+  { product: "Kyllingesandwich", category: "Sandwich", price: 84, unitCost: 34, baseUnits: 38 },
+  { product: "Caf\u00e9 latte", category: "Drikke", price: 46, unitCost: 13, baseUnits: 72 },
+  { product: "Cappuccino", category: "Drikke", price: 44, unitCost: 12, baseUnits: 62 },
+  { product: "Croissant", category: "Bagv\u00e6rk", price: 32, unitCost: 11, baseUnits: 48 },
+  { product: "Salat bowl", category: "Salat", price: 92, unitCost: 37, baseUnits: 30 },
+  { product: "Smoothie", category: "Drikke", price: 54, unitCost: 18, baseUnits: 36 },
+  { product: "Vand", category: "Drikke", price: 24, unitCost: 7, baseUnits: 58 },
+  { product: "Juice", category: "Drikke", price: 38, unitCost: 12, baseUnits: 44 },
+  { product: "Cookie", category: "Bagv\u00e6rk", price: 28, unitCost: 8, baseUnits: 52 },
 ];
+
+const demoMonths = [
+  { month: "Januar", monthIndex: 0, factor: 0.88 },
+  { month: "Februar", monthIndex: 1, factor: 0.94 },
+  { month: "Marts", monthIndex: 2, factor: 1 },
+  { month: "April", monthIndex: 3, factor: 1.08 },
+  { month: "Maj", monthIndex: 4, factor: 1.15 },
+  { month: "Juni", monthIndex: 5, factor: 1.24 },
+];
+
+const sampleRows = demoMonths.flatMap((month, monthOffset) =>
+  demoProducts.flatMap((item, productOffset) =>
+    [0, 1].map((batch) => {
+      const day = 3 + batch * 14 + ((productOffset * 2 + monthOffset) % 9);
+      const date = new Date(2026, month.monthIndex, day);
+      const units = Math.round(item.baseUnits * month.factor + ((productOffset % 4) - 1) * 3 + batch * 5);
+      const revenue = units * item.price;
+      const cost = units * item.unitCost;
+      const grossProfit = revenue - cost;
+      const grossMargin = revenue ? `${((grossProfit / revenue) * 100).toFixed(1)}%` : "0%";
+
+      return {
+        Dato: date.toISOString().slice(0, 10),
+        "M\u00e5ned": month.month,
+        Produkt: item.product,
+        Kategori: item.category,
+        Antal: units,
+        Nettooms\u00e6tning: revenue,
+        "Kostpris pr. stk.": item.unitCost,
+        Vareforbrug: cost,
+        D\u00e6kningsbidrag: grossProfit,
+        D\u00e6kningsgrad: grossMargin,
+      };
+    }),
+  ),
+);
 
 function normalizeHeader(value: unknown) {
   return String(value ?? "")
@@ -891,19 +904,25 @@ function buildSummary(metrics: ReturnType<typeof calculateMetrics>, feedback?: M
 
 function createSampleWorkbook() {
   const workbook = XLSX.utils.book_new();
+  const totalRevenue = sampleRows.reduce((sum, row) => sum + row["Nettooms\u00e6tning"], 0);
+  const operatingCosts = [
+    { Kategori: "Lon", Omkostninger: Math.round(totalRevenue * 0.22) },
+    { Kategori: "Raavarer", Omkostninger: Math.round(totalRevenue * 0.18) },
+    { Kategori: "Lokale", Omkostninger: Math.round(totalRevenue * 0.09) },
+    { Kategori: "Marketing", Omkostninger: Math.round(totalRevenue * 0.035) },
+    { Kategori: "Drift", Omkostninger: Math.round(totalRevenue * 0.045) },
+  ];
+  const totalCosts = operatingCosts.reduce((sum, row) => sum + row.Omkostninger, 0);
+
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(sampleRows), "Salgsdata");
   XLSX.utils.book_append_sheet(
     workbook,
-    XLSX.utils.json_to_sheet([
-      { Kategori: "Lon", Omkostninger: 8200 },
-      { Kategori: "Raavarer", Omkostninger: 5100 },
-      { Kategori: "Lokale", Omkostninger: 3400 },
-    ]),
+    XLSX.utils.json_to_sheet(operatingCosts),
     "Omkostninger",
   );
   XLSX.utils.book_append_sheet(
     workbook,
-    XLSX.utils.json_to_sheet([{ Nettoomsaetning: 18000, Omkostninger: 12000 }]),
+    XLSX.utils.json_to_sheet([{ Nettoomsaetning: Math.round(totalRevenue * 1.04), Omkostninger: Math.round(totalCosts * 1.03) }]),
     "Budget",
   );
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["Brief"], ["Sample workbook for DataBrief AI"]]), "Brief");
