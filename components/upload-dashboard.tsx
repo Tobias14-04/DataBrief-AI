@@ -221,19 +221,19 @@ const demoProducts = [
 ];
 
 const demoMonths = [
-  { month: "Januar", monthIndex: 0, factor: 0.88 },
-  { month: "Februar", monthIndex: 1, factor: 0.94 },
-  { month: "Marts", monthIndex: 2, factor: 1 },
-  { month: "April", monthIndex: 3, factor: 1.08 },
-  { month: "Maj", monthIndex: 4, factor: 1.15 },
-  { month: "Juni", monthIndex: 5, factor: 1.24 },
+  { month: "Jan 2026", monthIndex: 0, factor: 0.88 },
+  { month: "Feb 2026", monthIndex: 1, factor: 0.94 },
+  { month: "Mar 2026", monthIndex: 2, factor: 1 },
+  { month: "Apr 2026", monthIndex: 3, factor: 1.08 },
+  { month: "May 2026", monthIndex: 4, factor: 1.15 },
+  { month: "Jun 2026", monthIndex: 5, factor: 1.24 },
 ];
 
 const sampleRows = demoMonths.flatMap((month, monthOffset) =>
   demoProducts.flatMap((item, productOffset) =>
     [0, 1].map((batch) => {
       const day = 3 + batch * 14 + ((productOffset * 2 + monthOffset) % 9);
-      const date = new Date(2026, month.monthIndex, day);
+      const date = `2026-${String(month.monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
       const units = Math.round(item.baseUnits * month.factor + ((productOffset % 4) - 1) * 3 + batch * 5);
       const revenue = units * item.price;
       const cost = units * item.unitCost;
@@ -241,7 +241,7 @@ const sampleRows = demoMonths.flatMap((month, monthOffset) =>
       const grossMargin = revenue ? `${((grossProfit / revenue) * 100).toFixed(1)}%` : "0%";
 
       return {
-        Dato: date.toISOString().slice(0, 10),
+        Dato: date,
         "M\u00e5ned": month.month,
         Produkt: item.product,
         Kategori: item.category,
@@ -299,6 +299,10 @@ function toDate(value: unknown) {
   }
 
   if (typeof value === "number") {
+    if (value < 20000 || value > 80000) {
+      return null;
+    }
+
     const parsed = XLSX.SSF.parse_date_code(value);
     if (parsed) {
       return new Date(parsed.y, parsed.m - 1, parsed.d);
@@ -307,6 +311,16 @@ function toDate(value: unknown) {
 
   const text = String(value ?? "").trim();
   if (!text) {
+    return null;
+  }
+
+  const isoDate = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  if (isoDate) {
+    const [, year, month, day] = isoDate;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+
+  if (/^\d+(\.\d+)?$/.test(text)) {
     return null;
   }
 
@@ -554,7 +568,8 @@ function parseSalesRows(candidate: SheetCandidate, mappings = candidate.mappings
     .map((row, index) => {
       const rawDate = getCell(row, mappings, "date");
       const date = toDate(rawDate);
-      const month = date ? monthLabel(date) : cleanMonth(getCell(row, mappings, "month"));
+      const mappedMonth = cleanMonth(getCell(row, mappings, "month"));
+      const month = mappedMonth !== "Unknown month" ? mappedMonth : date ? monthLabel(date) : mappedMonth;
       const product = String(getCell(row, mappings, "product") ?? "").trim();
       const category = String(getCell(row, mappings, "category") ?? "").trim();
       const units = toNumber(getCell(row, mappings, "units"));
@@ -688,8 +703,9 @@ function groupRowsByMonth(rows: SaleRow[]) {
   rows.forEach((row, index) => {
     const sortKey = row.date ? new Date(row.date.getFullYear(), row.date.getMonth(), 1).getTime() : index;
     const key = row.date ? String(sortKey) : row.month;
+    const displayMonth = row.month || (row.date ? monthLabel(row.date) : "Unknown month");
     const current = groups.get(key) ?? {
-      name: row.date ? monthLabel(row.date) : row.month,
+      name: displayMonth,
       revenue: 0,
       units: 0,
       grossProfit: 0,
