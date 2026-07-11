@@ -10,6 +10,8 @@ import {
 
 const benefits = [
   {
+    step: "01",
+    action: "Upload",
     eyebrow: "Performance overview",
     title: "Instant sales KPIs",
     description: "Move from spreadsheet rows to a clear view of business performance in seconds.",
@@ -18,6 +20,8 @@ const benefits = [
     iconClass: "border-brand-100 bg-brand-50 text-brand-700",
   },
   {
+    step: "02",
+    action: "Analyze",
     eyebrow: "Visual analysis",
     title: "Charts without setup",
     description: "See the patterns behind the totals without formulas, pivots, or manual chart building.",
@@ -26,6 +30,8 @@ const benefits = [
     iconClass: "border-orange-100 bg-orange-50 text-accent-600",
   },
   {
+    step: "03",
+    action: "Summarize",
     eyebrow: "Executive readout",
     title: "Executive summary",
     description: "Turn the most important results into a concise summary that is ready to share.",
@@ -245,60 +251,69 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-6 py-14 lg:px-8 lg:py-16">
-          <div className="mb-7 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+      <section className="relative border-b border-slate-200 bg-white">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-brand-50/40 to-transparent" />
+        <div className="relative mx-auto max-w-7xl px-6 py-14 lg:px-8 lg:py-16">
+          <div className="mb-8 grid gap-4 lg:grid-cols-[1fr_0.7fr] lg:items-end">
             <div>
               <p className="text-sm font-semibold text-brand-700">From workbook to decision</p>
-              <h2 className="mt-2 text-3xl font-semibold text-ink">The essentials, already organized.</h2>
+              <h2 className="mt-2 max-w-2xl text-3xl font-semibold leading-tight text-ink sm:text-4xl">
+                The essentials, already organized.
+              </h2>
             </div>
-            <p className="max-w-md text-sm leading-6 text-slate-500">
-              One upload turns everyday sales data into a useful management view.
+            <p className="max-w-lg text-sm leading-6 text-slate-600 lg:justify-self-end">
+              One upload moves through a clear three-step flow, turning everyday sales data into a management-ready
+              view.
             </p>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-3">
-            {benefits.map((benefit) => {
-              const Icon = benefit.icon;
-              return (
-                <article
-                  key={benefit.title}
-                  className="group rounded-lg border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(16,32,51,0.05)] transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_16px_38px_rgba(16,32,51,0.08)] sm:p-6"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-lg border ${benefit.iconClass}`}>
-                      <Icon className="h-5 w-5" aria-hidden="true" />
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_18px_50px_rgba(16,32,51,0.08)]">
+            <div className="grid divide-y divide-slate-200 lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+              {benefits.map((benefit) => {
+                const Icon = benefit.icon;
+                return (
+                  <article key={benefit.title} className="relative flex min-h-[250px] flex-col p-5 sm:p-6">
+                    <div className="mb-5 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-semibold text-brand-700">{benefit.step}</span>
+                        <span className="h-px w-8 bg-brand-100" aria-hidden="true" />
+                        <span className="text-sm font-semibold text-slate-500">{benefit.action}</span>
+                      </div>
+                      <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg border ${benefit.iconClass}`}>
+                        <Icon className="h-5 w-5" aria-hidden="true" />
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-slate-500">{benefit.eyebrow}</p>
-                      <h3 className="mt-1 text-lg font-semibold text-ink">{benefit.title}</h3>
+                    <p className="text-xs font-semibold text-slate-500">{benefit.eyebrow}</p>
+                    <h3 className="mt-1 text-xl font-semibold text-ink">{benefit.title}</h3>
+                    <p className="mt-3 text-sm leading-6 text-slate-600">{benefit.description}</p>
+                    <div className="mt-auto flex items-start gap-2 border-t border-slate-100 pt-4 text-sm font-medium text-ink">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" aria-hidden="true" />
+                      <span>{benefit.detail}</span>
                     </div>
-                  </div>
-                  <p className="mt-4 text-sm leading-6 text-slate-600">{benefit.description}</p>
-                  <div className="mt-4 flex items-start gap-2 border-t border-slate-100 pt-4 text-sm font-medium text-ink">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" aria-hidden="true" />
-                    <span>{benefit.detail}</span>
-                  </div>
-                </article>
-              );
-            })}
+                  </article>
+                );
+              })}
+            </div>
           </div>
         </div>
       </section>
 
-      <section id="sample-structure" className="relative bg-slate-50">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_70%,rgba(8,145,178,0.08),transparent_26%)]" />
-        <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-6 py-16 lg:grid-cols-[0.8fr_1.2fr] lg:px-8 lg:py-20">
-          <div className="max-w-xl">
-            <p className="text-sm font-semibold text-brand-700">Flexible spreadsheet input</p>
-            <h2 className="mt-3 text-3xl font-semibold leading-tight text-ink sm:text-4xl">
+      <section id="sample-structure" className="relative border-b border-slate-200 bg-slate-50">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_86%_42%,rgba(8,145,178,0.09),transparent_30%),radial-gradient(circle_at_10%_80%,rgba(249,115,22,0.06),transparent_24%)]" />
+        <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-6 py-16 lg:grid-cols-[0.72fr_1.28fr] lg:px-8 lg:py-20">
+          <div className="max-w-lg lg:pr-4">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-lg border border-brand-100 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 shadow-sm">
+              <span className="h-1.5 w-1.5 rounded-full bg-brand-500" aria-hidden="true" />
+              Product proof: flexible input
+            </div>
+            <h2 className="text-3xl font-semibold leading-tight text-ink sm:text-4xl">
               Your sales workbook does not need our template.
             </h2>
             <p className="mt-4 leading-7 text-slate-600">
               DataBrief AI recognizes common Danish and English sales columns automatically, including Dato,
               Produkt, Kategori, Antal, and Nettoomsætning.
             </p>
-            <div className="mt-6 space-y-3 text-sm text-slate-600">
+            <div className="mt-6 grid gap-3 text-sm text-slate-600">
               {[
                 "Finds the most relevant worksheet and header row",
                 "Maps common sales columns in Danish and English",
@@ -321,24 +336,36 @@ export default function Home() {
             </Link>
           </div>
 
-          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_24px_60px_rgba(16,32,51,0.12)]">
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_24px_60px_rgba(16,32,51,0.13)]">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4">
               <div className="flex items-center gap-3">
                 <span className="grid h-9 w-9 place-items-center rounded-lg bg-emerald-50 text-emerald-700">
-                  <FileSpreadsheet className="h-4.5 w-4.5" aria-hidden="true" />
+                  <FileSpreadsheet className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <div>
                   <p className="text-sm font-semibold text-ink">Sample sales worksheet</p>
-                  <p className="text-xs text-slate-500">Danish headers, automatically recognized</p>
+                  <p className="text-xs text-slate-500">Café Nord · Salgsdata</p>
                 </div>
               </div>
               <span className="rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
                 Ready to analyze
               </span>
             </div>
+
+            <div className="grid border-b border-slate-200 bg-slate-50/80 sm:grid-cols-3 sm:divide-x sm:divide-slate-200">
+              {["Danish headers detected", "Ready to analyze", "No template required"].map((status) => (
+                <div key={status} className="flex items-center gap-2 border-b border-slate-200 px-4 py-3 text-xs font-medium text-slate-600 last:border-b-0 sm:border-b-0">
+                  <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-emerald-100 text-emerald-700">
+                    <Check className="h-2.5 w-2.5" strokeWidth={3} aria-hidden="true" />
+                  </span>
+                  {status}
+                </div>
+              ))}
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] border-collapse text-left text-sm">
-                <thead className="bg-slate-50 text-slate-600">
+                <thead className="bg-white text-slate-600">
                   <tr>
                     {["Dato", "Produkt", "Kategori", "Nettoomsætning", "Antal"].map((column) => (
                       <th key={column} className="border-b border-slate-200 px-5 py-3.5 font-semibold">
@@ -363,10 +390,34 @@ export default function Home() {
                 </tbody>
               </table>
             </div>
-            <div className="border-t border-slate-100 bg-slate-50/70 px-5 py-3 text-xs text-slate-500">
-              Example rows from a café sales workbook · Danish and English column names supported
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-3 text-xs text-slate-500">
+              <span>Example rows from a café sales workbook</span>
+              <span className="font-medium text-brand-700">Danish and English columns supported</span>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="relative isolate overflow-hidden bg-ink text-white">
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_75%_20%,rgba(8,145,178,0.24),transparent_28%),radial-gradient(circle_at_15%_100%,rgba(249,115,22,0.12),transparent_24%)]" />
+        <div className="pointer-events-none absolute inset-0 -z-10 opacity-20 [background-image:linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:48px_48px]" />
+        <div className="mx-auto flex max-w-7xl flex-col gap-7 px-6 py-14 sm:py-16 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+          <div className="max-w-2xl">
+            <p className="text-sm font-semibold text-cyan-200">Start with the spreadsheet you already have</p>
+            <h2 className="mt-2 text-3xl font-semibold leading-tight sm:text-4xl">
+              Ready to turn your spreadsheet into a dashboard?
+            </h2>
+            <p className="mt-3 max-w-xl leading-7 text-slate-300">
+              Upload a sales file and get KPIs, charts, and a concise business summary in seconds.
+            </p>
+          </div>
+          <Link
+            href="/upload"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold text-ink shadow-[0_14px_32px_rgba(0,0,0,0.22)] transition hover:bg-brand-50 sm:w-auto"
+          >
+            Open upload
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
         </div>
       </section>
     </main>
