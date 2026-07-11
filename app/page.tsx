@@ -304,20 +304,20 @@ export default function Home() {
           <div className="max-w-lg lg:pr-4">
             <div className="mb-5 inline-flex items-center gap-2 rounded-lg border border-brand-100 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 shadow-sm">
               <span className="h-1.5 w-1.5 rounded-full bg-brand-500" aria-hidden="true" />
-              Product proof: flexible input
+              Real-world spreadsheet support
             </div>
             <h2 className="text-3xl font-semibold leading-tight text-ink sm:text-4xl">
               Your sales workbook does not need our template.
             </h2>
             <p className="mt-4 leading-7 text-slate-600">
-              DataBrief AI recognizes common Danish and English sales columns automatically, including Dato,
-              Produkt, Kategori, Antal, and Nettoomsætning.
+              Upload everyday sales data with common Danish or English column names. DataBrief AI detects the
+              worksheet, maps the columns, and turns the rows into a dashboard-ready view.
             </p>
             <div className="mt-6 grid gap-3 text-sm text-slate-600">
               {[
-                "Finds the most relevant worksheet and header row",
-                "Maps common sales columns in Danish and English",
-                "Keeps analysis in your browser for this demo",
+                "Finds the right worksheet and header row",
+                "Maps Danish and English sales columns",
+                "Keeps the analysis browser-based for this demo",
               ].map((item) => (
                 <div key={item} className="flex items-start gap-3">
                   <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white text-brand-700 shadow-sm">
@@ -329,22 +329,22 @@ export default function Home() {
             </div>
             <Link
               href="/upload"
-              className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-ink transition hover:text-brand-700"
+              className="mt-7 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-ink shadow-sm transition hover:border-brand-500 hover:text-brand-700"
             >
               Try with your spreadsheet
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           </div>
 
-          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_24px_60px_rgba(16,32,51,0.13)]">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4">
+          <div className="overflow-hidden rounded-lg border border-slate-200 border-t-2 border-t-brand-500 bg-white shadow-[0_24px_60px_rgba(16,32,51,0.13)]">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-gradient-to-r from-white via-white to-brand-50/40 px-5 py-4">
               <div className="flex items-center gap-3">
                 <span className="grid h-9 w-9 place-items-center rounded-lg bg-emerald-50 text-emerald-700">
                   <FileSpreadsheet className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <div>
-                  <p className="text-sm font-semibold text-ink">Sample sales worksheet</p>
-                  <p className="text-xs text-slate-500">Café Nord · Salgsdata</p>
+                  <p className="text-sm font-semibold text-ink">Detected automatically</p>
+                  <p className="text-xs text-slate-500">Example workbook · Café Nord · Salgsdata</p>
                 </div>
               </div>
               <span className="rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
@@ -398,12 +398,12 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="relative isolate overflow-hidden bg-ink text-white">
-        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_75%_20%,rgba(8,145,178,0.24),transparent_28%),radial-gradient(circle_at_15%_100%,rgba(249,115,22,0.12),transparent_24%)]" />
-        <div className="pointer-events-none absolute inset-0 -z-10 opacity-20 [background-image:linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:48px_48px]" />
-        <div className="mx-auto flex max-w-7xl flex-col gap-7 px-6 py-14 sm:py-16 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+      <section className="relative isolate overflow-hidden border-t border-white/10 bg-[linear-gradient(120deg,#102033_0%,#0d2b3a_52%,#103647_100%)] text-white">
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_76%_18%,rgba(8,145,178,0.22),transparent_28%),radial-gradient(circle_at_12%_100%,rgba(249,115,22,0.10),transparent_24%)]" />
+        <div className="pointer-events-none absolute inset-0 -z-10 opacity-[0.15] [background-image:linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:48px_48px]" />
+        <div className="mx-auto flex max-w-6xl flex-col gap-7 px-6 py-16 lg:flex-row lg:items-end lg:justify-start lg:gap-10 lg:px-8">
           <div className="max-w-2xl">
-            <p className="text-sm font-semibold text-cyan-200">Start with the spreadsheet you already have</p>
+            <p className="text-sm font-semibold text-cyan-200">See DataBrief AI on your data</p>
             <h2 className="mt-2 text-3xl font-semibold leading-tight sm:text-4xl">
               Ready to turn your spreadsheet into a dashboard?
             </h2>
