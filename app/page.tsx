@@ -27,8 +27,8 @@ const benefits = [
   },
   {
     eyebrow: "Executive readout",
-    title: "AI-style narrative",
-    description: "Turn the most important results into a concise report that is ready to share.",
+    title: "Executive summary",
+    description: "Turn the most important results into a concise summary that is ready to share.",
     detail: "Short business summary from your data",
     icon: Sparkles,
     iconClass: "border-emerald-100 bg-emerald-50 text-emerald-700",
@@ -48,7 +48,7 @@ const sampleRows = [
   ["2026-06-22", "Morgenmenu", "Menu", "5,184 kr.", "54"],
 ];
 
-const featureChips = ["Danish & English headers", "No setup required", "Browser-based analysis"];
+const featureChips = ["Danish & English headers", "No manual dashboard setup", "Runs in your browser"];
 
 export default function Home() {
   return (
@@ -85,8 +85,8 @@ export default function Home() {
               DataBrief AI
             </h1>
             <p className="mt-5 max-w-lg text-lg leading-8 text-slate-600">
-              Upload an Excel sales file and get a polished dashboard, decision-ready KPIs, and a concise
-              business summary in seconds.
+              Upload your sales spreadsheet and get instant KPIs, visual trends, and a clear business summary —
+              without building formulas or dashboards manually.
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Link
