@@ -72,21 +72,21 @@ export default function Home() {
           <div className="border-b border-line bg-slate-50 px-5 py-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-ink">Sales snapshot</p>
-                <p className="text-xs text-slate-500">Generated from Excel upload</p>
+                <p className="text-sm font-semibold text-ink">Example dashboard preview</p>
+                <p className="text-xs text-slate-500">Preview based on sample sales data</p>
               </div>
               <span className="rounded-md bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
-                AI summary ready
+                Example data
               </span>
             </div>
           </div>
           <div className="grid gap-4 p-5">
             <div className="grid gap-4 sm:grid-cols-2">
               {[
-                ["Revenue", "Calculated", "Summed from Revenue"],
-                ["Units sold", "Calculated", "Summed from Units"],
-                ["Best category", "Calculated", "Ranked by revenue"],
-                ["Best month", "Calculated", "Ranked by revenue"],
+                ["Revenue", "320,748 kr.", "Example total revenue"],
+                ["Units sold", "6,474", "Example units sold"],
+                ["Best category", "Drikke", "Highest revenue category"],
+                ["Best month", "Jun 2026", "Strongest sample month"],
               ].map(([label, value, detail]) => (
                 <div key={label} className="rounded-md border border-line p-4">
                   <p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">{label}</p>
@@ -98,7 +98,7 @@ export default function Home() {
             <div className="rounded-md border border-line p-4">
               <div className="mb-4 flex items-center justify-between">
                 <p className="text-sm font-semibold text-ink">Revenue trend</p>
-                <p className="text-xs text-slate-500">Monthly</p>
+                <p className="text-xs text-slate-500">Example Jan-Jun 2026</p>
               </div>
               <div className="flex h-44 items-end gap-3">
                 {[38, 56, 44, 72, 61, 92].map((height, index) => (
@@ -137,17 +137,19 @@ export default function Home() {
         <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr]">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.14em] text-brand-700">Sample file structure</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink">Bring a simple sales worksheet.</h2>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink">
+              Upload a sales worksheet, even with Danish column names.
+            </h2>
             <p className="mt-4 leading-7 text-slate-600">
-              The demo reads the first worksheet and requires these column names. Keep one sale per row for the
-              cleanest dashboard.
+              DataBrief AI detects common English and Danish sales columns automatically, including Dato, Produkt,
+              Kategori, Antal and Nettoomsætning. Keep one sale per row for the cleanest dashboard.
             </p>
           </div>
           <div className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
             <table className="w-full min-w-[640px] border-collapse text-left text-sm">
               <thead className="bg-slate-50 text-slate-500">
                 <tr>
-                  {["Date", "Product", "Category", "Revenue", "Units"].map((column) => (
+                  {["Dato", "Produkt", "Kategori", "Nettoomsætning", "Antal"].map((column) => (
                     <th key={column} className="border-b border-line px-4 py-3 font-semibold">
                       {column}
                     </th>
@@ -156,9 +158,9 @@ export default function Home() {
               </thead>
               <tbody className="divide-y divide-line">
                 {[
-                  ["2026-01-12", "Analytics Starter", "Software", "$4,900", "14"],
-                  ["2026-02-03", "Team Onboarding", "Services", "$8,400", "6"],
-                  ["2026-03-18", "Insight Pack", "Add-ons", "$2,700", "18"],
+                  ["2026-01-05", "Café latte", "Drikke", "2,714 kr.", "59"],
+                  ["2026-02-14", "Kyllingesandwich", "Sandwich", "3,612 kr.", "43"],
+                  ["2026-06-22", "Morgenmenu", "Menu", "5,184 kr.", "54"],
                 ].map((row) => (
                   <tr key={row.join("-")}>
                     {row.map((cell) => (
