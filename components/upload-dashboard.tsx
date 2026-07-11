@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 import {
   ArrowLeft,
   BarChart3,
+  Check,
   Download,
   FileSpreadsheet,
   Info,
@@ -1327,83 +1328,133 @@ export default function UploadDashboard() {
 
   if (!hasWorkbook) {
     return (
-      <main className="min-h-screen">
-        <header className="border-b border-line bg-white/85 backdrop-blur">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 lg:px-8">
-            <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-ink">
+      <main className="relative isolate min-h-screen overflow-hidden bg-[linear-gradient(135deg,#f8fbfc_0%,#f1fbfc_46%,#fff8f3_100%)]">
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_78%_18%,rgba(8,145,178,0.14),transparent_28%),radial-gradient(circle_at_10%_85%,rgba(249,115,22,0.09),transparent_24%)]" />
+        <div className="pointer-events-none absolute inset-0 -z-10 opacity-40 [background-image:linear-gradient(rgba(16,32,51,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(16,32,51,0.035)_1px,transparent_1px)] [background-size:48px_48px]" />
+
+        <header className="border-b border-white/70 bg-white/70 backdrop-blur-xl">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-slate-600 transition hover:bg-white hover:text-ink"
+            >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               Home
             </Link>
             <div className="flex items-center gap-3">
-              <span className="grid h-9 w-9 place-items-center rounded-md bg-ink text-white">
+              <span className="grid h-10 w-10 place-items-center rounded-lg bg-ink text-white shadow-[0_10px_24px_rgba(16,32,51,0.18)]">
                 <FileSpreadsheet className="h-5 w-5" aria-hidden="true" />
               </span>
-              <span className="font-semibold tracking-tight">DataBrief AI</span>
+              <span className="font-semibold text-ink">DataBrief AI</span>
             </div>
           </div>
         </header>
 
-        <section className="mx-auto max-w-xl px-6 py-8 lg:px-8">
+        <section className="mx-auto w-full max-w-3xl px-6 py-12 sm:py-16 lg:px-8">
+          <div className="mb-7 text-center">
+            <div className="mx-auto mb-4 inline-flex items-center gap-2 rounded-lg border border-brand-100 bg-white/85 px-3 py-1.5 text-xs font-semibold text-brand-700 shadow-sm backdrop-blur">
+              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+              Spreadsheet analysis, without the setup
+            </div>
+            <h1 className="text-3xl font-semibold leading-tight text-ink sm:text-4xl">Upload sales data</h1>
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">
+              Choose an Excel file or use the demo dataset to generate a dashboard and business summary.
+            </p>
+          </div>
+
+          <div className="mb-5 flex flex-wrap justify-center gap-2">
+            {["Danish & English headers supported", "No template required", "Browser-based analysis"].map((item) => (
+              <div
+                key={item}
+                className="inline-flex items-center gap-2 rounded-lg border border-white/90 bg-white/75 px-3 py-2 text-xs font-medium text-slate-600 shadow-sm backdrop-blur"
+              >
+                <span className="grid h-4 w-4 place-items-center rounded-full bg-brand-600 text-white">
+                  <Check className="h-2.5 w-2.5" strokeWidth={3} aria-hidden="true" />
+                </span>
+                {item}
+              </div>
+            ))}
+          </div>
+
           <div className="space-y-5">
-            <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="grid h-11 w-11 place-items-center rounded-md bg-brand-50 text-brand-700">
+            <div className="overflow-hidden rounded-lg border border-white/90 bg-white/90 shadow-[0_28px_80px_rgba(16,32,51,0.14),0_6px_20px_rgba(16,32,51,0.06)] backdrop-blur">
+              <div className="flex items-center gap-3 border-b border-slate-200 bg-gradient-to-r from-white via-white to-brand-50/45 px-5 py-4 sm:px-6">
+                <div className="grid h-10 w-10 place-items-center rounded-lg border border-brand-100 bg-brand-50 text-brand-700">
                   <Upload className="h-5 w-5" aria-hidden="true" />
                 </div>
                 <div>
-                  <h1 className="text-xl font-semibold tracking-tight">Upload sales data</h1>
-                  <p className="text-sm text-slate-500">Upload an Excel file or use the demo dataset to generate a dashboard.</p>
+                  <h2 className="font-semibold text-ink">Choose your sales workbook</h2>
+                  <p className="text-sm text-slate-500">Your file is processed locally in this browser.</p>
                 </div>
               </div>
 
-              <label className="group flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center transition hover:border-brand-500 hover:bg-brand-50/50">
-                <Upload className="h-8 w-8 text-brand-700" aria-hidden="true" />
-                <span className="mt-3 text-sm font-semibold text-ink">
-                  {isLoading ? "Reading spreadsheet..." : "Choose an Excel file"}
-                </span>
-                <span className="mt-1 text-xs text-slate-500">.xlsx with flexible English or Danish sales columns</span>
-                <input
-                  type="file"
-                  accept=".xlsx"
-                  className="sr-only"
-                  onChange={handleFileChange}
-                  disabled={isLoading}
-                />
-              </label>
+              <div className="p-5 sm:p-6">
+                <label className="group flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-[linear-gradient(180deg,#f8fafc_0%,#ffffff_100%)] px-5 py-8 text-center shadow-inner transition hover:border-brand-500 hover:bg-brand-50/35">
+                  <span className="grid h-14 w-14 place-items-center rounded-lg border border-brand-100 bg-white text-brand-700 shadow-[0_8px_22px_rgba(8,145,178,0.12)] transition group-hover:-translate-y-0.5 group-hover:shadow-[0_12px_28px_rgba(8,145,178,0.18)]">
+                    <Upload className="h-6 w-6" aria-hidden="true" />
+                  </span>
+                  <span className="mt-4 text-base font-semibold text-ink">
+                    {isLoading ? "Reading spreadsheet..." : "Choose an Excel file"}
+                  </span>
+                  <span className="mt-1.5 text-sm text-slate-500">Select an .xlsx workbook from your device</span>
+                  <span className="mt-3 rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">
+                    Flexible Danish and English columns
+                  </span>
+                  <input
+                    type="file"
+                    accept=".xlsx"
+                    className="sr-only"
+                    onChange={handleFileChange}
+                    disabled={isLoading}
+                  />
+                </label>
 
-              {error ? (
-                <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-              ) : null}
+                {error ? (
+                  <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+                ) : null}
 
-              <button
-                type="button"
-                onClick={downloadSampleExcel}
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md border border-line bg-white px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-brand-500"
-              >
-                <Download className="h-4 w-4" aria-hidden="true" />
-                Download sample Excel file
-              </button>
-              <button
-                type="button"
-                onClick={loadDemoDataset}
-                disabled={isLoading}
-                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-line bg-white px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-brand-500 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Sparkles className="h-4 w-4" aria-hidden="true" />
-                Use demo dataset
-              </button>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={downloadSampleExcel}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-ink shadow-sm transition hover:border-brand-500 hover:bg-slate-50"
+                  >
+                    <Download className="h-4 w-4 text-brand-700" aria-hidden="true" />
+                    Download sample Excel file
+                  </button>
+                  <button
+                    type="button"
+                    onClick={loadDemoDataset}
+                    disabled={isLoading}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-ink shadow-sm transition hover:border-brand-500 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Sparkles className="h-4 w-4 text-accent-600" aria-hidden="true" />
+                    Use demo dataset
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div className="rounded-lg border border-line bg-white p-5">
-              <div className="flex items-start gap-3">
-                <Info className="mt-0.5 h-5 w-5 text-brand-700" aria-hidden="true" />
-                <div>
-                  <h2 className="font-semibold text-ink">Supported columns</h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    The app scans messy worksheets, detects likely header rows, maps common English and Danish aliases,
-                    and lets you manually pick columns when needed.
+            <div className="rounded-lg border border-white/90 bg-white/80 p-5 shadow-[0_12px_34px_rgba(16,32,51,0.06)] backdrop-blur sm:p-6">
+              <div className="flex items-start gap-4">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-brand-100 bg-brand-50 text-brand-700">
+                  <Info className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <h2 className="font-semibold text-ink">Supported columns and layouts</h2>
+                  <p className="mt-1.5 text-sm leading-6 text-slate-600">
+                    DataBrief AI finds likely header rows and maps common sales fields automatically, even when the
+                    worksheet uses Danish names or starts below a title row.
                   </p>
                 </div>
+              </div>
+              <div className="mt-4 grid gap-2 border-t border-slate-100 pt-4 text-xs font-medium text-slate-600 sm:grid-cols-3">
+                {["Worksheet detection", "Flexible header rows", "Manual fallback available"].map((item) => (
+                  <div key={item} className="flex items-center gap-2">
+                    <Check className="h-3.5 w-3.5 shrink-0 text-brand-600" aria-hidden="true" />
+                    {item}
+                  </div>
+                ))}
               </div>
             </div>
           </div>
