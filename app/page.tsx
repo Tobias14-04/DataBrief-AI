@@ -1,29 +1,45 @@
 import Link from "next/link";
-import { ArrowRight, BarChart3, FileSpreadsheet, Sparkles, TrendingUp } from "lucide-react";
+import {
+  ArrowRight,
+  BarChart3,
+  Check,
+  FileSpreadsheet,
+  Sparkles,
+  TrendingUp,
+} from "lucide-react";
 
 const benefits = [
   {
+    eyebrow: "Performance overview",
     title: "Instant sales KPIs",
-    description: "See revenue, units, strongest product or category, and best month right after upload.",
+    description: "Move from spreadsheet rows to a clear view of business performance in seconds.",
+    detail: "Revenue, units, best product, best month",
     icon: TrendingUp,
+    iconClass: "border-brand-100 bg-brand-50 text-brand-700",
   },
   {
+    eyebrow: "Visual analysis",
     title: "Charts without setup",
-    description: "Turn raw spreadsheet rows into visual revenue, product, and category views.",
+    description: "See the patterns behind the totals without formulas, pivots, or manual chart building.",
+    detail: "Monthly revenue, categories, products",
     icon: BarChart3,
+    iconClass: "border-orange-100 bg-orange-50 text-accent-600",
   },
   {
+    eyebrow: "Executive readout",
     title: "AI-style narrative",
-    description: "Generate a concise business readout that highlights performance and next steps.",
+    description: "Turn the most important results into a concise report that is ready to share.",
+    detail: "Short business summary from your data",
     icon: Sparkles,
+    iconClass: "border-emerald-100 bg-emerald-50 text-emerald-700",
   },
 ];
 
 const previewStats = [
-  ["Revenue", "320,748 kr.", "Example total revenue"],
-  ["Units sold", "6,474", "Example units sold"],
-  ["Best category", "Drikke", "Highest revenue category"],
-  ["Best month", "Jun 2026", "Strongest sample month"],
+  ["Revenue", "320,748 kr.", "+12.4% vs. Jan"],
+  ["Units sold", "6,474", "+8.1% across period"],
+  ["Best category", "Drikke", "34% of revenue"],
+  ["Best month", "Jun 2026", "64,280 kr. revenue"],
 ];
 
 const sampleRows = [
@@ -32,149 +48,192 @@ const sampleRows = [
   ["2026-06-22", "Morgenmenu", "Menu", "5,184 kr.", "54"],
 ];
 
+const featureChips = ["Danish & English headers", "No setup required", "Browser-based analysis"];
+
 export default function Home() {
   return (
-    <main className="overflow-hidden">
-      <header className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-3" aria-label="DataBrief AI home">
-          <span className="grid h-10 w-10 place-items-center rounded-md bg-ink text-white shadow-soft">
-            <FileSpreadsheet className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <span className="text-lg font-semibold">DataBrief AI</span>
-        </Link>
-        <Link
-          href="/upload"
-          className="inline-flex items-center gap-2 rounded-md border border-white/70 bg-white/85 px-4 py-2 text-sm font-semibold text-ink shadow-sm backdrop-blur transition hover:border-brand-500"
-        >
-          Open upload
-          <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </Link>
+    <main className="overflow-hidden bg-white">
+      <header className="relative z-20 border-b border-white/60 bg-white/70 backdrop-blur-xl">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
+          <Link href="/" className="flex items-center gap-3" aria-label="DataBrief AI home">
+            <span className="grid h-10 w-10 place-items-center rounded-lg bg-ink text-white shadow-[0_10px_24px_rgba(16,32,51,0.18)]">
+              <FileSpreadsheet className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <span className="text-lg font-semibold text-ink">DataBrief AI</span>
+          </Link>
+          <Link
+            href="/upload"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-ink shadow-sm transition hover:border-brand-500 hover:text-brand-700"
+          >
+            Open upload
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </div>
       </header>
 
-      <section className="relative -mt-[88px] bg-gradient-to-br from-white via-brand-50/60 to-orange-50/70 pt-[88px]">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-white/90 to-transparent" />
-        <div className="pointer-events-none absolute right-0 top-24 h-80 w-2/3 bg-[radial-gradient(circle_at_70%_35%,rgba(8,145,178,0.20),transparent_55%)] blur-2xl" />
-        <div className="pointer-events-none absolute bottom-0 left-0 h-72 w-2/3 bg-[radial-gradient(circle_at_20%_70%,rgba(249,115,22,0.12),transparent_58%)] blur-2xl" />
+      <section className="relative isolate border-b border-slate-200/80 bg-[linear-gradient(135deg,#f8fbfc_0%,#f1fbfc_45%,#fff8f3_100%)]">
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_78%_20%,rgba(8,145,178,0.14),transparent_28%),radial-gradient(circle_at_8%_85%,rgba(249,115,22,0.10),transparent_24%)]" />
+        <div className="pointer-events-none absolute inset-0 -z-10 opacity-40 [background-image:linear-gradient(rgba(16,32,51,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(16,32,51,0.035)_1px,transparent_1px)] [background-size:48px_48px]" />
 
-        <div className="relative mx-auto grid min-h-[calc(100vh-88px)] w-full max-w-7xl items-center gap-10 px-6 pb-16 pt-12 lg:grid-cols-[0.95fr_1.05fr] lg:px-8">
-          <div className="max-w-2xl">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-md border border-white/70 bg-white/80 px-3 py-2 text-sm font-medium text-brand-700 shadow-sm backdrop-blur">
+        <div className="relative mx-auto grid w-full max-w-7xl items-center gap-12 px-6 py-14 lg:grid-cols-[0.88fr_1.12fr] lg:px-8 lg:py-20">
+          <div className="max-w-xl">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-lg border border-brand-100 bg-white/85 px-3 py-2 text-sm font-semibold text-brand-700 shadow-sm backdrop-blur">
               <Sparkles className="h-4 w-4" aria-hidden="true" />
-              Demo MVP for spreadsheet-driven sales reporting
+              Turn spreadsheets into business dashboards
             </div>
-            <h1 className="max-w-4xl text-5xl font-semibold leading-[1.02] text-ink sm:text-6xl lg:text-7xl">
+            <h1 className="text-5xl font-semibold leading-[1.02] text-ink sm:text-6xl lg:text-7xl">
               DataBrief AI
             </h1>
-            <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
-              Upload an Excel sales file and get a polished dashboard, core KPI cards, and a short
-              executive-style business report in seconds.
+            <p className="mt-5 max-w-lg text-lg leading-8 text-slate-600">
+              Upload an Excel sales file and get a polished dashboard, decision-ready KPIs, and a concise
+              business summary in seconds.
             </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/upload"
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white shadow-soft transition hover:bg-slate-800"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-ink px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_32px_rgba(16,32,51,0.22)] transition hover:bg-slate-800"
               >
                 Upload sales file
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
               <a
                 href="#sample-structure"
-                className="inline-flex items-center justify-center rounded-md border border-white/70 bg-white/80 px-5 py-3 text-sm font-semibold text-ink shadow-sm backdrop-blur transition hover:border-brand-500"
+                className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white/85 px-5 py-3 text-sm font-semibold text-ink shadow-sm backdrop-blur transition hover:border-brand-500 hover:text-brand-700"
               >
                 View sample data
               </a>
             </div>
-            <div className="mt-8 grid max-w-xl gap-3 text-sm text-slate-600 sm:grid-cols-3">
-              {["Danish headers", "No database", "Demo-ready"].map((item) => (
-                <div key={item} className="rounded-md border border-white/70 bg-white/65 px-3 py-2 shadow-sm backdrop-blur">
+            <div className="mt-7 flex max-w-xl flex-wrap gap-2">
+              {featureChips.map((item) => (
+                <div
+                  key={item}
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/90 bg-white/70 px-3 py-2 text-sm font-medium text-slate-600 shadow-sm backdrop-blur"
+                >
+                  <span className="grid h-4 w-4 place-items-center rounded-full bg-brand-600 text-white">
+                    <Check className="h-2.5 w-2.5" strokeWidth={3} aria-hidden="true" />
+                  </span>
                   {item}
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="relative">
-            <div className="absolute -inset-3 rounded-[2rem] bg-white/35 blur-xl" />
-            <div className="relative overflow-hidden rounded-2xl border border-white/75 bg-white/90 shadow-[0_28px_80px_rgba(16,32,51,0.16)] backdrop-blur">
-              <div className="border-b border-line/70 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
-                <div className="flex items-center justify-between gap-4">
+          <div className="relative lg:pl-2">
+            <div className="absolute -inset-4 -z-10 rounded-lg bg-white/50 blur-2xl" />
+            <div className="overflow-hidden rounded-lg border border-slate-200/90 bg-white shadow-[0_30px_80px_rgba(16,32,51,0.16),0_6px_20px_rgba(16,32,51,0.08)]">
+              <div className="flex h-11 items-center justify-between border-b border-slate-200 bg-slate-50/90 px-4">
+                <div className="flex items-center gap-1.5" aria-hidden="true">
+                  <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+                </div>
+                <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                  <FileSpreadsheet className="h-3.5 w-3.5" aria-hidden="true" />
+                  Café Nord sales.xlsx
+                </div>
+                <div className="w-10" aria-hidden="true" />
+              </div>
+
+              <div className="border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-ink">Example dashboard preview</p>
-                    <p className="text-xs text-slate-500">Preview based on sample sales data</p>
+                    <p className="mt-0.5 text-xs text-slate-500">Preview based on sample sales data</p>
                   </div>
-                  <span className="rounded-md border border-brand-100 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
+                  <span className="rounded-lg border border-brand-100 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700">
                     Example data
                   </span>
                 </div>
               </div>
 
-              <div className="grid gap-4 p-5">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {previewStats.map(([label, value, detail]) => (
-                    <div key={label} className="rounded-lg border border-line/80 bg-white p-4 shadow-sm">
-                      <p className="text-xs font-medium uppercase text-slate-500">{label}</p>
-                      <p className="mt-2 text-2xl font-semibold text-ink">{value}</p>
-                      <p className="mt-1 text-sm text-slate-500">{detail}</p>
+              <div className="bg-slate-50/70 p-4 sm:p-5">
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  {previewStats.map(([label, value, detail], index) => (
+                    <div
+                      key={label}
+                      className="min-w-0 rounded-lg border border-slate-200 bg-white p-3.5 shadow-[0_4px_14px_rgba(16,32,51,0.05)]"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate text-xs font-medium text-slate-500">{label}</p>
+                        <span
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                            index === 2 ? "bg-accent-500" : index === 3 ? "bg-emerald-500" : "bg-brand-500"
+                          }`}
+                        />
+                      </div>
+                      <p className="mt-2 truncate text-base font-semibold text-ink sm:text-lg">{value}</p>
+                      <p className="mt-1 truncate text-[11px] text-slate-500">{detail}</p>
                     </div>
                   ))}
                 </div>
 
-                <div className="rounded-lg border border-line/80 bg-white p-4 shadow-sm">
-                  <div className="mb-4 flex items-center justify-between gap-4">
-                    <p className="text-sm font-semibold text-ink">Revenue trend</p>
-                    <p className="text-xs text-slate-500">Example Jan-Jun 2026</p>
+                <div className="mt-3 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_4px_14px_rgba(16,32,51,0.05)]">
+                  <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-4 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-ink">Revenue trend</p>
+                      <p className="text-xs text-slate-500">Monthly net revenue</p>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700">
+                      <TrendingUp className="h-3.5 w-3.5" aria-hidden="true" />
+                      +22.6%
+                    </div>
                   </div>
-                  <div className="relative h-48 overflow-hidden rounded-lg bg-gradient-to-b from-slate-50 to-white p-3">
-                    <div className="absolute inset-x-3 top-10 border-t border-dashed border-line" />
-                    <div className="absolute inset-x-3 top-24 border-t border-dashed border-line" />
+                  <div className="relative h-44 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 pb-7 pt-3">
+                    <div className="absolute inset-x-4 top-10 border-t border-dashed border-slate-200" />
+                    <div className="absolute inset-x-4 top-[86px] border-t border-dashed border-slate-200" />
+                    <div className="absolute inset-x-4 bottom-8 border-t border-slate-200" />
                     <svg
-                      className="absolute inset-x-3 top-4 h-32 w-[calc(100%-1.5rem)]"
-                      viewBox="0 0 520 150"
+                      className="absolute inset-x-4 top-3 h-[118px] w-[calc(100%-2rem)]"
+                      viewBox="0 0 520 126"
                       role="img"
-                      aria-label="Example revenue trend rising from January to June"
+                      aria-label="Example revenue trend rising from January to June 2026"
+                      preserveAspectRatio="none"
                     >
                       <defs>
                         <linearGradient id="revenueLine" x1="0" x2="1" y1="0" y2="0">
                           <stop offset="0%" stopColor="#0891b2" />
+                          <stop offset="76%" stopColor="#0e7490" />
                           <stop offset="100%" stopColor="#f97316" />
                         </linearGradient>
                         <linearGradient id="revenueArea" x1="0" x2="0" y1="0" y2="1">
-                          <stop offset="0%" stopColor="#0891b2" stopOpacity="0.18" />
-                          <stop offset="100%" stopColor="#0891b2" stopOpacity="0" />
+                          <stop offset="0%" stopColor="#0891b2" stopOpacity="0.20" />
+                          <stop offset="100%" stopColor="#0891b2" stopOpacity="0.01" />
                         </linearGradient>
                       </defs>
                       <path
-                        d="M10 128 C80 102, 112 112, 160 86 C214 56, 250 82, 304 58 C360 34, 400 48, 510 18 L510 150 L10 150 Z"
+                        d="M4 104 C62 96, 88 84, 108 87 C170 96, 184 62, 210 67 C278 80, 292 46, 316 48 C370 53, 391 38, 418 40 C468 43, 488 21, 516 14 L516 126 L4 126 Z"
                         fill="url(#revenueArea)"
                       />
                       <path
-                        d="M10 128 C80 102, 112 112, 160 86 C214 56, 250 82, 304 58 C360 34, 400 48, 510 18"
+                        d="M4 104 C62 96, 88 84, 108 87 C170 96, 184 62, 210 67 C278 80, 292 46, 316 48 C370 53, 391 38, 418 40 C468 43, 488 21, 516 14"
                         fill="none"
                         stroke="url(#revenueLine)"
                         strokeLinecap="round"
-                        strokeWidth="5"
+                        strokeWidth="4"
+                        vectorEffect="non-scaling-stroke"
                       />
-                      {[10, 160, 304, 510].map((x, index) => (
+                      {[
+                        [4, 104],
+                        [108, 87],
+                        [210, 67],
+                        [316, 48],
+                        [418, 40],
+                        [516, 14],
+                      ].map(([x, y], index) => (
                         <circle
                           key={x}
                           cx={x}
-                          cy={[128, 86, 58, 18][index]}
-                          r="5"
+                          cy={y}
+                          r={index === 5 ? "5" : "3.5"}
                           fill="#ffffff"
-                          stroke="#0891b2"
-                          strokeWidth="3"
+                          stroke={index === 5 ? "#f97316" : "#0891b2"}
+                          strokeWidth="2.5"
+                          vectorEffect="non-scaling-stroke"
                         />
                       ))}
                     </svg>
-                    <div className="absolute inset-x-3 bottom-8 flex items-end gap-3">
-                      {[38, 56, 44, 72, 61, 92].map((height) => (
-                        <div key={height} className="flex h-24 flex-1 flex-col items-center justify-end">
-                          <div className="w-full rounded-t-md bg-brand-500/20" style={{ height: `${height}%` }} />
-                        </div>
-                      ))}
-                    </div>
-                    <div className="absolute inset-x-3 bottom-3 flex justify-between text-xs text-slate-500">
-                      {["Jan", "Feb", "Mar", "Apr", "May", "Jun"].map((month) => (
+                    <div className="absolute inset-x-4 bottom-2 flex justify-between text-[11px] font-medium text-slate-400">
+                      {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'].map((month) => (
                         <span key={month}>{month}</span>
                       ))}
                     </div>
@@ -186,62 +245,127 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="border-y border-line bg-white/90">
-        <div className="mx-auto grid max-w-7xl gap-5 px-6 py-16 lg:grid-cols-3 lg:px-8">
-          {benefits.map((benefit) => {
-            const Icon = benefit.icon;
-            return (
-              <article
-                key={benefit.title}
-                className="rounded-xl border border-line/80 bg-white p-7 shadow-[0_18px_50px_rgba(16,32,51,0.06)]"
-              >
-                <div className="grid h-12 w-12 place-items-center rounded-lg border border-brand-100 bg-gradient-to-br from-brand-50 to-white text-brand-700 shadow-sm">
-                  <Icon className="h-5 w-5" aria-hidden="true" />
-                </div>
-                <h2 className="mt-6 text-xl font-semibold text-ink">{benefit.title}</h2>
-                <p className="mt-3 leading-7 text-slate-600">{benefit.description}</p>
-              </article>
-            );
-          })}
-        </div>
-      </section>
-
-      <section id="sample-structure" className="bg-gradient-to-b from-white to-slate-50">
-        <div className="mx-auto grid max-w-7xl gap-10 px-6 py-16 lg:grid-cols-[0.82fr_1.18fr] lg:px-8">
-          <div className="max-w-xl">
-            <p className="text-sm font-semibold uppercase text-brand-700">Sample file structure</p>
-            <h2 className="mt-3 text-3xl font-semibold text-ink">
-              Upload a sales worksheet, even with Danish column names.
-            </h2>
-            <p className="mt-4 leading-7 text-slate-600">
-              DataBrief AI detects common English and Danish sales columns automatically, including Dato, Produkt,
-              Kategori, Antal and Nettoomsætning. Keep one sale per row for the cleanest dashboard.
+      <section className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-7xl px-6 py-14 lg:px-8 lg:py-16">
+          <div className="mb-7 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+            <div>
+              <p className="text-sm font-semibold text-brand-700">From workbook to decision</p>
+              <h2 className="mt-2 text-3xl font-semibold text-ink">The essentials, already organized.</h2>
+            </div>
+            <p className="max-w-md text-sm leading-6 text-slate-500">
+              One upload turns everyday sales data into a useful management view.
             </p>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-line/80 bg-white shadow-[0_22px_70px_rgba(16,32,51,0.10)]">
-            <table className="w-full min-w-[640px] border-collapse text-left text-sm">
-              <thead className="bg-slate-50 text-slate-600">
-                <tr>
-                  {["Dato", "Produkt", "Kategori", "Nettoomsætning", "Antal"].map((column) => (
-                    <th key={column} className="border-b border-line px-5 py-4 font-semibold">
-                      {column}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {sampleRows.map((row) => (
-                  <tr key={row.join("-")} className="transition hover:bg-slate-50/70">
-                    {row.map((cell) => (
-                      <td key={cell} className="px-5 py-4 text-slate-700">
-                        {cell}
-                      </td>
+          <div className="grid gap-4 lg:grid-cols-3">
+            {benefits.map((benefit) => {
+              const Icon = benefit.icon;
+              return (
+                <article
+                  key={benefit.title}
+                  className="group rounded-lg border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(16,32,51,0.05)] transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_16px_38px_rgba(16,32,51,0.08)] sm:p-6"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-lg border ${benefit.iconClass}`}>
+                      <Icon className="h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-500">{benefit.eyebrow}</p>
+                      <h3 className="mt-1 text-lg font-semibold text-ink">{benefit.title}</h3>
+                    </div>
+                  </div>
+                  <p className="mt-4 text-sm leading-6 text-slate-600">{benefit.description}</p>
+                  <div className="mt-4 flex items-start gap-2 border-t border-slate-100 pt-4 text-sm font-medium text-ink">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" aria-hidden="true" />
+                    <span>{benefit.detail}</span>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section id="sample-structure" className="relative bg-slate-50">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_70%,rgba(8,145,178,0.08),transparent_26%)]" />
+        <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-6 py-16 lg:grid-cols-[0.8fr_1.2fr] lg:px-8 lg:py-20">
+          <div className="max-w-xl">
+            <p className="text-sm font-semibold text-brand-700">Flexible spreadsheet input</p>
+            <h2 className="mt-3 text-3xl font-semibold leading-tight text-ink sm:text-4xl">
+              Your sales workbook does not need our template.
+            </h2>
+            <p className="mt-4 leading-7 text-slate-600">
+              DataBrief AI recognizes common Danish and English sales columns automatically, including Dato,
+              Produkt, Kategori, Antal, and Nettoomsætning.
+            </p>
+            <div className="mt-6 space-y-3 text-sm text-slate-600">
+              {[
+                "Finds the most relevant worksheet and header row",
+                "Maps common sales columns in Danish and English",
+                "Keeps analysis in your browser for this demo",
+              ].map((item) => (
+                <div key={item} className="flex items-start gap-3">
+                  <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white text-brand-700 shadow-sm">
+                    <Check className="h-3 w-3" strokeWidth={3} aria-hidden="true" />
+                  </span>
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
+            <Link
+              href="/upload"
+              className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-ink transition hover:text-brand-700"
+            >
+              Try with your spreadsheet
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_24px_60px_rgba(16,32,51,0.12)]">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4">
+              <div className="flex items-center gap-3">
+                <span className="grid h-9 w-9 place-items-center rounded-lg bg-emerald-50 text-emerald-700">
+                  <FileSpreadsheet className="h-4.5 w-4.5" aria-hidden="true" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-ink">Sample sales worksheet</p>
+                  <p className="text-xs text-slate-500">Danish headers, automatically recognized</p>
+                </div>
+              </div>
+              <span className="rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                Ready to analyze
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+                <thead className="bg-slate-50 text-slate-600">
+                  <tr>
+                    {["Dato", "Produkt", "Kategori", "Nettoomsætning", "Antal"].map((column) => (
+                      <th key={column} className="border-b border-slate-200 px-5 py-3.5 font-semibold">
+                        {column}
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {sampleRows.map((row) => (
+                    <tr key={row.join("-")} className="transition hover:bg-brand-50/35">
+                      {row.map((cell, index) => (
+                        <td
+                          key={cell}
+                          className={`px-5 py-4 ${index === 1 ? "font-medium text-ink" : "text-slate-600"}`}
+                        >
+                          {cell}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="border-t border-slate-100 bg-slate-50/70 px-5 py-3 text-xs text-slate-500">
+              Example rows from a café sales workbook · Danish and English column names supported
+            </div>
           </div>
         </div>
       </section>
