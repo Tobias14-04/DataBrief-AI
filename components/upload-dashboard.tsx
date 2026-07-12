@@ -5,11 +5,14 @@ import * as XLSX from "xlsx";
 import {
   ArrowLeft,
   BarChart3,
+  CalendarRange,
   Check,
   Download,
   FileSpreadsheet,
+  Filter,
   Info,
   LineChart,
+  RotateCcw,
   Sparkles,
   Upload,
 } from "lucide-react";
@@ -35,6 +38,8 @@ type SaleRow = {
   month: string;
   product: string;
   category: string;
+  channel: string;
+  region: string;
   revenue: number;
   units: number;
   grossProfit: number | null;
@@ -67,6 +72,9 @@ type BudgetSummary = {
   result: number;
 };
 
+type DashboardFilterKey = "month" | "product" | "category" | "channel" | "region";
+type DashboardFilters = Record<DashboardFilterKey, string>;
+
 type MappingStatus = "success" | "warning" | "manual";
 
 type MappingFeedback = {
@@ -93,6 +101,8 @@ type FieldKey =
   | "month"
   | "product"
   | "category"
+  | "channel"
+  | "region"
   | "units"
   | "netRevenue"
   | "grossRevenue"
@@ -138,6 +148,14 @@ const emptyManualMappings: ManualMappings = {
   grossMargin: "",
 };
 
+const emptyDashboardFilters: DashboardFilters = {
+  month: "",
+  product: "",
+  category: "",
+  channel: "",
+  region: "",
+};
+
 const chartColors = ["#0891b2", "#f97316", "#22c55e", "#6366f1", "#e11d48", "#14b8a6"];
 
 const fieldLabels: Record<FieldKey, string> = {
@@ -145,6 +163,8 @@ const fieldLabels: Record<FieldKey, string> = {
   month: "Month",
   product: "Product",
   category: "Category",
+  channel: "Channel",
+  region: "Region",
   units: "Units",
   netRevenue: "Net revenue",
   grossRevenue: "Gross revenue",
@@ -160,6 +180,8 @@ const aliases: Record<FieldKey, string[]> = {
   month: ["month", "maaned", "m\u00e5ned", "periode", "period"],
   product: ["product", "produkt", "varenavn", "item", "item name", "product name", "sku", "vare"],
   category: ["category", "kategori", "produktkategori", "product category", "varegruppe", "segment"],
+  channel: ["channel", "kanal", "sales channel", "salgskanal", "order channel"],
+  region: ["region", "omraade", "omr\u00e5de", "district", "territory", "sales region", "salgsregion"],
   units: ["units", "antal", "quantity", "qty", "solgt antal", "quantity sold", "stk", "pieces"],
   netRevenue: ["nettoomsaetning", "nettooms\u00e6tning", "net revenue"],
   grossRevenue: ["bruttoomsaetning", "bruttooms\u00e6tning", "gross revenue"],
@@ -246,6 +268,8 @@ const sampleRows = demoMonths.flatMap((month, monthOffset) =>
         "M\u00e5ned": month.month,
         Produkt: item.product,
         Kategori: item.category,
+        Kanal: batch === 0 ? "Caf\u00e9" : productOffset % 3 === 0 ? "Takeaway" : "Online",
+        Region: productOffset % 2 === 0 ? "K\u00f8benhavn" : "Nordsj\u00e6lland",
         Antal: units,
         Nettooms\u00e6tning: revenue,
         "Kostpris pr. stk.": item.unitCost,
@@ -390,6 +414,8 @@ function scoreMappings(mappings: FieldMappings) {
   if (mappings.month) score += 2;
   if (mappings.product) score += 4;
   if (mappings.category) score += 3;
+  if (mappings.channel) score += 1;
+  if (mappings.region) score += 1;
   if (mappings.units) score += 4;
   if (mappings.netRevenue) score += 5;
   if (mappings.grossRevenue) score += 4;
@@ -522,6 +548,8 @@ function manualToFieldMappings(manual: ManualMappings): FieldMappings {
 
 function manualToFieldMappingsForCandidate(manual: ManualMappings, candidate: SheetCandidate): FieldMappings {
   const mappings = manualToFieldMappings(manual);
+  mappings.channel = candidate.mappings.channel;
+  mappings.region = candidate.mappings.region;
 
   if (manual.dateOrMonth) {
     const sampleRecord = rowsToRecords(candidate.rows, candidate.headerIndex, candidate.headers)[0] ?? {};
@@ -573,6 +601,8 @@ function parseSalesRows(candidate: SheetCandidate, mappings = candidate.mappings
       const month = mappedMonth !== "Unknown month" ? mappedMonth : date ? monthLabel(date) : mappedMonth;
       const product = String(getCell(row, mappings, "product") ?? "").trim();
       const category = String(getCell(row, mappings, "category") ?? "").trim();
+      const channel = String(getCell(row, mappings, "channel") ?? "").trim();
+      const region = String(getCell(row, mappings, "region") ?? "").trim();
       const units = toNumber(getCell(row, mappings, "units"));
       const revenue = getRevenue(row, mappings);
       const grossProfit = toNumber(getCell(row, mappings, "grossProfit"));
@@ -598,6 +628,8 @@ function parseSalesRows(candidate: SheetCandidate, mappings = candidate.mappings
         month,
         product,
         category,
+        channel,
+        region,
         revenue: revenue.value,
         units,
         grossProfit,
@@ -622,7 +654,7 @@ function buildMappedColumns(mappings: FieldMappings) {
 }
 
 function buildOptionalColumns(mappings: FieldMappings) {
-  const optional: FieldKey[] = ["grossProfit", "grossMargin", "cost"];
+  const optional: FieldKey[] = ["channel", "region", "grossProfit", "grossMargin", "cost"];
   return optional.reduce<Record<string, string>>((result, field) => {
     const column = mappings[field];
     if (column) {
@@ -691,11 +723,31 @@ function groupRows(rows: SaleRow[], keyGetter: (row: SaleRow) => string) {
     current.revenue += row.revenue;
     current.units += row.units;
     current.grossProfit += row.grossProfit ?? 0;
-    current.cost += row.cost ?? 0;
+    current.cost += row.grossProfit !== null ? row.revenue - row.grossProfit : (row.cost ?? 0);
     groups.set(key, current);
   });
 
   return Array.from(groups.values());
+}
+
+function uniqueValues(rows: SaleRow[], field: DashboardFilterKey) {
+  if (field === "month") {
+    return groupRowsByMonth(rows).map((month) => month.name);
+  }
+
+  return Array.from(new Set(rows.map((row) => row[field]).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+}
+
+function applyDashboardFilters(rows: SaleRow[], filters: DashboardFilters, ignoredField?: DashboardFilterKey) {
+  return rows.filter((row) =>
+    (Object.entries(filters) as Array<[DashboardFilterKey, string]>).every(
+      ([field, value]) => !value || field === ignoredField || row[field] === value,
+    ),
+  );
+}
+
+function getActiveFilterLabels(filters: DashboardFilters) {
+  return Object.values(filters).filter(Boolean);
 }
 
 function groupRowsByMonth(rows: SaleRow[]) {
@@ -849,7 +901,11 @@ function analyzeWorkbook(file: File): Promise<{ analysis: WorkbookAnalysis; auto
   });
 }
 
-function calculateMetrics(rows: SaleRow[], feedback?: MappingFeedback) {
+function calculateMetrics(
+  rows: SaleRow[],
+  feedback?: MappingFeedback,
+  options: { useWorkbookTotals?: boolean; budgetScale?: number } = {},
+) {
   const totalRevenue = rows.reduce((sum, row) => sum + row.revenue, 0);
   const totalUnits = rows.reduce((sum, row) => sum + row.units, 0);
   const totalGrossProfit = rows.reduce((sum, row) => sum + (row.grossProfit ?? 0), 0);
@@ -858,14 +914,23 @@ function calculateMetrics(rows: SaleRow[], feedback?: MappingFeedback) {
   const weightedGrossMargin = totalRevenue ? totalGrossProfit / totalRevenue : 0;
   const averageGrossMargin =
     rows.reduce((sum, row) => sum + (row.grossMargin ?? 0), 0) / Math.max(rows.filter((row) => row.grossMargin !== null).length, 1);
-  const totalCosts = feedback?.costs?.total ?? rows.reduce((sum, row) => sum + (row.cost ?? 0), 0);
+  const hasRowCosts = rows.some((row) => row.cost !== null || row.grossProfit !== null);
+  const rowCosts = rows.reduce(
+    (sum, row) => sum + (row.grossProfit !== null ? row.revenue - row.grossProfit : (row.cost ?? 0)),
+    0,
+  );
+  const totalCosts = options.useWorkbookTotals !== false && feedback?.costs ? feedback.costs.total : rowCosts;
   const actualResult = totalRevenue - totalCosts;
   const productsByRevenue = groupRows(rows, (row) => row.product).sort((a, b) => b.revenue - a.revenue);
   const productsByUnits = groupRows(rows, (row) => row.product).sort((a, b) => b.units - a.units);
   const categories = groupRows(rows, (row) => row.category).sort((a, b) => b.revenue - a.revenue);
   const grossProfitByCategory = categories.filter((category) => category.grossProfit !== 0).sort((a, b) => b.grossProfit - a.grossProfit);
+  const costsByCategory = categories.filter((category) => category.cost !== 0).sort((a, b) => b.cost - a.cost);
   const monthly = groupRowsByMonth(rows);
   const monthsByRevenue = [...monthly].sort((a, b) => b.revenue - a.revenue);
+  const budgetScale = options.budgetScale ?? 1;
+  const budgetRevenue = (feedback?.budget?.revenue ?? 0) * budgetScale;
+  const budgetCosts = (feedback?.budget?.costs ?? 0) * budgetScale;
 
   return {
     totalRevenue,
@@ -874,12 +939,13 @@ function calculateMetrics(rows: SaleRow[], feedback?: MappingFeedback) {
     grossMargin: hasGrossProfit ? weightedGrossMargin : averageGrossMargin,
     hasGrossProfit,
     hasGrossMargin,
+    hasCosts: Boolean((options.useWorkbookTotals !== false && feedback?.costs) || hasRowCosts),
     totalCosts,
     actualResult,
-    budgetRevenue: feedback?.budget?.revenue ?? 0,
-    budgetCosts: feedback?.budget?.costs ?? 0,
-    budgetResult: feedback?.budget?.result ?? 0,
-    revenueVsBudget: feedback?.budget ? totalRevenue - feedback.budget.revenue : 0,
+    budgetRevenue,
+    budgetCosts,
+    budgetResult: budgetRevenue - budgetCosts,
+    revenueVsBudget: feedback?.budget ? totalRevenue - budgetRevenue : 0,
     bestProduct: productsByRevenue[0],
     bestCategory: categories[0],
     bestMonth: monthsByRevenue[0],
@@ -887,22 +953,29 @@ function calculateMetrics(rows: SaleRow[], feedback?: MappingFeedback) {
     productsByUnits: productsByUnits.slice(0, 8),
     categories: categories.slice(0, 8),
     grossProfitByCategory: grossProfitByCategory.slice(0, 8),
+    costsByCategory: costsByCategory.slice(0, 8),
     rowCount: rows.length,
   };
 }
 
-function buildSummary(metrics: ReturnType<typeof calculateMetrics>, feedback?: MappingFeedback) {
+function buildSummary(
+  metrics: ReturnType<typeof calculateMetrics>,
+  feedback?: MappingFeedback,
+  context: { totalRows?: number; activeFilters?: string[] } = {},
+) {
   if (!metrics.rowCount || !metrics.bestProduct || !metrics.bestCategory || !metrics.bestMonth) {
-    return "Upload an Excel file to generate a concise business summary from your sales data.";
+    return "No sales rows match the current filters. Reset or adjust the filters to update this summary.";
   }
+
+  const isFiltered = Boolean(context.activeFilters?.length);
 
   const profitText = metrics.hasGrossProfit
     ? ` Gross profit is ${currency(metrics.totalGrossProfit)}, with a gross margin of ${percent(metrics.grossMargin)}.`
     : "";
-  const costText = feedback?.costs
-    ? ` The ${feedback.costs.sheetName} sheet shows ${currency(metrics.totalCosts)} in costs, giving an actual result of ${currency(
-        metrics.actualResult,
-      )}.`
+  const costText = metrics.hasCosts
+    ? ` ${isFiltered ? "For this selection, estimated" : "Workbook"} costs are ${currency(
+        metrics.totalCosts,
+      )}, giving a result of ${currency(metrics.actualResult)}.`
     : "";
   const budgetText = feedback?.budget
     ? ` Against budget, actual revenue is ${currency(Math.abs(metrics.revenueVsBudget))} ${
@@ -910,7 +983,13 @@ function buildSummary(metrics: ReturnType<typeof calculateMetrics>, feedback?: M
       } budget revenue.`
     : "";
 
-  return `DataBrief AI analyzed ${number(metrics.rowCount)} sales rows from ${
+  const scopeText = isFiltered
+    ? `For ${context.activeFilters?.join(", ")}, DataBrief AI analyzed ${number(metrics.rowCount)} of ${number(
+        context.totalRows ?? metrics.rowCount,
+      )} sales rows`
+    : `DataBrief AI analyzed ${number(metrics.rowCount)} sales rows`;
+
+  return `${scopeText} from ${
     feedback?.salesSheetName ?? "the detected sales sheet"
   }, totaling ${currency(metrics.totalRevenue)} and ${number(metrics.totalUnits)} units sold. The best product is ${
     metrics.bestProduct.name
@@ -1211,6 +1290,190 @@ function ManualMappingPanel({
   );
 }
 
+function DashboardFilterBar({
+  rows,
+  filteredRowCount,
+  filters,
+  onChange,
+  onReset,
+}: {
+  rows: SaleRow[];
+  filteredRowCount: number;
+  filters: DashboardFilters;
+  onChange: (field: DashboardFilterKey, value: string) => void;
+  onReset: () => void;
+}) {
+  const definitions: Array<{ field: DashboardFilterKey; label: string; allLabel: string }> = [
+    { field: "month", label: "Month", allLabel: "All months" },
+    { field: "product", label: "Product", allLabel: "All products" },
+    { field: "category", label: "Category", allLabel: "All categories" },
+    { field: "channel", label: "Channel", allLabel: "All channels" },
+    { field: "region", label: "Region", allLabel: "All regions" },
+  ];
+  const controls = definitions
+    .map((definition) => ({ ...definition, options: uniqueValues(rows, definition.field) }))
+    .filter((definition) => definition.options.length > 0);
+  const activeFilters = getActiveFilterLabels(filters);
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_12px_34px_rgba(16,32,51,0.06)]">
+      <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <span className="grid h-9 w-9 place-items-center rounded-lg border border-brand-100 bg-brand-50 text-brand-700">
+            <Filter className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="text-xs font-semibold text-brand-700">Explore your dashboard</p>
+            <h2 className="mt-0.5 text-lg font-semibold text-ink">Filter the current view</h2>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onReset}
+          disabled={!activeFilters.length}
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-brand-500 hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+          Reset filters
+        </button>
+      </div>
+
+      <div className="grid gap-3 px-5 py-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+        {controls.map((control) => (
+          <label key={control.field} className="block min-w-0 text-xs font-semibold text-slate-500">
+            {control.label}
+            <select
+              value={filters[control.field]}
+              onChange={(event) => onChange(control.field, event.target.value)}
+              className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-ink outline-none transition focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100"
+            >
+              <option value="">{control.allLabel}</option>
+              {control.options.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+      </div>
+
+      <div className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-3 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+        <p className="font-medium">
+          Showing <span className="font-semibold text-ink">{number(filteredRowCount)}</span> of {number(rows.length)} rows
+        </p>
+        <p className="truncate">
+          {activeFilters.length ? (
+            <>
+              Filtered by: <span className="font-semibold text-ink">{activeFilters.join(", ")}</span>
+            </>
+          ) : (
+            "All available sales data is included"
+          )}
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function MonthlyReportCard({
+  rows,
+  filters,
+  feedback,
+  preferredMonth,
+  selectedMonth,
+  onMonthChange,
+}: {
+  rows: SaleRow[];
+  filters: DashboardFilters;
+  feedback?: MappingFeedback;
+  preferredMonth?: string;
+  selectedMonth: string;
+  onMonthChange: (month: string) => void;
+}) {
+  const monthOptions = uniqueValues(rows, "month");
+  const reportMonth = monthOptions.includes(selectedMonth)
+    ? selectedMonth
+    : filters.month || (preferredMonth && monthOptions.includes(preferredMonth) ? preferredMonth : monthOptions.at(-1) ?? "");
+  const rowsWithoutMonthFilter = applyDashboardFilters(rows, filters, "month");
+  const reportRows = rowsWithoutMonthFilter.filter((row) => row.month === reportMonth);
+  const allRowsForMonth = rows.filter((row) => row.month === reportMonth);
+  const monthCount = Math.max(monthOptions.length, 1);
+  const segmentShare = allRowsForMonth.length ? reportRows.length / allRowsForMonth.length : 0;
+  const budgetScale = (1 / monthCount) * segmentShare;
+  const reportMetrics = calculateMetrics(reportRows, feedback, { useWorkbookTotals: false, budgetScale });
+  const hasBudget = Boolean(feedback?.budget && reportRows.length);
+  const deviation = reportMetrics.revenueVsBudget;
+  const tolerance = Math.max(1, reportMetrics.budgetRevenue * 0.01);
+  const budgetStatus = Math.abs(deviation) <= tolerance ? "On budget" : deviation > 0 ? "Over budget" : "Under budget";
+  const resultLabel = reportMetrics.hasGrossProfit ? "Gross profit" : reportMetrics.hasCosts ? "Result" : "Units sold";
+  const resultValue = reportMetrics.hasGrossProfit
+    ? currency(reportMetrics.totalGrossProfit)
+    : reportMetrics.hasCosts
+      ? currency(reportMetrics.actualResult)
+      : number(reportMetrics.totalUnits);
+  const profitSentence = reportMetrics.hasGrossProfit
+    ? `, gross profit was ${currency(reportMetrics.totalGrossProfit)}`
+    : reportMetrics.hasCosts
+      ? `, result was ${currency(reportMetrics.actualResult)}`
+      : "";
+  const budgetSentence = hasBudget
+    ? `, and revenue was ${currency(Math.abs(deviation))} ${deviation >= 0 ? "above" : "below"} the allocated monthly budget`
+    : "";
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_12px_34px_rgba(16,32,51,0.06)]">
+      <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-lg border border-orange-100 bg-orange-50 text-accent-600">
+            <CalendarRange className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="text-xs font-semibold text-accent-600">Period analysis</p>
+            <h2 className="mt-0.5 text-lg font-semibold text-ink">Monthly report</h2>
+          </div>
+        </div>
+        <label className="text-xs font-semibold text-slate-500">
+          Report month
+          <select
+            value={reportMonth}
+            onChange={(event) => onMonthChange(event.target.value)}
+            className="ml-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-ink outline-none transition focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100"
+          >
+            {monthOptions.map((month) => (
+              <option key={month} value={month}>
+                {month}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="grid gap-px bg-slate-200 sm:grid-cols-3">
+        {[
+          ["Revenue", currency(reportMetrics.totalRevenue)],
+          [resultLabel, resultValue],
+          [hasBudget ? "Budget status" : "Rows included", hasBudget ? budgetStatus : number(reportMetrics.rowCount)],
+        ].map(([label, value]) => (
+          <div key={label} className="bg-white px-5 py-4 sm:px-6">
+            <p className="text-xs font-semibold text-slate-500">{label}</p>
+            <p className="mt-2 text-xl font-semibold text-ink">{value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-[linear-gradient(135deg,#f8fafc_0%,#ecfeff_100%)] px-5 py-4 sm:px-6">
+        <p className="text-sm leading-7 text-slate-700">
+          {reportRows.length
+            ? `In ${reportMonth}, revenue was ${currency(reportMetrics.totalRevenue)}${profitSentence}${budgetSentence}.`
+            : `No rows match the current filters for ${reportMonth}.`}
+        </p>
+        {hasBudget ? <p className="mt-1 text-xs text-slate-500">Budget comparison uses an allocated monthly benchmark for this selection.</p> : null}
+      </div>
+    </section>
+  );
+}
+
 export default function UploadDashboard() {
   const [data, setData] = useState<ParseResult | null>(null);
   const [analysis, setAnalysis] = useState<WorkbookAnalysis | null>(null);
@@ -1219,16 +1482,39 @@ export default function UploadDashboard() {
   const [showManualMapping, setShowManualMapping] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [filters, setFilters] = useState<DashboardFilters>(emptyDashboardFilters);
+  const [reportMonth, setReportMonth] = useState("");
 
-  const metrics = useMemo(() => calculateMetrics(data?.rows ?? [], data?.feedback), [data?.rows, data?.feedback]);
-  const summary = useMemo(() => buildSummary(metrics, data?.feedback), [metrics, data?.feedback]);
-  const hasData = metrics.rowCount > 0;
-  const showGrossProfit = hasData && metrics.hasGrossProfit;
-  const showCosts = hasData && Boolean(data?.feedback.costs);
+  const allRows = useMemo(() => data?.rows ?? [], [data?.rows]);
+  const activeFilterLabels = useMemo(() => getActiveFilterLabels(filters), [filters]);
+  const isFiltered = activeFilterLabels.length > 0;
+  const filteredRows = useMemo(() => applyDashboardFilters(allRows, filters), [allRows, filters]);
+  const budgetScale = allRows.length && isFiltered ? filteredRows.length / allRows.length : 1;
+  const baseMetrics = useMemo(() => calculateMetrics(allRows, data?.feedback), [allRows, data?.feedback]);
+  const metrics = useMemo(
+    () => calculateMetrics(filteredRows, data?.feedback, { useWorkbookTotals: !isFiltered, budgetScale }),
+    [budgetScale, data?.feedback, filteredRows, isFiltered],
+  );
+  const summary = useMemo(
+    () => buildSummary(metrics, data?.feedback, { totalRows: allRows.length, activeFilters: activeFilterLabels }),
+    [activeFilterLabels, allRows.length, data?.feedback, metrics],
+  );
+  const hasData = allRows.length > 0;
+  const hasFilteredData = metrics.rowCount > 0;
+  const showGrossProfit = hasData && baseMetrics.hasGrossProfit;
+  const showCosts = hasData && (Boolean(data?.feedback.costs) || baseMetrics.hasCosts);
   const showBudget = hasData && Boolean(data?.feedback.budget);
+  const costsByCategory = isFiltered
+    ? metrics.costsByCategory
+    : (data?.feedback.costs?.byCategory ?? metrics.costsByCategory);
   const manualMappingRequired = Boolean(analysis && !data);
   const shouldShowManualMapping = manualMappingRequired || showManualMapping;
   const hasWorkbook = Boolean(analysis || data);
+
+  function resetDashboardView() {
+    setFilters(emptyDashboardFilters);
+    setReportMonth("");
+  }
 
   function selectSheet(sheetName: string, workbookAnalysis = analysis) {
     if (!workbookAnalysis) {
@@ -1256,6 +1542,7 @@ export default function UploadDashboard() {
       selectSheet(best.name, parsed.analysis);
       setData(parsed.autoResult);
       setShowManualMapping(!parsed.autoResult);
+      resetDashboardView();
 
       if (!parsed.autoResult) {
         setError(
@@ -1294,6 +1581,7 @@ export default function UploadDashboard() {
       selectSheet(best.name, parsed.analysis);
       setData(parsed.autoResult);
       setShowManualMapping(!parsed.autoResult);
+      resetDashboardView();
 
       if (!parsed.autoResult) {
         setError(
@@ -1333,6 +1621,7 @@ export default function UploadDashboard() {
       setData(result);
       setShowManualMapping(false);
       setError("");
+      resetDashboardView();
     } catch (error) {
       setData(null);
       setError(error instanceof Error ? error.message : "Manual mapping failed. Check the selected columns.");
@@ -1564,7 +1853,7 @@ export default function UploadDashboard() {
                 <p className="text-xs font-semibold text-brand-700">{data?.fileName ?? analysis?.fileName ?? "No file uploaded yet"}</p>
                 <h2 className="mt-1 text-2xl font-semibold text-ink sm:text-3xl">Sales dashboard</h2>
                 <p className="mt-1.5 text-sm text-slate-500">
-                  {hasData ? `${number(metrics.rowCount)} rows included in this report.` : "Upload an Excel file to populate this dashboard."}
+                  {hasData ? `${number(allRows.length)} rows available for analysis.` : "Upload an Excel file to populate this dashboard."}
                 </p>
               </div>
               <div className="flex flex-col items-start gap-2 md:items-end">
@@ -1575,7 +1864,7 @@ export default function UploadDashboard() {
                 </div>
               </div>
             </div>
-            <DataDetectedCard feedback={data?.feedback} rowCount={metrics.rowCount} onEdit={() => setShowManualMapping(true)} />
+            <DataDetectedCard feedback={data?.feedback} rowCount={allRows.length} onEdit={() => setShowManualMapping(true)} />
           </div>
 
           <FeedbackPanel feedback={data?.feedback} />
@@ -1588,6 +1877,16 @@ export default function UploadDashboard() {
               onSheetChange={(sheetName) => selectSheet(sheetName)}
               onMappingChange={(field, column) => setManualMappings((current) => ({ ...current, [field]: column }))}
               onApply={applyManualMappings}
+            />
+          ) : null}
+
+          {hasData ? (
+            <DashboardFilterBar
+              rows={allRows}
+              filteredRowCount={metrics.rowCount}
+              filters={filters}
+              onChange={(field, value) => setFilters((current) => ({ ...current, [field]: value }))}
+              onReset={() => setFilters(emptyDashboardFilters)}
             />
           ) : null}
 
@@ -1628,8 +1927,14 @@ export default function UploadDashboard() {
               {showGrossProfit ? (
                 <KpiCard label="Gross profit" value={currency(metrics.totalGrossProfit)} detail="From gross profit / contribution margin" />
               ) : null}
-              {hasData && metrics.hasGrossMargin ? <KpiCard label="Gross margin" value={percent(metrics.grossMargin)} detail="From margin column" /> : null}
-              {showCosts ? <KpiCard label="Total costs" value={currency(metrics.totalCosts)} detail="From costs sheet" /> : null}
+              {hasData && baseMetrics.hasGrossMargin ? <KpiCard label="Gross margin" value={percent(metrics.grossMargin)} detail="From margin column" /> : null}
+              {showCosts ? (
+                <KpiCard
+                  label="Total costs"
+                  value={currency(metrics.totalCosts)}
+                  detail={isFiltered ? "Derived from the filtered sales rows" : data?.feedback.costs ? "From costs sheet" : "From mapped sales costs"}
+                />
+              ) : null}
               {showCosts ? <KpiCard label="Result" value={currency(metrics.actualResult)} detail="Revenue minus costs" /> : null}
               {showBudget ? (
                 <KpiCard
@@ -1641,6 +1946,17 @@ export default function UploadDashboard() {
             </div>
           </section>
 
+          {hasData ? (
+            <MonthlyReportCard
+              rows={allRows}
+              filters={filters}
+              feedback={data?.feedback}
+              preferredMonth={baseMetrics.bestMonth?.name}
+              selectedMonth={reportMonth}
+              onMonthChange={setReportMonth}
+            />
+          ) : null}
+
           {showBudget ? (
             <section>
               <div className="mb-4">
@@ -1648,8 +1964,16 @@ export default function UploadDashboard() {
                 <h2 className="mt-1 text-lg font-semibold text-ink">Budget overview</h2>
               </div>
               <div className="grid gap-4 sm:grid-cols-3">
-                <KpiCard label="Budget revenue" value={currency(metrics.budgetRevenue)} detail={data?.feedback.budget?.sheetName ?? "Budget"} />
-                <KpiCard label="Budget costs" value={currency(metrics.budgetCosts)} detail="Detected budget costs" />
+                <KpiCard
+                  label="Budget revenue"
+                  value={currency(metrics.budgetRevenue)}
+                  detail={isFiltered ? "Allocated to the current filtered row share" : (data?.feedback.budget?.sheetName ?? "Budget")}
+                />
+                <KpiCard
+                  label="Budget costs"
+                  value={currency(metrics.budgetCosts)}
+                  detail={isFiltered ? "Allocated to the current filtered row share" : "Detected budget costs"}
+                />
                 <KpiCard label="Budget result" value={currency(metrics.budgetResult)} detail="Budget revenue minus costs" />
               </div>
             </section>
@@ -1675,7 +1999,7 @@ export default function UploadDashboard() {
                   <LineChart className="h-4 w-4" aria-hidden="true" />
                 </span>
               </div>
-              {hasData ? (
+              {hasFilteredData ? (
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <RechartsLineChart data={metrics.monthly} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
@@ -1688,7 +2012,7 @@ export default function UploadDashboard() {
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <EmptyChart message="Upload an Excel file to chart revenue by month." />
+                <EmptyChart message="No rows match the current filters for this chart." />
               )}
             </div>
 
@@ -1702,7 +2026,7 @@ export default function UploadDashboard() {
                   <BarChart3 className="h-4 w-4" aria-hidden="true" />
                 </span>
               </div>
-              {hasData ? (
+              {hasFilteredData ? (
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={metrics.productsByUnits} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
@@ -1719,7 +2043,7 @@ export default function UploadDashboard() {
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <EmptyChart message="Upload an Excel file to chart units by product." />
+                <EmptyChart message="No rows match the current filters for this chart." />
               )}
             </div>
           </div>
@@ -1730,7 +2054,7 @@ export default function UploadDashboard() {
                 <h3 className="font-semibold text-ink">Revenue by category</h3>
                 <p className="text-sm text-slate-500">Share of sales by category</p>
               </div>
-              {hasData ? (
+              {hasFilteredData ? (
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -1745,7 +2069,7 @@ export default function UploadDashboard() {
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <EmptyChart message="Upload an Excel file to chart revenue by category." />
+                <EmptyChart message="No rows match the current filters for this chart." />
               )}
             </div>
 
@@ -1782,16 +2106,16 @@ export default function UploadDashboard() {
                 <h3 className="font-semibold text-ink">Costs by category</h3>
                 <p className="text-sm text-slate-500">Shown when a costs sheet is detected</p>
               </div>
-              {showCosts && data?.feedback.costs?.byCategory.length ? (
+              {showCosts && costsByCategory.length ? (
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={data.feedback.costs.byCategory} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+                    <BarChart data={costsByCategory} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
                       <CartesianGrid stroke="#e2e8f0" vertical={false} />
                       <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
                       <YAxis tickLine={false} axisLine={false} fontSize={12} tickFormatter={(value) => `$${value / 1000}k`} />
                       <Tooltip formatter={(value: number) => currency(value)} />
                       <Bar dataKey="cost" radius={[6, 6, 0, 0]}>
-                        {data.feedback.costs.byCategory.map((entry, index) => (
+                        {costsByCategory.map((entry, index) => (
                           <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
                         ))}
                       </Bar>
