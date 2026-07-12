@@ -7,6 +7,7 @@ import {
   BarChart3,
   CalendarRange,
   Check,
+  ChevronDown,
   Download,
   FileSpreadsheet,
   Filter,
@@ -157,6 +158,14 @@ const emptyDashboardFilters: DashboardFilters = {
 };
 
 const chartColors = ["#0891b2", "#f97316", "#22c55e", "#6366f1", "#e11d48", "#14b8a6"];
+const chartCardClass =
+  "rounded-lg border border-slate-200/70 bg-white/70 p-5 shadow-[0_1px_3px_rgba(16,32,51,0.035)] backdrop-blur-sm sm:p-6";
+const chartTooltipStyle = {
+  border: "1px solid #e2e8f0",
+  borderRadius: "8px",
+  boxShadow: "0 10px 28px rgba(16,32,51,0.1)",
+  color: "#102033",
+};
 
 const fieldLabels: Record<FieldKey, string> = {
   date: "Date",
@@ -1030,16 +1039,31 @@ function downloadSampleExcel() {
   XLSX.writeFile(workbook, "databrief-ai-sample-workbook.xlsx");
 }
 
-function KpiCard({ label, value, detail }: { label: string; value: string; detail: string }) {
+function KpiCard({
+  label,
+  value,
+  detail,
+  emphasis = false,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  emphasis?: boolean;
+}) {
   return (
-    <div className="relative overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(16,32,51,0.05)] sm:p-5">
-      <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-brand-500 via-brand-500/45 to-transparent" />
-      <div className="flex items-center gap-2">
-        <span className="h-1.5 w-1.5 rounded-full bg-brand-500" aria-hidden="true" />
+    <div
+      className={`relative min-h-36 overflow-hidden rounded-lg border p-4 transition-shadow sm:p-5 ${
+        emphasis
+          ? "border-brand-100 bg-[linear-gradient(145deg,#ffffff_0%,#f2fbfc_100%)] shadow-[0_10px_28px_rgba(8,145,178,0.08)]"
+          : "border-slate-200/80 bg-white/80 shadow-[0_1px_2px_rgba(16,32,51,0.03)]"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-semibold text-slate-500">{label}</p>
+        <span className={`h-1.5 w-1.5 rounded-full ${emphasis ? "bg-brand-500" : "bg-slate-300"}`} aria-hidden="true" />
       </div>
-      <p className="mt-3 break-words text-2xl font-semibold text-ink">{value}</p>
-      <p className="mt-2 text-xs leading-5 text-slate-500">{detail}</p>
+      <p className={`mt-3 break-words font-semibold text-ink ${emphasis ? "text-[1.7rem]" : "text-2xl"}`}>{value}</p>
+      <p className="mt-3 border-t border-slate-100 pt-2.5 text-xs leading-5 text-slate-500">{detail}</p>
     </div>
   );
 }
@@ -1153,7 +1177,7 @@ function FeedbackPanel({ feedback }: { feedback?: MappingFeedback }) {
   const optionalEntries = Object.entries(feedback.optionalColumns);
 
   return (
-    <details className="rounded-lg border border-slate-200 bg-white/70 px-4 py-3 shadow-sm">
+    <details className="rounded-lg border border-slate-200/70 bg-white/45 px-4 py-3">
       <summary className="cursor-pointer text-xs font-semibold text-slate-600 transition hover:text-ink">View detection details</summary>
       <div className="mt-4 flex items-start gap-3 border-t border-slate-100 pt-4">
         <Info className="mt-0.5 h-5 w-5 text-brand-700" aria-hidden="true" />
@@ -1316,10 +1340,10 @@ function DashboardFilterBar({
   const activeFilters = getActiveFilterLabels(filters);
 
   return (
-    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_12px_34px_rgba(16,32,51,0.06)]">
-      <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <section className="overflow-hidden rounded-lg border border-slate-200/80 bg-white/75 shadow-[0_1px_3px_rgba(16,32,51,0.04)] backdrop-blur-sm">
+      <div className="flex flex-col gap-3 px-5 pb-3 pt-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center rounded-lg border border-brand-100 bg-brand-50 text-brand-700">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-50 text-brand-700">
             <Filter className="h-4 w-4" aria-hidden="true" />
           </span>
           <div>
@@ -1331,34 +1355,37 @@ function DashboardFilterBar({
           type="button"
           onClick={onReset}
           disabled={!activeFilters.length}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-brand-500 hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-ink disabled:cursor-not-allowed disabled:opacity-35"
         >
           <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
           Reset filters
         </button>
       </div>
 
-      <div className="grid gap-3 px-5 py-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+      <div className="grid gap-3 px-5 pb-5 pt-2 sm:grid-cols-2 sm:px-6 xl:grid-cols-3 2xl:grid-cols-5">
         {controls.map((control) => (
           <label key={control.field} className="block min-w-0 text-xs font-semibold text-slate-500">
             {control.label}
-            <select
-              value={filters[control.field]}
-              onChange={(event) => onChange(control.field, event.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-ink outline-none transition focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100"
-            >
-              <option value="">{control.allLabel}</option>
-              {control.options.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+            <span className="relative mt-1.5 block">
+              <select
+                value={filters[control.field]}
+                onChange={(event) => onChange(control.field, event.target.value)}
+                className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 pr-9 text-sm font-medium text-ink shadow-[0_1px_2px_rgba(16,32,51,0.03)] outline-none transition hover:border-slate-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              >
+                <option value="">{control.allLabel}</option>
+                {control.options.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+            </span>
           </label>
         ))}
       </div>
 
-      <div className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-3 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 border-t border-slate-100 px-5 py-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <p className="font-medium">
           Showing <span className="font-semibold text-ink">{number(filteredRowCount)}</span> of {number(rows.length)} rows
         </p>
@@ -1406,6 +1433,12 @@ function MonthlyReportCard({
   const deviation = reportMetrics.revenueVsBudget;
   const tolerance = Math.max(1, reportMetrics.budgetRevenue * 0.01);
   const budgetStatus = Math.abs(deviation) <= tolerance ? "On budget" : deviation > 0 ? "Over budget" : "Under budget";
+  const budgetStatusClasses =
+    budgetStatus === "On budget"
+      ? "bg-emerald-50 text-emerald-700"
+      : budgetStatus === "Over budget"
+        ? "bg-brand-50 text-brand-700"
+        : "bg-amber-50 text-amber-700";
   const resultLabel = reportMetrics.hasGrossProfit ? "Gross profit" : reportMetrics.hasCosts ? "Result" : "Units sold";
   const resultValue = reportMetrics.hasGrossProfit
     ? currency(reportMetrics.totalGrossProfit)
@@ -1422,10 +1455,10 @@ function MonthlyReportCard({
     : "";
 
   return (
-    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_12px_34px_rgba(16,32,51,0.06)]">
-      <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+    <section className="overflow-hidden rounded-lg border border-slate-200/80 bg-white/85 shadow-[0_6px_22px_rgba(16,32,51,0.045)]">
+      <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-lg border border-orange-100 bg-orange-50 text-accent-600">
+          <span className="grid h-10 w-10 place-items-center rounded-lg bg-orange-50 text-accent-600">
             <CalendarRange className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
@@ -1433,37 +1466,44 @@ function MonthlyReportCard({
             <h2 className="mt-0.5 text-lg font-semibold text-ink">Monthly report</h2>
           </div>
         </div>
-        <label className="text-xs font-semibold text-slate-500">
-          Report month
-          <select
-            value={reportMonth}
-            onChange={(event) => onMonthChange(event.target.value)}
-            className="ml-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-ink outline-none transition focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100"
-          >
-            {monthOptions.map((month) => (
-              <option key={month} value={month}>
-                {month}
-              </option>
-            ))}
-          </select>
+        <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+          <span>Report month</span>
+          <span className="relative block">
+            <select
+              value={reportMonth}
+              onChange={(event) => onMonthChange(event.target.value)}
+              className="appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-9 text-sm font-semibold text-ink shadow-[0_1px_2px_rgba(16,32,51,0.03)] outline-none transition hover:border-slate-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            >
+              {monthOptions.map((month) => (
+                <option key={month} value={month}>
+                  {month}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+          </span>
         </label>
       </div>
 
-      <div className="grid gap-px bg-slate-200 sm:grid-cols-3">
+      <div className="grid border-y border-slate-100 sm:grid-cols-3">
         {[
           ["Revenue", currency(reportMetrics.totalRevenue)],
           [resultLabel, resultValue],
           [hasBudget ? "Budget status" : "Rows included", hasBudget ? budgetStatus : number(reportMetrics.rowCount)],
-        ].map(([label, value]) => (
-          <div key={label} className="bg-white px-5 py-4 sm:px-6">
+        ].map(([label, value], index) => (
+          <div key={label} className={`px-5 py-4 sm:px-6 ${index ? "border-t border-slate-100 sm:border-l sm:border-t-0" : ""}`}>
             <p className="text-xs font-semibold text-slate-500">{label}</p>
-            <p className="mt-2 text-xl font-semibold text-ink">{value}</p>
+            <p
+              className={`mt-2 text-2xl font-semibold text-ink ${hasBudget && label === "Budget status" ? `inline-flex rounded-md px-2.5 py-1 text-base ${budgetStatusClasses}` : ""}`}
+            >
+              {value}
+            </p>
           </div>
         ))}
       </div>
 
-      <div className="bg-[linear-gradient(135deg,#f8fafc_0%,#ecfeff_100%)] px-5 py-4 sm:px-6">
-        <p className="text-sm leading-7 text-slate-700">
+      <div className="bg-slate-50/65 px-5 py-5 sm:px-6">
+        <p className="border-l-2 border-brand-400 pl-4 text-sm font-medium leading-7 text-slate-700">
           {reportRows.length
             ? `In ${reportMonth}, revenue was ${currency(reportMetrics.totalRevenue)}${profitSentence}${budgetSentence}.`
             : `No rows match the current filters for ${reportMonth}.`}
@@ -1847,7 +1887,7 @@ export default function UploadDashboard() {
         </aside>
 
         <section className="min-w-0 space-y-8">
-          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_16px_44px_rgba(16,32,51,0.08)]">
+          <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-white/90 shadow-[0_8px_30px_rgba(16,32,51,0.055)]">
             <div className="flex flex-col gap-4 px-5 py-5 sm:px-6 md:flex-row md:items-start md:justify-between">
               <div>
                 <p className="text-xs font-semibold text-brand-700">{data?.fileName ?? analysis?.fileName ?? "No file uploaded yet"}</p>
@@ -1890,8 +1930,8 @@ export default function UploadDashboard() {
             />
           ) : null}
 
-          <section>
-            <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <section className="space-y-4">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-xs font-semibold text-brand-700">Performance overview</p>
                 <h2 className="mt-1 text-xl font-semibold text-ink">Key business metrics</h2>
@@ -1903,11 +1943,13 @@ export default function UploadDashboard() {
                 label="Total revenue"
                 value={hasData ? currency(metrics.totalRevenue) : "No data"}
                 detail={hasData ? `Source: ${data?.feedback.revenueSource}` : "Upload a workbook"}
+                emphasis
               />
               <KpiCard
                 label="Total units sold"
                 value={hasData ? number(metrics.totalUnits) : "No data"}
                 detail={hasData ? "Summed from detected units column" : "Upload a workbook"}
+                emphasis
               />
               <KpiCard
                 label="Best product"
@@ -1958,10 +2000,10 @@ export default function UploadDashboard() {
           ) : null}
 
           {showBudget ? (
-            <section>
-              <div className="mb-4">
+            <section className="space-y-4">
+              <div>
                 <p className="text-xs font-semibold text-brand-700">Plan comparison</p>
-                <h2 className="mt-1 text-lg font-semibold text-ink">Budget overview</h2>
+                <h2 className="mt-1 text-xl font-semibold text-ink">Budget overview</h2>
               </div>
               <div className="grid gap-4 sm:grid-cols-3">
                 <KpiCard
@@ -1979,7 +2021,7 @@ export default function UploadDashboard() {
             </section>
           ) : null}
 
-          <section className="space-y-6">
+          <section className="space-y-5 border-t border-slate-200/70 pt-8">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-xs font-semibold text-brand-700">Visual analysis</p>
@@ -1988,12 +2030,12 @@ export default function UploadDashboard() {
               <p className="text-xs text-slate-500">Interactive views generated from the mapped data</p>
             </div>
 
-          <div className="grid gap-6 xl:grid-cols-2">
-            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(16,32,51,0.05)]">
+          <div className="grid gap-5 xl:grid-cols-2">
+            <div className={chartCardClass}>
               <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
                   <h3 className="font-semibold text-ink">Revenue by month</h3>
-                  <p className="text-sm text-slate-500">Uses Date, or Month when dates cannot be parsed</p>
+                  <p className="text-xs leading-5 text-slate-500">Uses Date, or Month when dates cannot be parsed</p>
                 </div>
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-brand-100 bg-brand-50 text-brand-700">
                   <LineChart className="h-4 w-4" aria-hidden="true" />
@@ -2003,11 +2045,11 @@ export default function UploadDashboard() {
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <RechartsLineChart data={metrics.monthly} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                      <CartesianGrid stroke="#e2e8f0" vertical={false} />
-                      <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
-                      <YAxis tickLine={false} axisLine={false} fontSize={12} tickFormatter={(value) => `$${value / 1000}k`} />
-                      <Tooltip formatter={(value: number) => currency(value)} />
-                      <Line type="monotone" dataKey="revenue" stroke="#0891b2" strokeWidth={3} dot={{ r: 4 }} />
+                      <CartesianGrid stroke="#edf2f7" vertical={false} />
+                      <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
+                      <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} tickFormatter={(value) => `$${value / 1000}k`} />
+                      <Tooltip contentStyle={chartTooltipStyle} formatter={(value: number) => currency(value)} />
+                      <Line type="monotone" dataKey="revenue" stroke="#0891b2" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                     </RechartsLineChart>
                   </ResponsiveContainer>
                 </div>
@@ -2016,11 +2058,11 @@ export default function UploadDashboard() {
               )}
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(16,32,51,0.05)]">
+            <div className={chartCardClass}>
               <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
                   <h3 className="font-semibold text-ink">Units by product</h3>
-                  <p className="text-sm text-slate-500">Units sold ranked by product</p>
+                  <p className="text-xs leading-5 text-slate-500">Units sold ranked by product</p>
                 </div>
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-orange-100 bg-orange-50 text-accent-600">
                   <BarChart3 className="h-4 w-4" aria-hidden="true" />
@@ -2030,10 +2072,10 @@ export default function UploadDashboard() {
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={metrics.productsByUnits} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                      <CartesianGrid stroke="#e2e8f0" vertical={false} />
-                      <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
-                      <YAxis tickLine={false} axisLine={false} fontSize={12} />
-                      <Tooltip formatter={(value: number) => `${number(value)} units`} />
+                      <CartesianGrid stroke="#edf2f7" vertical={false} />
+                      <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
+                      <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
+                      <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f1f5f9" }} formatter={(value: number) => `${number(value)} units`} />
                       <Bar dataKey="units" radius={[6, 6, 0, 0]}>
                         {metrics.productsByUnits.map((entry, index) => (
                           <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
@@ -2048,11 +2090,11 @@ export default function UploadDashboard() {
             </div>
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-2">
-            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(16,32,51,0.05)]">
+          <div className="grid gap-5 xl:grid-cols-2">
+            <div className={chartCardClass}>
               <div className="mb-4">
                 <h3 className="font-semibold text-ink">Revenue by category</h3>
-                <p className="text-sm text-slate-500">Share of sales by category</p>
+                <p className="text-xs leading-5 text-slate-500">Share of sales by category</p>
               </div>
               {hasFilteredData ? (
                 <div className="h-72">
@@ -2063,7 +2105,7 @@ export default function UploadDashboard() {
                           <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: number) => currency(value)} />
+                      <Tooltip contentStyle={chartTooltipStyle} formatter={(value: number) => currency(value)} />
                       <Legend />
                     </PieChart>
                   </ResponsiveContainer>
@@ -2073,19 +2115,19 @@ export default function UploadDashboard() {
               )}
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(16,32,51,0.05)]">
+            <div className={chartCardClass}>
               <div className="mb-4">
                 <h3 className="font-semibold text-ink">Gross profit by category</h3>
-                <p className="text-sm text-slate-500">Shown when gross profit is mapped</p>
+                <p className="text-xs leading-5 text-slate-500">Shown when gross profit is mapped</p>
               </div>
               {showGrossProfit && metrics.grossProfitByCategory.length ? (
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={metrics.grossProfitByCategory} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                      <CartesianGrid stroke="#e2e8f0" vertical={false} />
-                      <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
-                      <YAxis tickLine={false} axisLine={false} fontSize={12} tickFormatter={(value) => `$${value / 1000}k`} />
-                      <Tooltip formatter={(value: number) => currency(value)} />
+                      <CartesianGrid stroke="#edf2f7" vertical={false} />
+                      <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
+                      <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} tickFormatter={(value) => `$${value / 1000}k`} />
+                      <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f1f5f9" }} formatter={(value: number) => currency(value)} />
                       <Bar dataKey="grossProfit" radius={[6, 6, 0, 0]}>
                         {metrics.grossProfitByCategory.map((entry, index) => (
                           <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
@@ -2100,20 +2142,20 @@ export default function UploadDashboard() {
             </div>
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(16,32,51,0.05)]">
+          <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+            <div className={chartCardClass}>
               <div className="mb-4">
                 <h3 className="font-semibold text-ink">Costs by category</h3>
-                <p className="text-sm text-slate-500">Shown when a costs sheet is detected</p>
+                <p className="text-xs leading-5 text-slate-500">Shown when a costs sheet is detected</p>
               </div>
               {showCosts && costsByCategory.length ? (
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={costsByCategory} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                      <CartesianGrid stroke="#e2e8f0" vertical={false} />
-                      <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
-                      <YAxis tickLine={false} axisLine={false} fontSize={12} tickFormatter={(value) => `$${value / 1000}k`} />
-                      <Tooltip formatter={(value: number) => currency(value)} />
+                      <CartesianGrid stroke="#edf2f7" vertical={false} />
+                      <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
+                      <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} tickFormatter={(value) => `$${value / 1000}k`} />
+                      <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f1f5f9" }} formatter={(value: number) => currency(value)} />
                       <Bar dataKey="cost" radius={[6, 6, 0, 0]}>
                         {costsByCategory.map((entry, index) => (
                           <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
@@ -2127,18 +2169,23 @@ export default function UploadDashboard() {
               )}
             </div>
 
-            <div className="h-full rounded-lg border border-brand-100 bg-[linear-gradient(135deg,#ffffff_0%,#ecfeff_100%)] p-6 shadow-[0_12px_34px_rgba(8,145,178,0.08)]">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="grid h-10 w-10 place-items-center rounded-lg border border-brand-100 bg-white text-brand-700 shadow-sm">
+            <div className="relative h-full overflow-hidden rounded-lg border border-brand-100/80 bg-white/90 p-6 shadow-[0_8px_28px_rgba(8,145,178,0.07)] sm:p-7">
+              <div className="absolute inset-y-0 left-0 w-1 bg-brand-500" aria-hidden="true" />
+              <div className="mb-5 flex items-center gap-3">
+                <div className="grid h-10 w-10 place-items-center rounded-lg bg-brand-50 text-brand-700">
                   <Sparkles className="h-5 w-5" aria-hidden="true" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-brand-700">Generated insight</p>
-                  <h3 className="mt-0.5 font-semibold text-ink">Executive summary</h3>
-                  <p className="text-sm text-slate-500">Rule-based demo summary generated from the uploaded data</p>
+                  <h3 className="mt-0.5 text-lg font-semibold text-ink">Executive summary</h3>
+                  <p className="text-xs leading-5 text-slate-500">Rule-based summary from the current dashboard view</p>
                 </div>
               </div>
-              <p className="border-t border-brand-100 pt-4 text-base leading-8 text-slate-700">{summary}</p>
+              <p className="border-l-2 border-slate-200 pl-4 text-[15px] font-medium leading-8 text-slate-700 sm:text-base">{summary}</p>
+              <div className="mt-6 flex items-center gap-2 border-t border-slate-100 pt-4 text-xs font-medium text-slate-500">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+                {isFiltered ? "Updated for the active filters" : "Based on all available sales rows"}
+              </div>
             </div>
           </div>
           </section>
