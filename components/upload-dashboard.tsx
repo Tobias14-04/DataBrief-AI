@@ -953,10 +953,14 @@ function downloadSampleExcel() {
 
 function KpiCard({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
-    <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
-      <p className="mt-3 text-2xl font-semibold tracking-tight text-ink">{value}</p>
-      <p className="mt-2 text-sm text-slate-500">{detail}</p>
+    <div className="relative overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(16,32,51,0.05)] sm:p-5">
+      <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-brand-500 via-brand-500/45 to-transparent" />
+      <div className="flex items-center gap-2">
+        <span className="h-1.5 w-1.5 rounded-full bg-brand-500" aria-hidden="true" />
+        <p className="text-xs font-semibold text-slate-500">{label}</p>
+      </div>
+      <p className="mt-3 break-words text-2xl font-semibold text-ink">{value}</p>
+      <p className="mt-2 text-xs leading-5 text-slate-500">{detail}</p>
     </div>
   );
 }
@@ -985,10 +989,19 @@ function StatusBox({ feedback, analysis }: { feedback?: MappingFeedback; analysi
         : "border-red-200 bg-red-50 text-red-800";
 
   return (
-    <div className={`rounded-lg border px-4 py-3 text-sm ${classes}`}>
-      <p className="font-semibold">{label}</p>
-      {feedback?.warnings.length ? <p className="mt-1">{feedback.warnings.join(" ")}</p> : null}
-      {!feedback && analysis ? <p className="mt-1">Choose a worksheet and map the required columns below.</p> : null}
+    <div className={`inline-flex max-w-full items-start gap-2 rounded-lg border px-3 py-2 text-sm ${classes}`}>
+      {status === "success" ? (
+        <span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full bg-emerald-600 text-white">
+          <Check className="h-2.5 w-2.5" strokeWidth={3} aria-hidden="true" />
+        </span>
+      ) : (
+        <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+      )}
+      <div className="min-w-0">
+        <p className="font-semibold">{label}</p>
+        {feedback?.warnings.length ? <p className="mt-0.5 text-xs leading-5">{feedback.warnings.join(" ")}</p> : null}
+        {!feedback && analysis ? <p className="mt-0.5 text-xs leading-5">Choose a worksheet and map the required columns below.</p> : null}
+      </div>
     </div>
   );
 }
@@ -1018,24 +1031,24 @@ function DataDetectedCard({
         : "Manual mapping applied";
 
   return (
-    <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <div className="border-t border-slate-200 px-5 py-4 sm:px-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 className="font-semibold text-ink">Data detected</h3>
-          <p className="mt-1 text-sm text-slate-500">
+          <h3 className="text-sm font-semibold text-ink">Data detected</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-500">
             {feedback.salesSheetName}, header row {feedback.headerRow}, {number(rowCount)} valid rows
           </p>
         </div>
         <button
           type="button"
           onClick={onEdit}
-          className="inline-flex items-center justify-center rounded-md border border-line bg-white px-3 py-2 text-sm font-semibold text-ink transition hover:border-brand-500"
+          className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-ink shadow-sm transition hover:border-brand-500 hover:text-brand-700"
         >
           Edit column mapping
         </button>
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-4 grid gap-x-4 gap-y-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
           ["Mapping status", statusText],
           ["Revenue column", feedback.revenueSource],
@@ -1043,9 +1056,9 @@ function DataDetectedCard({
           ["Product column", mappedColumn(feedback, "Product")],
           ["Category column", mappedColumn(feedback, "Category")],
         ].map(([label, value]) => (
-          <div key={label} className="rounded-md border border-line bg-slate-50 px-3 py-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
-            <p className="mt-1 truncate text-sm font-semibold text-ink">{value}</p>
+          <div key={label} className="min-w-0 border-l border-slate-200 pl-3">
+            <p className="text-[11px] font-medium text-slate-500">{label}</p>
+            <p className="mt-1 truncate text-xs font-semibold text-ink" title={value}>{value}</p>
           </div>
         ))}
       </div>
@@ -1061,9 +1074,9 @@ function FeedbackPanel({ feedback }: { feedback?: MappingFeedback }) {
   const optionalEntries = Object.entries(feedback.optionalColumns);
 
   return (
-    <details className="rounded-lg border border-line bg-white p-5 shadow-sm">
-      <summary className="cursor-pointer text-sm font-semibold text-ink">View detection details</summary>
-      <div className="flex items-start gap-3">
+    <details className="rounded-lg border border-slate-200 bg-white/70 px-4 py-3 shadow-sm">
+      <summary className="cursor-pointer text-xs font-semibold text-slate-600 transition hover:text-ink">View detection details</summary>
+      <div className="mt-4 flex items-start gap-3 border-t border-slate-100 pt-4">
         <Info className="mt-0.5 h-5 w-5 text-brand-700" aria-hidden="true" />
         <div className="min-w-0 flex-1">
           <h3 className="font-semibold text-ink">Workbook detection</h3>
@@ -1464,41 +1477,44 @@ export default function UploadDashboard() {
   }
 
   return (
-    <main className="min-h-screen">
-      <header className="border-b border-line bg-white/85 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 lg:px-8">
-          <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-ink">
+    <main className="min-h-screen bg-[linear-gradient(180deg,#f7fbfc_0%,#f8fafc_28%,#f8fafc_100%)]">
+      <header className="border-b border-white/70 bg-white/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-slate-600 transition hover:bg-white hover:text-ink"
+          >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Home
           </Link>
           <div className="flex items-center gap-3">
-            <span className="grid h-9 w-9 place-items-center rounded-md bg-ink text-white">
+            <span className="grid h-10 w-10 place-items-center rounded-lg bg-ink text-white shadow-[0_10px_24px_rgba(16,32,51,0.18)]">
               <FileSpreadsheet className="h-5 w-5" aria-hidden="true" />
             </span>
-            <span className="font-semibold tracking-tight">DataBrief AI</span>
+            <span className="font-semibold text-ink">DataBrief AI</span>
           </div>
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-7xl gap-8 px-6 py-8 lg:grid-cols-[360px_1fr] lg:px-8">
-        <aside className="space-y-5">
-          <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="grid h-11 w-11 place-items-center rounded-md bg-brand-50 text-brand-700">
-                <Upload className="h-5 w-5" aria-hidden="true" />
+      <section className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-8 lg:py-8">
+        <aside className="self-start space-y-3 lg:sticky lg:top-6 lg:space-y-4">
+          <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-[0_10px_30px_rgba(16,32,51,0.06)] lg:p-4">
+            <div className="mb-2 flex items-center gap-3 lg:mb-3">
+              <div className="grid h-9 w-9 place-items-center rounded-lg border border-brand-100 bg-brand-50 text-brand-700">
+                <Upload className="h-4 w-4" aria-hidden="true" />
               </div>
               <div>
-                <h1 className="text-xl font-semibold tracking-tight">Upload sales data</h1>
-                <p className="text-sm text-slate-500">Excel is parsed in your browser.</p>
+                <h1 className="text-sm font-semibold text-ink">Change sales data</h1>
+                <p className="text-xs text-slate-500">Replace the current workbook</p>
               </div>
             </div>
 
-            <label className="group flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center transition hover:border-brand-500 hover:bg-brand-50/50">
-              <Upload className="h-8 w-8 text-brand-700" aria-hidden="true" />
-              <span className="mt-3 text-sm font-semibold text-ink">
+            <label className="group flex cursor-pointer flex-row items-center justify-center gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-center transition hover:border-brand-500 hover:bg-brand-50/50 lg:min-h-28 lg:flex-col lg:gap-0 lg:py-4">
+              <Upload className="h-5 w-5 text-brand-700 lg:h-6 lg:w-6" aria-hidden="true" />
+              <span className="text-xs font-semibold text-ink lg:mt-2">
                 {isLoading ? "Reading spreadsheet..." : "Choose an Excel file"}
               </span>
-              <span className="mt-1 text-xs text-slate-500">.xlsx with flexible English or Danish sales columns</span>
+              <span className="mt-1 hidden text-[11px] text-slate-500 lg:block">English or Danish .xlsx</span>
               <input
                 type="file"
                 accept=".xlsx"
@@ -1509,61 +1525,60 @@ export default function UploadDashboard() {
             </label>
 
             {error ? (
-              <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+              <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-700">{error}</p>
             ) : null}
 
-            <button
-              type="button"
-              onClick={downloadSampleExcel}
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md border border-line bg-white px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-brand-500"
-            >
-              <Download className="h-4 w-4" aria-hidden="true" />
-              Download sample Excel file
-            </button>
-            <button
-              type="button"
-              onClick={loadDemoDataset}
-              disabled={isLoading}
-              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-line bg-white px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-brand-500 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Sparkles className="h-4 w-4" aria-hidden="true" />
-              Use demo dataset
-            </button>
-          </div>
-
-          <div className="rounded-lg border border-line bg-white p-5">
-            <div className="flex items-start gap-3">
-              <Info className="mt-0.5 h-5 w-5 text-brand-700" aria-hidden="true" />
-              <div>
-                <h2 className="font-semibold text-ink">Supported columns</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  The app scans messy worksheets, detects likely header rows, maps common English and Danish aliases,
-                  and lets you manually pick columns when needed.
-                </p>
-              </div>
+            <div className="mt-2 grid grid-cols-2 gap-2 lg:mt-3 lg:grid-cols-1">
+              <button
+                type="button"
+                onClick={downloadSampleExcel}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-ink transition hover:border-brand-500 lg:px-3"
+              >
+                <Download className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                Download sample
+              </button>
+              <button
+                type="button"
+                onClick={loadDemoDataset}
+                disabled={isLoading}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-ink transition hover:border-brand-500 disabled:cursor-not-allowed disabled:opacity-60 lg:px-3"
+              >
+                <Sparkles className="h-3.5 w-3.5 shrink-0 text-accent-600" aria-hidden="true" />
+                Use demo dataset
+              </button>
             </div>
           </div>
+
+          <details className="hidden rounded-lg border border-slate-200 bg-white/80 px-4 py-3 shadow-sm lg:block">
+            <summary className="cursor-pointer text-xs font-semibold text-slate-600">Workbook support</summary>
+            <p className="mt-3 border-t border-slate-100 pt-3 text-xs leading-5 text-slate-500">
+              Flexible English and Danish aliases, header-row detection, and manual mapping fallback.
+            </p>
+          </details>
         </aside>
 
-        <section className="space-y-6">
-          <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <section className="min-w-0 space-y-8">
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_16px_44px_rgba(16,32,51,0.08)]">
+            <div className="flex flex-col gap-4 px-5 py-5 sm:px-6 md:flex-row md:items-start md:justify-between">
               <div>
-                <p className="text-sm font-semibold text-brand-700">{data?.fileName ?? analysis?.fileName ?? "No file uploaded yet"}</p>
-                <h2 className="mt-1 text-3xl font-semibold tracking-tight text-ink">Sales dashboard</h2>
-                <p className="mt-2 text-sm text-slate-500">
+                <p className="text-xs font-semibold text-brand-700">{data?.fileName ?? analysis?.fileName ?? "No file uploaded yet"}</p>
+                <h2 className="mt-1 text-2xl font-semibold text-ink sm:text-3xl">Sales dashboard</h2>
+                <p className="mt-1.5 text-sm text-slate-500">
                   {hasData ? `${number(metrics.rowCount)} rows included in this report.` : "Upload an Excel file to populate this dashboard."}
                 </p>
               </div>
-              <div className="inline-flex items-center gap-2 rounded-md bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-700">
-                <Sparkles className="h-4 w-4" aria-hidden="true" />
-                {hasData ? "Business summary generated" : "Waiting for upload"}
+              <div className="flex flex-col items-start gap-2 md:items-end">
+                <StatusBox feedback={data?.feedback} analysis={analysis} />
+                <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                  <Sparkles className="h-3.5 w-3.5 text-brand-600" aria-hidden="true" />
+                  {hasData ? "Business summary generated" : "Waiting for upload"}
+                </div>
               </div>
             </div>
+            <DataDetectedCard feedback={data?.feedback} rowCount={metrics.rowCount} onEdit={() => setShowManualMapping(true)} />
           </div>
 
-          <StatusBox feedback={data?.feedback} analysis={analysis} />
-          <DataDetectedCard feedback={data?.feedback} rowCount={metrics.rowCount} onEdit={() => setShowManualMapping(true)} />
+          <FeedbackPanel feedback={data?.feedback} />
 
           {shouldShowManualMapping ? (
             <ManualMappingPanel
@@ -1576,65 +1591,89 @@ export default function UploadDashboard() {
             />
           ) : null}
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <KpiCard
-              label="Total revenue"
-              value={hasData ? currency(metrics.totalRevenue) : "No data"}
-              detail={hasData ? `Source: ${data?.feedback.revenueSource}` : "Upload a workbook"}
-            />
-            <KpiCard
-              label="Total units sold"
-              value={hasData ? number(metrics.totalUnits) : "No data"}
-              detail={hasData ? "Summed from detected units column" : "Upload a workbook"}
-            />
-            <KpiCard
-              label="Best product"
-              value={metrics.bestProduct?.name ?? "No data"}
-              detail={metrics.bestProduct ? `${currency(metrics.bestProduct.revenue)} revenue` : "Calculated after upload"}
-            />
-            <KpiCard
-              label="Best category"
-              value={metrics.bestCategory?.name ?? "No data"}
-              detail={metrics.bestCategory ? `${currency(metrics.bestCategory.revenue)} revenue` : "Calculated after upload"}
-            />
-            <KpiCard
-              label="Best month"
-              value={metrics.bestMonth?.name ?? "No data"}
-              detail={metrics.bestMonth ? `${currency(metrics.bestMonth.revenue)} revenue` : "Calculated after upload"}
-            />
-            {showGrossProfit ? (
-              <KpiCard label="Gross profit" value={currency(metrics.totalGrossProfit)} detail="From gross profit / contribution margin" />
-            ) : null}
-            {hasData && metrics.hasGrossMargin ? <KpiCard label="Gross margin" value={percent(metrics.grossMargin)} detail="From margin column" /> : null}
-            {showCosts ? <KpiCard label="Total costs" value={currency(metrics.totalCosts)} detail="From costs sheet" /> : null}
-            {showCosts ? <KpiCard label="Result" value={currency(metrics.actualResult)} detail="Revenue minus costs" /> : null}
-            {showBudget ? (
+          <section>
+            <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold text-brand-700">Performance overview</p>
+                <h2 className="mt-1 text-xl font-semibold text-ink">Key business metrics</h2>
+              </div>
+              <p className="text-xs text-slate-500">Calculated from the detected workbook data</p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               <KpiCard
-                label="Revenue vs budget"
-                value={currency(metrics.revenueVsBudget)}
-                detail={`Budget revenue: ${currency(metrics.budgetRevenue)}`}
+                label="Total revenue"
+                value={hasData ? currency(metrics.totalRevenue) : "No data"}
+                detail={hasData ? `Source: ${data?.feedback.revenueSource}` : "Upload a workbook"}
               />
-            ) : null}
-          </div>
-
-          <FeedbackPanel feedback={data?.feedback} />
+              <KpiCard
+                label="Total units sold"
+                value={hasData ? number(metrics.totalUnits) : "No data"}
+                detail={hasData ? "Summed from detected units column" : "Upload a workbook"}
+              />
+              <KpiCard
+                label="Best product"
+                value={metrics.bestProduct?.name ?? "No data"}
+                detail={metrics.bestProduct ? `${currency(metrics.bestProduct.revenue)} revenue` : "Calculated after upload"}
+              />
+              <KpiCard
+                label="Best category"
+                value={metrics.bestCategory?.name ?? "No data"}
+                detail={metrics.bestCategory ? `${currency(metrics.bestCategory.revenue)} revenue` : "Calculated after upload"}
+              />
+              <KpiCard
+                label="Best month"
+                value={metrics.bestMonth?.name ?? "No data"}
+                detail={metrics.bestMonth ? `${currency(metrics.bestMonth.revenue)} revenue` : "Calculated after upload"}
+              />
+              {showGrossProfit ? (
+                <KpiCard label="Gross profit" value={currency(metrics.totalGrossProfit)} detail="From gross profit / contribution margin" />
+              ) : null}
+              {hasData && metrics.hasGrossMargin ? <KpiCard label="Gross margin" value={percent(metrics.grossMargin)} detail="From margin column" /> : null}
+              {showCosts ? <KpiCard label="Total costs" value={currency(metrics.totalCosts)} detail="From costs sheet" /> : null}
+              {showCosts ? <KpiCard label="Result" value={currency(metrics.actualResult)} detail="Revenue minus costs" /> : null}
+              {showBudget ? (
+                <KpiCard
+                  label="Revenue vs budget"
+                  value={currency(metrics.revenueVsBudget)}
+                  detail={`Budget revenue: ${currency(metrics.budgetRevenue)}`}
+                />
+              ) : null}
+            </div>
+          </section>
 
           {showBudget ? (
-            <div className="grid gap-4 sm:grid-cols-3">
-              <KpiCard label="Budget revenue" value={currency(metrics.budgetRevenue)} detail={data?.feedback.budget?.sheetName ?? "Budget"} />
-              <KpiCard label="Budget costs" value={currency(metrics.budgetCosts)} detail="Detected budget costs" />
-              <KpiCard label="Budget result" value={currency(metrics.budgetResult)} detail="Budget revenue minus costs" />
-            </div>
+            <section>
+              <div className="mb-4">
+                <p className="text-xs font-semibold text-brand-700">Plan comparison</p>
+                <h2 className="mt-1 text-lg font-semibold text-ink">Budget overview</h2>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <KpiCard label="Budget revenue" value={currency(metrics.budgetRevenue)} detail={data?.feedback.budget?.sheetName ?? "Budget"} />
+                <KpiCard label="Budget costs" value={currency(metrics.budgetCosts)} detail="Detected budget costs" />
+                <KpiCard label="Budget result" value={currency(metrics.budgetResult)} detail="Budget revenue minus costs" />
+              </div>
+            </section>
           ) : null}
 
+          <section className="space-y-6">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold text-brand-700">Visual analysis</p>
+                <h2 className="mt-1 text-xl font-semibold text-ink">Trends and breakdowns</h2>
+              </div>
+              <p className="text-xs text-slate-500">Interactive views generated from the mapped data</p>
+            </div>
+
           <div className="grid gap-6 xl:grid-cols-2">
-            <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
-              <div className="mb-5 flex items-center justify-between">
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(16,32,51,0.05)]">
+              <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
                   <h3 className="font-semibold text-ink">Revenue by month</h3>
                   <p className="text-sm text-slate-500">Uses Date, or Month when dates cannot be parsed</p>
                 </div>
-                <LineChart className="h-5 w-5 text-brand-700" aria-hidden="true" />
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-brand-100 bg-brand-50 text-brand-700">
+                  <LineChart className="h-4 w-4" aria-hidden="true" />
+                </span>
               </div>
               {hasData ? (
                 <div className="h-72">
@@ -1653,13 +1692,15 @@ export default function UploadDashboard() {
               )}
             </div>
 
-            <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
-              <div className="mb-5 flex items-center justify-between">
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(16,32,51,0.05)]">
+              <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
                   <h3 className="font-semibold text-ink">Units by product</h3>
                   <p className="text-sm text-slate-500">Units sold ranked by product</p>
                 </div>
-                <BarChart3 className="h-5 w-5 text-brand-700" aria-hidden="true" />
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-orange-100 bg-orange-50 text-accent-600">
+                  <BarChart3 className="h-4 w-4" aria-hidden="true" />
+                </span>
               </div>
               {hasData ? (
                 <div className="h-72">
@@ -1684,8 +1725,8 @@ export default function UploadDashboard() {
           </div>
 
           <div className="grid gap-6 xl:grid-cols-2">
-            <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
-              <div className="mb-5">
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(16,32,51,0.05)]">
+              <div className="mb-4">
                 <h3 className="font-semibold text-ink">Revenue by category</h3>
                 <p className="text-sm text-slate-500">Share of sales by category</p>
               </div>
@@ -1708,8 +1749,8 @@ export default function UploadDashboard() {
               )}
             </div>
 
-            <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
-              <div className="mb-5">
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(16,32,51,0.05)]">
+              <div className="mb-4">
                 <h3 className="font-semibold text-ink">Gross profit by category</h3>
                 <p className="text-sm text-slate-500">Shown when gross profit is mapped</p>
               </div>
@@ -1736,8 +1777,8 @@ export default function UploadDashboard() {
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-            <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
-              <div className="mb-5">
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(16,32,51,0.05)]">
+              <div className="mb-4">
                 <h3 className="font-semibold text-ink">Costs by category</h3>
                 <p className="text-sm text-slate-500">Shown when a costs sheet is detected</p>
               </div>
@@ -1762,19 +1803,21 @@ export default function UploadDashboard() {
               )}
             </div>
 
-            <div className="rounded-lg border border-line bg-white p-6 shadow-sm">
+            <div className="h-full rounded-lg border border-brand-100 bg-[linear-gradient(135deg,#ffffff_0%,#ecfeff_100%)] p-6 shadow-[0_12px_34px_rgba(8,145,178,0.08)]">
               <div className="mb-4 flex items-center gap-3">
-                <div className="grid h-10 w-10 place-items-center rounded-md bg-brand-50 text-brand-700">
+                <div className="grid h-10 w-10 place-items-center rounded-lg border border-brand-100 bg-white text-brand-700 shadow-sm">
                   <Sparkles className="h-5 w-5" aria-hidden="true" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-ink">AI-style business report</h3>
+                  <p className="text-xs font-semibold text-brand-700">Generated insight</p>
+                  <h3 className="mt-0.5 font-semibold text-ink">Executive summary</h3>
                   <p className="text-sm text-slate-500">Rule-based demo summary generated from the uploaded data</p>
                 </div>
               </div>
-              <p className="text-base leading-8 text-slate-700">{summary}</p>
+              <p className="border-t border-brand-100 pt-4 text-base leading-8 text-slate-700">{summary}</p>
             </div>
           </div>
+          </section>
         </section>
       </section>
     </main>
