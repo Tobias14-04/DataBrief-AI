@@ -21,7 +21,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Line,
   LineChart as RechartsLineChart,
   ResponsiveContainer,
@@ -154,7 +153,6 @@ const emptyDashboardFilters: DashboardFilters = {
   region: "",
 };
 
-const chartColors = ["#0891b2", "#f97316", "#22c55e", "#6366f1", "#e11d48", "#14b8a6"];
 const chartCardClass =
   "rounded-lg border border-slate-200/70 bg-white p-5 shadow-[0_1px_2px_rgba(16,32,51,0.025)] sm:p-6";
 const chartTooltipStyle = {
@@ -2096,11 +2094,7 @@ export default function UploadDashboard() {
                           <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} />
                           <YAxis type="category" dataKey="name" width={110} tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} />
                           <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f8fafc" }} formatter={(value: number) => `${number(value)} enheder`} />
-                          <Bar dataKey="units" radius={[0, 5, 5, 0]}>
-                            {metrics.productsByUnits.map((entry, index) => (
-                              <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
-                            ))}
-                          </Bar>
+                          <Bar dataKey="units" fill="#0891b2" radius={[0, 5, 5, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
