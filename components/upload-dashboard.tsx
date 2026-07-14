@@ -22,11 +22,8 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
   Line,
   LineChart as RechartsLineChart,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -159,7 +156,7 @@ const emptyDashboardFilters: DashboardFilters = {
 
 const chartColors = ["#0891b2", "#f97316", "#22c55e", "#6366f1", "#e11d48", "#14b8a6"];
 const chartCardClass =
-  "rounded-lg border border-slate-200/70 bg-white/70 p-5 shadow-[0_1px_3px_rgba(16,32,51,0.035)] backdrop-blur-sm sm:p-6";
+  "rounded-lg border border-slate-200/70 bg-white p-5 shadow-[0_1px_2px_rgba(16,32,51,0.025)] sm:p-6";
 const chartTooltipStyle = {
   border: "1px solid #e2e8f0",
   borderRadius: "8px",
@@ -1052,18 +1049,28 @@ function KpiCard({
 }) {
   return (
     <div
-      className={`relative overflow-hidden rounded-lg border p-4 transition-shadow sm:p-5 ${
+      className={`relative overflow-hidden rounded-lg border p-4 sm:p-5 ${
         emphasis
-          ? "min-h-40 border-brand-100 bg-[linear-gradient(145deg,#ffffff_0%,#f2fbfc_100%)] shadow-[0_10px_28px_rgba(8,145,178,0.08)]"
-          : "min-h-32 border-slate-200/80 bg-white/75 shadow-[0_1px_2px_rgba(16,32,51,0.03)]"
+          ? "min-h-36 border-slate-200 bg-white shadow-[0_8px_24px_rgba(16,32,51,0.055)]"
+          : "min-h-28 border-slate-200/70 bg-white/70"
       }`}
     >
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-semibold text-slate-500">{label}</p>
         <span className={`h-1.5 w-1.5 rounded-full ${emphasis ? "bg-brand-500" : "bg-slate-300"}`} aria-hidden="true" />
       </div>
-      <p className={`mt-3 break-words font-semibold text-ink ${emphasis ? "text-3xl sm:text-[2rem]" : "text-2xl"}`}>{value}</p>
-      <p className="mt-3 border-t border-slate-100 pt-2.5 text-xs leading-5 text-slate-500">{detail}</p>
+      <p className={`mt-3 break-words font-semibold tracking-normal text-ink ${emphasis ? "text-2xl sm:text-[1.75rem]" : "text-xl"}`}>{value}</p>
+      <p className="mt-3 text-xs leading-5 text-slate-500">{detail}</p>
+    </div>
+  );
+}
+
+function SecondaryMetric({ label, value, detail }: { label: string; value: string; detail?: string }) {
+  return (
+    <div className="min-w-0 px-4 py-3.5 sm:px-5">
+      <p className="text-[11px] font-semibold text-slate-500">{label}</p>
+      <p className="mt-1 truncate text-base font-semibold text-ink" title={value}>{value}</p>
+      {detail ? <p className="mt-1 truncate text-[11px] text-slate-500" title={detail}>{detail}</p> : null}
     </div>
   );
 }
@@ -1109,10 +1116,6 @@ function StatusBox({ feedback, analysis }: { feedback?: MappingFeedback; analysi
   );
 }
 
-function mappedColumn(feedback: MappingFeedback, label: string) {
-  return feedback.mappedColumns[label] ?? feedback.optionalColumns[label] ?? "Ikke tilknyttet";
-}
-
 function DataDetectedCard({
   feedback,
   rowCount,
@@ -1134,36 +1137,25 @@ function DataDetectedCard({
         : "Manuel kolonnetilknytning anvendt";
 
   return (
-    <div className="border-t border-slate-200 px-5 py-4 sm:px-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-ink">Data registreret</h3>
-          <p className="mt-1 text-xs leading-5 text-slate-500">
-            {feedback.salesSheetName}, overskriftsrække {feedback.headerRow}, {number(rowCount)} gyldige rækker
-          </p>
-        </div>
+    <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-3.5 sm:px-6 xl:flex-row xl:items-center xl:justify-between">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500">
+        <span className="inline-flex items-center gap-2 font-semibold text-emerald-700">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+          Data registreret
+        </span>
+        <span><span className="font-medium text-slate-400">Ark</span> <strong className="ml-1 font-semibold text-ink">{feedback.salesSheetName}</strong></span>
+        <span><span className="font-medium text-slate-400">Overskriftsrække</span> <strong className="ml-1 font-semibold text-ink">{feedback.headerRow}</strong></span>
+        <span><span className="font-medium text-slate-400">Rækker</span> <strong className="ml-1 font-semibold text-ink">{number(rowCount)}</strong></span>
+        <span className="truncate"><span className="font-medium text-slate-400">Status</span> <strong className="ml-1 font-semibold text-ink">{statusText}</strong></span>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"
           onClick={onEdit}
-          className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-ink shadow-sm transition hover:border-brand-500 hover:text-brand-700"
+          className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-brand-500 hover:text-brand-700"
         >
           Rediger kolonnetilknytning
         </button>
-      </div>
-
-      <div className="mt-4 grid gap-x-4 gap-y-3 sm:grid-cols-2 xl:grid-cols-5">
-        {[
-          ["Status for kolonner", statusText],
-          ["Omsætningskolonne", feedback.revenueSource],
-          ["Antalskolonne", mappedColumn(feedback, "Antal")],
-          ["Produktkolonne", mappedColumn(feedback, "Produkt")],
-          ["Kategorikolonne", mappedColumn(feedback, "Kategori")],
-        ].map(([label, value]) => (
-          <div key={label} className="min-w-0 border-l border-slate-200 pl-3">
-            <p className="text-[11px] font-medium text-slate-500">{label}</p>
-            <p className="mt-1 truncate text-xs font-semibold text-ink" title={value}>{value}</p>
-          </div>
-        ))}
       </div>
     </div>
   );
@@ -1340,52 +1332,48 @@ function DashboardFilterBar({
   const activeFilters = getActiveFilterLabels(filters);
 
   return (
-    <section className="overflow-hidden rounded-lg border border-slate-200/80 bg-white/75 shadow-[0_1px_3px_rgba(16,32,51,0.04)] backdrop-blur-sm">
-      <div className="flex flex-col gap-3 px-5 pb-3 pt-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <div className="flex items-center gap-3">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-50 text-brand-700">
-            <Filter className="h-4 w-4" aria-hidden="true" />
-          </span>
-          <div>
-            <p className="text-xs font-semibold text-brand-700">Udforsk dit dashboard</p>
-            <h2 className="mt-0.5 text-lg font-semibold text-ink">Filtrer den aktuelle visning</h2>
-          </div>
+    <section className="rounded-lg border border-slate-200/80 bg-white/80 px-4 py-3 shadow-[0_1px_2px_rgba(16,32,51,0.025)] sm:px-5">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
+        <div className="flex shrink-0 items-center gap-2 pb-0.5 xl:pr-2">
+          <Filter className="h-4 w-4 text-brand-700" aria-hidden="true" />
+          <span className="text-xs font-semibold text-ink">Filtrer visning</span>
         </div>
+
+        <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          {controls.map((control) => (
+            <label key={control.field} className="block min-w-0 text-[11px] font-semibold text-slate-500">
+              {control.label}
+              <span className="relative mt-1 block">
+                <select
+                  value={filters[control.field]}
+                  onChange={(event) => onChange(control.field, event.target.value)}
+                  className="w-full appearance-none rounded-md border border-slate-200 bg-white py-2 pl-2.5 pr-8 text-xs font-medium text-ink outline-none transition hover:border-slate-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                >
+                  <option value="">{control.allLabel}</option>
+                  {control.options.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+              </span>
+            </label>
+          ))}
+        </div>
+
         <button
           type="button"
           onClick={onReset}
           disabled={!activeFilters.length}
-          className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-ink disabled:cursor-not-allowed disabled:opacity-35"
+          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md px-2.5 py-2 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-ink disabled:cursor-not-allowed disabled:opacity-35"
         >
           <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
           Nulstil filtre
         </button>
       </div>
 
-      <div className="grid gap-3 px-5 pb-5 pt-2 sm:grid-cols-2 sm:px-6 xl:grid-cols-3 2xl:grid-cols-5">
-        {controls.map((control) => (
-          <label key={control.field} className="block min-w-0 text-xs font-semibold text-slate-500">
-            {control.label}
-            <span className="relative mt-1.5 block">
-              <select
-                value={filters[control.field]}
-                onChange={(event) => onChange(control.field, event.target.value)}
-                className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 pr-9 text-sm font-medium text-ink shadow-[0_1px_2px_rgba(16,32,51,0.03)] outline-none transition hover:border-slate-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-              >
-                <option value="">{control.allLabel}</option>
-                {control.options.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-            </span>
-          </label>
-        ))}
-      </div>
-
-      <div className="flex flex-col gap-2 border-t border-slate-100 px-5 py-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <div className="mt-2.5 flex flex-col gap-1 border-t border-slate-100 pt-2.5 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
         <p className="font-medium">
           Viser <span className="font-semibold text-ink">{number(filteredRowCount)}</span> af {number(rows.length)} rækker
         </p>
@@ -1455,15 +1443,15 @@ function MonthlyReportCard({
     : "";
 
   return (
-    <section className="h-full overflow-hidden rounded-lg border border-slate-200/80 bg-white/85 shadow-[0_6px_22px_rgba(16,32,51,0.045)]">
-      <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+    <section className="overflow-hidden rounded-lg border border-slate-200/80 bg-white">
+      <div className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-lg bg-orange-50 text-accent-600">
-            <CalendarRange className="h-5 w-5" aria-hidden="true" />
+          <span className="grid h-8 w-8 place-items-center rounded-md bg-orange-50 text-accent-600">
+            <CalendarRange className="h-4 w-4" aria-hidden="true" />
           </span>
           <div>
             <p className="text-xs font-semibold text-accent-600">Periodeanalyse</p>
-            <h2 className="mt-0.5 text-lg font-semibold text-ink">Månedsrapport</h2>
+            <h2 className="text-base font-semibold text-ink">Månedsrapport</h2>
           </div>
         </div>
         <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
@@ -1472,7 +1460,7 @@ function MonthlyReportCard({
             <select
               value={reportMonth}
               onChange={(event) => onMonthChange(event.target.value)}
-              className="appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-9 text-sm font-semibold text-ink shadow-[0_1px_2px_rgba(16,32,51,0.03)] outline-none transition hover:border-slate-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              className="appearance-none rounded-md border border-slate-200 bg-white py-1.5 pl-2.5 pr-8 text-xs font-semibold text-ink outline-none transition hover:border-slate-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             >
               {monthOptions.map((month) => (
                 <option key={month} value={month}>
@@ -1491,10 +1479,10 @@ function MonthlyReportCard({
           [resultLabel, resultValue],
           [hasBudget ? "Budgetstatus" : "Medtagne rækker", hasBudget ? budgetStatus : number(reportMetrics.rowCount)],
         ].map(([label, value], index) => (
-          <div key={label} className={`px-5 py-3.5 sm:px-6 ${index ? "border-t border-slate-100 sm:border-l sm:border-t-0" : ""}`}>
-            <p className="text-xs font-semibold text-slate-500">{label}</p>
+          <div key={label} className={`px-4 py-3 sm:px-5 ${index ? "border-t border-slate-100 sm:border-l sm:border-t-0" : ""}`}>
+            <p className="text-[11px] font-semibold text-slate-500">{label}</p>
             <p
-              className={`mt-2 text-2xl font-semibold text-ink ${hasBudget && label === "Budgetstatus" ? `inline-flex rounded-md px-2.5 py-1 text-base ${budgetStatusClasses}` : ""}`}
+              className={`mt-1.5 text-lg font-semibold text-ink ${hasBudget && label === "Budgetstatus" ? `inline-flex rounded-md px-2 py-1 text-xs ${budgetStatusClasses}` : ""}`}
             >
               {value}
             </p>
@@ -1502,8 +1490,8 @@ function MonthlyReportCard({
         ))}
       </div>
 
-      <div className="bg-slate-50/65 px-5 py-4 sm:px-6">
-        <p className="border-l-2 border-brand-400 pl-4 text-sm font-medium leading-6 text-slate-700">
+      <div className="bg-slate-50/60 px-4 py-3 sm:px-5">
+        <p className="border-l-2 border-brand-400 pl-3 text-xs font-medium leading-5 text-slate-700">
           {reportRows.length
             ? `I ${reportMonth} var omsætningen ${currency(reportMetrics.totalRevenue)}${profitSentence}${budgetSentence}.`
             : `Ingen rækker matcher de aktuelle filtre for ${reportMonth}.`}
@@ -1549,6 +1537,40 @@ export default function UploadDashboard() {
   const manualMappingRequired = Boolean(analysis && !data);
   const shouldShowManualMapping = manualMappingRequired || showManualMapping;
   const hasWorkbook = Boolean(analysis || data);
+  const primaryProfitLabel = showGrossProfit ? "Dækningsbidrag" : "Resultat";
+  const primaryProfitValue = showGrossProfit
+    ? currency(metrics.totalGrossProfit)
+    : showCosts
+      ? currency(metrics.actualResult)
+      : "Ikke tilgængeligt";
+  const primaryProfitDetail = showGrossProfit
+    ? `Dækningsgrad: ${percent(metrics.grossMargin)}`
+    : showCosts
+      ? "Omsætning minus omkostninger"
+      : "Kræver omkostnings- eller dækningsdata";
+  const secondaryMetrics = [
+    {
+      label: "Bedste produkt",
+      value: metrics.bestProduct?.name ?? "Ingen data",
+      detail: metrics.bestProduct ? `${currency(metrics.bestProduct.revenue)} i omsætning` : undefined,
+    },
+    {
+      label: "Bedste kategori",
+      value: metrics.bestCategory?.name ?? "Ingen data",
+      detail: metrics.bestCategory ? `${currency(metrics.bestCategory.revenue)} i omsætning` : undefined,
+    },
+    {
+      label: "Bedste måned",
+      value: metrics.bestMonth?.name ?? "Ingen data",
+      detail: metrics.bestMonth ? `${currency(metrics.bestMonth.revenue)} i omsætning` : undefined,
+    },
+    ...(hasData && baseMetrics.hasGrossMargin
+      ? [{ label: "Dækningsgrad", value: percent(metrics.grossMargin), detail: "Beregnet ud fra dækningsgraden" }]
+      : []),
+    ...(showCosts
+      ? [{ label: "Samlede omkostninger", value: currency(metrics.totalCosts), detail: "Aktuelle omkostninger" }]
+      : []),
+  ];
 
   function resetDashboardView() {
     setFilters(emptyDashboardFilters);
@@ -1824,7 +1846,7 @@ export default function UploadDashboard() {
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-7xl gap-5 px-6 py-6 lg:grid-cols-[190px_minmax(0,1fr)] lg:px-8 lg:py-8">
+      <section className="mx-auto grid max-w-[1440px] gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[176px_minmax(0,1fr)] lg:px-8 lg:py-7">
         <aside className="self-start lg:sticky lg:top-6">
           <div className="rounded-lg border border-slate-200/70 bg-white/60 p-2.5 shadow-[0_1px_3px_rgba(16,32,51,0.035)] backdrop-blur-sm">
             <div className="mb-2 flex items-center gap-2">
@@ -1885,7 +1907,7 @@ export default function UploadDashboard() {
           </div>
         </aside>
 
-        <section className="min-w-0 space-y-10">
+        <section className="min-w-0 space-y-7">
           <section className="space-y-3">
           <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-white/90 shadow-[0_8px_30px_rgba(16,32,51,0.055)]">
             <div className="flex flex-col gap-4 px-5 py-5 sm:px-6 md:flex-row md:items-start md:justify-between">
@@ -1906,8 +1928,6 @@ export default function UploadDashboard() {
             </div>
             <DataDetectedCard feedback={data?.feedback} rowCount={allRows.length} onEdit={() => setShowManualMapping(true)} />
           </div>
-
-          <FeedbackPanel feedback={data?.feedback} />
 
           {shouldShowManualMapping ? (
             <ManualMappingPanel
@@ -1931,7 +1951,7 @@ export default function UploadDashboard() {
           ) : null}
           </section>
 
-          <section className="space-y-4">
+          <section className="space-y-3.5">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-xs font-semibold text-brand-700">Resultatoverblik</p>
@@ -1939,11 +1959,23 @@ export default function UploadDashboard() {
               </div>
               <p className="text-xs text-slate-500">Beregnet ud fra de registrerede data</p>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <KpiCard
                 label="Samlet omsætning"
                 value={hasData ? currency(metrics.totalRevenue) : "Ingen data"}
                 detail={hasData ? `Kilde: ${data?.feedback.revenueSource}` : "Upload et regneark"}
+                emphasis
+              />
+              <KpiCard
+                label={primaryProfitLabel}
+                value={primaryProfitValue}
+                detail={primaryProfitDetail}
+                emphasis
+              />
+              <KpiCard
+                label="Omsætning mod budget"
+                value={showBudget ? currency(metrics.revenueVsBudget) : "Ikke tilgængeligt"}
+                detail={showBudget ? `Budgetteret omsætning: ${currency(metrics.budgetRevenue)}` : "Kræver budgetdata"}
                 emphasis
               />
               <KpiCard
@@ -1953,115 +1985,42 @@ export default function UploadDashboard() {
                 emphasis
               />
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <KpiCard
-                label="Bedste produkt"
-                value={metrics.bestProduct?.name ?? "Ingen data"}
-                detail={metrics.bestProduct ? `${currency(metrics.bestProduct.revenue)} i omsætning` : "Beregnes efter upload"}
-              />
-              <KpiCard
-                label="Bedste kategori"
-                value={metrics.bestCategory?.name ?? "Ingen data"}
-                detail={metrics.bestCategory ? `${currency(metrics.bestCategory.revenue)} i omsætning` : "Beregnes efter upload"}
-              />
-              <KpiCard
-                label="Bedste måned"
-                value={metrics.bestMonth?.name ?? "Ingen data"}
-                detail={metrics.bestMonth ? `${currency(metrics.bestMonth.revenue)} i omsætning` : "Beregnes efter upload"}
-              />
-              {showGrossProfit ? (
-                <KpiCard label="Dækningsbidrag" value={currency(metrics.totalGrossProfit)} detail="Beregnet ud fra dækningsbidraget" />
-              ) : null}
-              {hasData && baseMetrics.hasGrossMargin ? <KpiCard label="Dækningsgrad" value={percent(metrics.grossMargin)} detail="Beregnet ud fra dækningsgraden" /> : null}
-              {showCosts ? (
-                <KpiCard
-                  label="Samlede omkostninger"
-                  value={currency(metrics.totalCosts)}
-                  detail={isFiltered ? "Beregnet ud fra de filtrerede salgsrækker" : data?.feedback.costs ? "Beregnet ud fra omkostningsdata" : "Beregnet ud fra registrerede salgsomkostninger"}
-                />
-              ) : null}
-              {showCosts ? <KpiCard label="Resultat" value={currency(metrics.actualResult)} detail="Omsætning minus omkostninger" /> : null}
-              {showBudget ? (
-                <KpiCard
-                  label="Omsætning mod budget"
-                  value={currency(metrics.revenueVsBudget)}
-                  detail={`Budgetteret omsætning: ${currency(metrics.budgetRevenue)}`}
-                />
-              ) : null}
+            <div className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200/70 bg-white/65 sm:grid sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-5">
+              {secondaryMetrics.map((metric) => (
+                <SecondaryMetric key={metric.label} label={metric.label} value={metric.value} detail={metric.detail} />
+              ))}
             </div>
           </section>
 
-          <section className="space-y-8">
-            <div className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr] xl:items-stretch">
-              {hasData ? (
-                <MonthlyReportCard
-                  rows={allRows}
-                  filters={filters}
-                  feedback={data?.feedback}
-                  preferredMonth={baseMetrics.bestMonth?.name}
-                  selectedMonth={reportMonth}
-                  onMonthChange={setReportMonth}
-                />
-              ) : null}
-
-              <section className="h-full rounded-lg border border-brand-100/80 bg-white/85 p-5 shadow-[0_6px_22px_rgba(8,145,178,0.055)] sm:p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-semibold text-brand-700">Beslutningsgrundlag</p>
-                    <h2 className="mt-1 text-lg font-semibold text-ink">Ledelsesresume</h2>
-                  </div>
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700">
-                    <Sparkles className="h-4 w-4" aria-hidden="true" />
-                  </span>
-                </div>
-
-                <ul className="mt-5 space-y-3">
-                  {executiveSummary.insights.map((insight, index) => (
-                    <li key={insight} className="grid grid-cols-[24px_1fr] gap-3 text-sm leading-6 text-slate-700">
-                      <span className="mt-0.5 text-[11px] font-semibold text-brand-700">0{index + 1}</span>
-                      <span>{insight}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="mt-5 border-t border-slate-100 pt-4">
-                  <p className="text-sm font-semibold leading-6 text-ink">{executiveSummary.conclusion}</p>
-                  <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-                    {executiveSummary.status}
-                  </div>
-                </div>
-              </section>
+          <section className="space-y-5 border-t border-slate-200/70 pt-7">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold text-brand-700">Ledelsesanalyse</p>
+                <h2 className="mt-1 text-xl font-semibold text-ink">Omsætningsudvikling og indsigt</h2>
+              </div>
+              <p className="text-xs text-slate-500">Hovedtendenser og beslutningsstøtte i én samlet visning</p>
             </div>
 
-            <div className="space-y-5 border-t border-slate-200/70 pt-8">
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-brand-700">Visuel analyse</p>
-                  <h2 className="mt-1 text-xl font-semibold text-ink">Udvikling og fordeling</h2>
-                </div>
-                <p className="text-xs text-slate-500">Interaktive visninger baseret på de registrerede data</p>
-              </div>
-
-              <div className={chartCardClass}>
-                <div className="mb-4 flex items-center justify-between gap-4">
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.85fr)] lg:items-start">
+              <div className="rounded-lg border border-slate-200/80 bg-white p-5 shadow-[0_4px_18px_rgba(16,32,51,0.045)] sm:p-6">
+                <div className="mb-5 flex items-center justify-between gap-4">
                   <div>
                     <h3 className="font-semibold text-ink">Omsætning pr. måned</h3>
-                    <p className="text-xs leading-5 text-slate-500">Primær omsætningsudvikling i den valgte periode</p>
+                    <p className="text-xs leading-5 text-slate-500">Omsætningsudvikling i den valgte periode</p>
                   </div>
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-brand-100 bg-brand-50 text-brand-700">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-brand-50 text-brand-700">
                     <LineChart className="h-4 w-4" aria-hidden="true" />
                   </span>
                 </div>
                 {hasFilteredData ? (
-                  <div className="h-80 sm:h-96">
+                  <div className="h-[380px] sm:h-[460px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <RechartsLineChart data={metrics.monthly} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+                      <RechartsLineChart data={metrics.monthly} margin={{ top: 10, right: 20, bottom: 8, left: 0 }}>
                         <CartesianGrid stroke="#edf2f7" vertical={false} />
                         <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
                         <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
                         <Tooltip contentStyle={chartTooltipStyle} formatter={(value: number) => currency(value)} />
-                        <Line type="monotone" dataKey="revenue" stroke="#0891b2" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                        <Line type="monotone" dataKey="revenue" stroke="#0891b2" strokeWidth={2.5} dot={{ r: 3, fill: "#ffffff", strokeWidth: 2 }} activeDot={{ r: 5 }} />
                       </RechartsLineChart>
                     </ResponsiveContainer>
                   </div>
@@ -2070,26 +2029,74 @@ export default function UploadDashboard() {
                 )}
               </div>
 
-              <div className="grid gap-5 md:grid-cols-2">
-                <div className={chartCardClass}>
+              <div className="space-y-4">
+                {hasData ? (
+                  <MonthlyReportCard
+                    rows={allRows}
+                    filters={filters}
+                    feedback={data?.feedback}
+                    preferredMonth={baseMetrics.bestMonth?.name}
+                    selectedMonth={reportMonth}
+                    onMonthChange={setReportMonth}
+                  />
+                ) : null}
+
+                <section className="rounded-lg border border-slate-200/80 bg-white p-4 sm:p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold text-brand-700">Beslutningsgrundlag</p>
+                      <h2 className="mt-0.5 text-base font-semibold text-ink">Ledelsesresume</h2>
+                    </div>
+                    <Sparkles className="h-4 w-4 shrink-0 text-brand-600" aria-hidden="true" />
+                  </div>
+
+                  <ul className="mt-4 space-y-2.5">
+                    {executiveSummary.insights.map((insight, index) => (
+                      <li key={insight} className="grid grid-cols-[20px_1fr] gap-2.5 text-xs leading-5 text-slate-700">
+                        <span className="text-[10px] font-semibold text-brand-700">0{index + 1}</span>
+                        <span>{insight}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="mt-4 border-t border-slate-100 pt-3.5">
+                    <p className="text-xs font-semibold leading-5 text-ink">{executiveSummary.conclusion}</p>
+                    <div className="mt-2.5 flex items-center gap-2 text-[11px] text-slate-500">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+                      {executiveSummary.status}
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            <div className="space-y-4 border-t border-slate-200/70 pt-7">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-slate-500">Supplerende analyse</p>
+                  <h2 className="mt-1 text-lg font-semibold text-ink">Fordeling på produkter og kategorier</h2>
+                </div>
+                <p className="text-xs text-slate-500">Rangerede visninger af de registrerede data</p>
+              </div>
+
+              <div className="grid gap-5 lg:grid-cols-12">
+                <div className={`${chartCardClass} lg:col-span-7`}>
                   <div className="mb-4 flex items-center justify-between gap-4">
                     <div>
                       <h3 className="font-semibold text-ink">Antal solgte pr. produkt</h3>
-                      <p className="text-xs leading-5 text-slate-500">Solgte enheder rangeret efter produkt</p>
+                      <p className="text-xs leading-5 text-slate-500">Produkter rangeret efter solgte enheder</p>
                     </div>
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-orange-100 bg-orange-50 text-accent-600">
-                      <BarChart3 className="h-4 w-4" aria-hidden="true" />
-                    </span>
+                    <BarChart3 className="h-4 w-4 shrink-0 text-accent-600" aria-hidden="true" />
                   </div>
                   {hasFilteredData ? (
-                    <div className="h-64">
+                    <div className="h-72">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={metrics.productsByUnits} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                          <CartesianGrid stroke="#edf2f7" vertical={false} />
-                          <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
-                          <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
-                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f1f5f9" }} formatter={(value: number) => `${number(value)} enheder`} />
-                          <Bar dataKey="units" radius={[6, 6, 0, 0]}>
+                        <BarChart data={metrics.productsByUnits} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 8 }}>
+                          <CartesianGrid stroke="#edf2f7" horizontal={false} />
+                          <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} />
+                          <YAxis type="category" dataKey="name" width={110} tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} />
+                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f8fafc" }} formatter={(value: number) => `${number(value)} enheder`} />
+                          <Bar dataKey="units" radius={[0, 5, 5, 0]}>
                             {metrics.productsByUnits.map((entry, index) => (
                               <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
                             ))}
@@ -2102,23 +2109,21 @@ export default function UploadDashboard() {
                   )}
                 </div>
 
-                <div className={chartCardClass}>
+                <div className={`${chartCardClass} lg:col-span-5`}>
                   <div className="mb-4">
                     <h3 className="font-semibold text-ink">Omsætning pr. kategori</h3>
-                    <p className="text-xs leading-5 text-slate-500">Omsætningens fordeling på kategorier</p>
+                    <p className="text-xs leading-5 text-slate-500">Kategorier rangeret efter omsætning</p>
                   </div>
                   {hasFilteredData ? (
-                    <div className="h-64">
+                    <div className="h-72">
                       <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={metrics.categories} dataKey="revenue" nameKey="name" innerRadius={58} outerRadius={96} paddingAngle={3}>
-                            {metrics.categories.map((entry, index) => (
-                              <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip contentStyle={chartTooltipStyle} formatter={(value: number) => currency(value)} />
-                          <Legend />
-                        </PieChart>
+                        <BarChart data={metrics.categories} layout="vertical" margin={{ top: 4, right: 20, bottom: 4, left: 4 }}>
+                          <CartesianGrid stroke="#edf2f7" horizontal={false} />
+                          <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
+                          <YAxis type="category" dataKey="name" width={90} tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} />
+                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f8fafc" }} formatter={(value: number) => currency(value)} />
+                          <Bar dataKey="revenue" fill="#0891b2" radius={[0, 5, 5, 0]} />
+                        </BarChart>
                       </ResponsiveContainer>
                     </div>
                   ) : (
@@ -2126,7 +2131,7 @@ export default function UploadDashboard() {
                   )}
                 </div>
 
-                <div className={chartCardClass}>
+                <div className={`${chartCardClass} lg:col-span-6`}>
                   <div className="mb-4">
                     <h3 className="font-semibold text-ink">Dækningsbidrag pr. kategori</h3>
                     <p className="text-xs leading-5 text-slate-500">Vises, når dækningsbidrag er fundet</p>
@@ -2134,16 +2139,12 @@ export default function UploadDashboard() {
                   {showGrossProfit && metrics.grossProfitByCategory.length ? (
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={metrics.grossProfitByCategory} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                          <CartesianGrid stroke="#edf2f7" vertical={false} />
-                          <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
-                          <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
-                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f1f5f9" }} formatter={(value: number) => currency(value)} />
-                          <Bar dataKey="grossProfit" radius={[6, 6, 0, 0]}>
-                            {metrics.grossProfitByCategory.map((entry, index) => (
-                              <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
-                            ))}
-                          </Bar>
+                        <BarChart data={metrics.grossProfitByCategory} layout="vertical" margin={{ top: 4, right: 20, bottom: 4, left: 4 }}>
+                          <CartesianGrid stroke="#edf2f7" horizontal={false} />
+                          <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
+                          <YAxis type="category" dataKey="name" width={96} tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} />
+                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f8fafc" }} formatter={(value: number) => currency(value)} />
+                          <Bar dataKey="grossProfit" fill="#22c55e" radius={[0, 5, 5, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -2152,7 +2153,7 @@ export default function UploadDashboard() {
                   )}
                 </div>
 
-                <div className={chartCardClass}>
+                <div className={`${chartCardClass} lg:col-span-6`}>
                   <div className="mb-4">
                     <h3 className="font-semibold text-ink">Omkostninger pr. kategori</h3>
                     <p className="text-xs leading-5 text-slate-500">Vises, når omkostningsdata er fundet</p>
@@ -2160,16 +2161,12 @@ export default function UploadDashboard() {
                   {showCosts && costsByCategory.length ? (
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={costsByCategory} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                          <CartesianGrid stroke="#edf2f7" vertical={false} />
-                          <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
-                          <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
-                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f1f5f9" }} formatter={(value: number) => currency(value)} />
-                          <Bar dataKey="cost" radius={[6, 6, 0, 0]}>
-                            {costsByCategory.map((entry, index) => (
-                              <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
-                            ))}
-                          </Bar>
+                        <BarChart data={costsByCategory} layout="vertical" margin={{ top: 4, right: 20, bottom: 4, left: 4 }}>
+                          <CartesianGrid stroke="#edf2f7" horizontal={false} />
+                          <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
+                          <YAxis type="category" dataKey="name" width={96} tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} />
+                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f8fafc" }} formatter={(value: number) => currency(value)} />
+                          <Bar dataKey="cost" fill="#f97316" radius={[0, 5, 5, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -2205,6 +2202,10 @@ export default function UploadDashboard() {
               </div>
             </section>
           ) : null}
+
+          <div className="border-t border-slate-200/70 pt-5">
+            <FeedbackPanel feedback={data?.feedback} />
+          </div>
         </section>
       </section>
     </main>
