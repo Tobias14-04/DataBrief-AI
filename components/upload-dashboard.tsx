@@ -6,23 +6,29 @@ import {
   ArrowLeft,
   BarChart3,
   CalendarRange,
+  ChartNoAxesCombined,
   Check,
   ChevronDown,
+  CircleDollarSign,
   Download,
   FileSpreadsheet,
   Filter,
   Info,
-  LineChart,
+  PackageCheck,
   RotateCcw,
   Sparkles,
+  Target,
+  TrendingUp,
   Upload,
+  WalletCards,
+  type LucideIcon,
 } from "lucide-react";
 import {
+  Area,
+  AreaChart as RechartsAreaChart,
   Bar,
   BarChart,
   CartesianGrid,
-  Line,
-  LineChart as RechartsLineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -154,12 +160,13 @@ const emptyDashboardFilters: DashboardFilters = {
 };
 
 const chartCardClass =
-  "rounded-lg border border-slate-200/70 bg-white p-5 shadow-[0_1px_2px_rgba(16,32,51,0.025)] sm:p-6";
+  "overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-[0_8px_28px_rgba(16,32,51,0.055)]";
 const chartTooltipStyle = {
-  border: "1px solid #e2e8f0",
+  border: "1px solid #cbd5e1",
   borderRadius: "8px",
-  boxShadow: "0 10px 28px rgba(16,32,51,0.1)",
+  boxShadow: "0 14px 36px rgba(16,32,51,0.14)",
   color: "#102033",
+  fontSize: "12px",
 };
 
 const fieldLabels: Record<FieldKey, string> = {
@@ -1039,35 +1046,67 @@ function KpiCard({
   value,
   detail,
   emphasis = false,
+  icon: Icon = CircleDollarSign,
+  tone = "brand",
 }: {
   label: string;
   value: string;
   detail: string;
   emphasis?: boolean;
+  icon?: LucideIcon;
+  tone?: "brand" | "positive" | "warning" | "neutral";
 }) {
+  const styles = {
+    brand: {
+      card: "border-brand-100 bg-[#f4fbfc]",
+      icon: "bg-brand-600 text-white shadow-[0_8px_18px_rgba(8,145,178,0.2)]",
+      accent: "bg-brand-500",
+      detail: "border-brand-100/80 text-brand-700",
+    },
+    positive: {
+      card: "border-emerald-100 bg-[#f5fbf8]",
+      icon: "bg-emerald-600 text-white shadow-[0_8px_18px_rgba(5,150,105,0.18)]",
+      accent: "bg-emerald-500",
+      detail: "border-emerald-100 text-emerald-700",
+    },
+    warning: {
+      card: "border-orange-100 bg-[#fff9f4]",
+      icon: "bg-accent-500 text-white shadow-[0_8px_18px_rgba(249,115,22,0.18)]",
+      accent: "bg-accent-500",
+      detail: "border-orange-100 text-orange-700",
+    },
+    neutral: {
+      card: "border-slate-200 bg-white",
+      icon: "bg-ink text-white shadow-[0_8px_18px_rgba(16,32,51,0.16)]",
+      accent: "bg-slate-400",
+      detail: "border-slate-200 text-slate-500",
+    },
+  }[tone];
+
   return (
     <div
-      className={`relative overflow-hidden rounded-lg border p-4 sm:p-5 ${
-        emphasis
-          ? "min-h-36 border-slate-200 bg-white shadow-[0_8px_24px_rgba(16,32,51,0.055)]"
-          : "min-h-28 border-slate-200/70 bg-white/70"
+      className={`relative overflow-hidden rounded-lg border ${styles.card} ${
+        emphasis ? "min-h-44 p-5 shadow-[0_14px_38px_rgba(16,32,51,0.09)]" : "min-h-32 p-4 shadow-[0_5px_18px_rgba(16,32,51,0.045)]"
       }`}
     >
+      <span className={`absolute inset-x-0 top-0 h-1 ${styles.accent}`} aria-hidden="true" />
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold text-slate-500">{label}</p>
-        <span className={`h-1.5 w-1.5 rounded-full ${emphasis ? "bg-brand-500" : "bg-slate-300"}`} aria-hidden="true" />
+        <div className={`grid shrink-0 place-items-center rounded-md ${styles.icon} ${emphasis ? "h-10 w-10" : "h-8 w-8"}`}>
+          <Icon className={emphasis ? "h-5 w-5" : "h-4 w-4"} aria-hidden="true" />
+        </div>
+        <p className="text-right text-[11px] font-semibold text-slate-500">{label}</p>
       </div>
-      <p className={`mt-3 break-words font-semibold tracking-normal text-ink ${emphasis ? "text-2xl sm:text-[1.75rem]" : "text-xl"}`}>{value}</p>
-      <p className="mt-3 text-xs leading-5 text-slate-500">{detail}</p>
+      <p className={`mt-5 break-words font-semibold tracking-normal text-ink ${emphasis ? "text-2xl sm:text-[1.8rem]" : "text-xl"}`}>{value}</p>
+      <p className={`mt-4 border-t pt-3 text-[11px] font-medium leading-5 ${styles.detail}`}>{detail}</p>
     </div>
   );
 }
 
 function SecondaryMetric({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
-    <div className="min-w-0 px-4 py-3.5 sm:px-5">
-      <p className="text-[11px] font-semibold text-slate-500">{label}</p>
-      <p className="mt-1 truncate text-base font-semibold text-ink" title={value}>{value}</p>
+    <div className="min-w-0 px-4 py-4 sm:px-5">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{label}</p>
+      <p className="mt-1.5 truncate text-base font-semibold text-ink" title={value}>{value}</p>
       {detail ? <p className="mt-1 truncate text-[11px] text-slate-500" title={detail}>{detail}</p> : null}
     </div>
   );
@@ -1135,22 +1174,22 @@ function DataDetectedCard({
         : "Manuel kolonnetilknytning anvendt";
 
   return (
-    <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-3.5 sm:px-6 xl:flex-row xl:items-center xl:justify-between">
-      <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500">
-        <span className="inline-flex items-center gap-2 font-semibold text-emerald-700">
+    <div className="flex flex-col gap-3 border-t border-white/10 bg-white/[0.035] px-5 py-4 sm:px-6 xl:flex-row xl:items-center xl:justify-between">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-300">
+        <span className="inline-flex items-center gap-2 font-semibold text-emerald-300">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
           Data registreret
         </span>
-        <span><span className="font-medium text-slate-400">Ark</span> <strong className="ml-1 font-semibold text-ink">{feedback.salesSheetName}</strong></span>
-        <span><span className="font-medium text-slate-400">Overskriftsrække</span> <strong className="ml-1 font-semibold text-ink">{feedback.headerRow}</strong></span>
-        <span><span className="font-medium text-slate-400">Rækker</span> <strong className="ml-1 font-semibold text-ink">{number(rowCount)}</strong></span>
-        <span className="truncate"><span className="font-medium text-slate-400">Status</span> <strong className="ml-1 font-semibold text-ink">{statusText}</strong></span>
+        <span><span className="font-medium text-slate-400">Ark</span> <strong className="ml-1 font-semibold text-white">{feedback.salesSheetName}</strong></span>
+        <span><span className="font-medium text-slate-400">Overskriftsrække</span> <strong className="ml-1 font-semibold text-white">{feedback.headerRow}</strong></span>
+        <span><span className="font-medium text-slate-400">Rækker</span> <strong className="ml-1 font-semibold text-white">{number(rowCount)}</strong></span>
+        <span className="truncate"><span className="font-medium text-slate-400">Status</span> <strong className="ml-1 font-semibold text-white">{statusText}</strong></span>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"
           onClick={onEdit}
-          className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-brand-500 hover:text-brand-700"
+          className="inline-flex items-center justify-center rounded-md border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:border-brand-400 hover:bg-white/15"
         >
           Rediger kolonnetilknytning
         </button>
@@ -1330,11 +1369,16 @@ function DashboardFilterBar({
   const activeFilters = getActiveFilterLabels(filters);
 
   return (
-    <section className="rounded-lg border border-slate-200/80 bg-white/80 px-4 py-3 shadow-[0_1px_2px_rgba(16,32,51,0.025)] sm:px-5">
+    <section className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(16,32,51,0.07)] sm:px-5">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
         <div className="flex shrink-0 items-center gap-2 pb-0.5 xl:pr-2">
-          <Filter className="h-4 w-4 text-brand-700" aria-hidden="true" />
-          <span className="text-xs font-semibold text-ink">Filtrer visning</span>
+          <span className="grid h-8 w-8 place-items-center rounded-md bg-brand-50 text-brand-700">
+            <Filter className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <span className="block text-xs font-semibold text-ink">Filtrer visning</span>
+            <span className="block text-[10px] text-slate-400">Afgræns analysen</span>
+          </div>
         </div>
 
         <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
@@ -1345,7 +1389,7 @@ function DashboardFilterBar({
                 <select
                   value={filters[control.field]}
                   onChange={(event) => onChange(control.field, event.target.value)}
-                  className="w-full appearance-none rounded-md border border-slate-200 bg-white py-2 pl-2.5 pr-8 text-xs font-medium text-ink outline-none transition hover:border-slate-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                  className="w-full appearance-none rounded-md border border-slate-200 bg-slate-50 py-2.5 pl-3 pr-8 text-xs font-semibold text-ink outline-none transition hover:border-brand-200 hover:bg-white focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100"
                 >
                   <option value="">{control.allLabel}</option>
                   {control.options.map((option) => (
@@ -1364,14 +1408,14 @@ function DashboardFilterBar({
           type="button"
           onClick={onReset}
           disabled={!activeFilters.length}
-          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md px-2.5 py-2 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-ink disabled:cursor-not-allowed disabled:opacity-35"
+          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-white hover:text-ink disabled:cursor-not-allowed disabled:opacity-35"
         >
           <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
           Nulstil filtre
         </button>
       </div>
 
-      <div className="mt-2.5 flex flex-col gap-1 border-t border-slate-100 pt-2.5 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-3 flex flex-col gap-1 border-t border-slate-100 pt-3 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
         <p className="font-medium">
           Viser <span className="font-semibold text-ink">{number(filteredRowCount)}</span> af {number(rows.length)} rækker
         </p>
@@ -1441,15 +1485,15 @@ function MonthlyReportCard({
     : "";
 
   return (
-    <section className="overflow-hidden rounded-lg border border-slate-200/80 bg-white">
-      <div className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+    <section className="overflow-hidden rounded-lg border border-orange-100 bg-white shadow-[0_12px_30px_rgba(16,32,51,0.08)]">
+      <div className="flex flex-col gap-3 border-b border-orange-100 bg-[#fff9f4] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex items-center gap-3">
-          <span className="grid h-8 w-8 place-items-center rounded-md bg-orange-50 text-accent-600">
-            <CalendarRange className="h-4 w-4" aria-hidden="true" />
+          <span className="grid h-9 w-9 place-items-center rounded-md bg-accent-500 text-white shadow-[0_8px_18px_rgba(249,115,22,0.2)]">
+            <CalendarRange className="h-[18px] w-[18px]" aria-hidden="true" />
           </span>
           <div>
-            <p className="text-xs font-semibold text-accent-600">Periodeanalyse</p>
-            <h2 className="text-base font-semibold text-ink">Månedsrapport</h2>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-accent-600">Periodeanalyse</p>
+            <h2 className="mt-0.5 text-base font-semibold text-ink">Månedsrapport</h2>
           </div>
         </div>
         <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
@@ -1458,7 +1502,7 @@ function MonthlyReportCard({
             <select
               value={reportMonth}
               onChange={(event) => onMonthChange(event.target.value)}
-              className="appearance-none rounded-md border border-slate-200 bg-white py-1.5 pl-2.5 pr-8 text-xs font-semibold text-ink outline-none transition hover:border-slate-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              className="appearance-none rounded-md border border-orange-200 bg-white py-2 pl-3 pr-8 text-xs font-semibold text-ink shadow-sm outline-none transition hover:border-orange-300 focus:border-accent-500 focus:ring-2 focus:ring-orange-100"
             >
               {monthOptions.map((month) => (
                 <option key={month} value={month}>
@@ -1471,16 +1515,16 @@ function MonthlyReportCard({
         </label>
       </div>
 
-      <div className="grid border-y border-slate-100 sm:grid-cols-3">
+      <div className="grid sm:grid-cols-3">
         {[
           ["Omsætning", currency(reportMetrics.totalRevenue)],
           [resultLabel, resultValue],
           [hasBudget ? "Budgetstatus" : "Medtagne rækker", hasBudget ? budgetStatus : number(reportMetrics.rowCount)],
         ].map(([label, value], index) => (
-          <div key={label} className={`px-4 py-3 sm:px-5 ${index ? "border-t border-slate-100 sm:border-l sm:border-t-0" : ""}`}>
-            <p className="text-[11px] font-semibold text-slate-500">{label}</p>
+          <div key={label} className={`px-4 py-4 sm:px-5 ${index ? "border-t border-slate-100 sm:border-l sm:border-t-0" : ""}`}>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">{label}</p>
             <p
-              className={`mt-1.5 text-lg font-semibold text-ink ${hasBudget && label === "Budgetstatus" ? `inline-flex rounded-md px-2 py-1 text-xs ${budgetStatusClasses}` : ""}`}
+              className={`mt-2 text-xl font-semibold text-ink ${hasBudget && label === "Budgetstatus" ? `inline-flex rounded-md px-2.5 py-1.5 text-xs ${budgetStatusClasses}` : ""}`}
             >
               {value}
             </p>
@@ -1488,8 +1532,8 @@ function MonthlyReportCard({
         ))}
       </div>
 
-      <div className="bg-slate-50/60 px-4 py-3 sm:px-5">
-        <p className="border-l-2 border-brand-400 pl-3 text-xs font-medium leading-5 text-slate-700">
+      <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-4 sm:px-5">
+        <p className="border-l-2 border-accent-500 pl-3 text-xs font-semibold leading-5 text-slate-700">
           {reportRows.length
             ? `I ${reportMonth} var omsætningen ${currency(reportMetrics.totalRevenue)}${profitSentence}${budgetSentence}.`
             : `Ingen rækker matcher de aktuelle filtre for ${reportMonth}.`}
@@ -1825,8 +1869,8 @@ export default function UploadDashboard() {
   }
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,#f7fbfc_0%,#f8fafc_28%,#f8fafc_100%)]">
-      <header className="border-b border-white/70 bg-white/80 backdrop-blur-xl">
+    <main className="min-h-screen bg-[#edf3f5]">
+      <header className="border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
           <Link
             href="/"
@@ -1844,11 +1888,13 @@ export default function UploadDashboard() {
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-[1440px] gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[176px_minmax(0,1fr)] lg:px-8 lg:py-7">
+      <section className="mx-auto grid max-w-[1480px] gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[184px_minmax(0,1fr)] lg:px-8 lg:py-8">
         <aside className="self-start lg:sticky lg:top-6">
-          <div className="rounded-lg border border-slate-200/70 bg-white/60 p-2.5 shadow-[0_1px_3px_rgba(16,32,51,0.035)] backdrop-blur-sm">
-            <div className="mb-2 flex items-center gap-2">
-              <div className="grid h-7 w-7 place-items-center rounded-md bg-brand-50 text-brand-700">
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_10px_30px_rgba(16,32,51,0.07)]">
+            <div className="h-1 bg-brand-600" aria-hidden="true" />
+            <div className="p-3">
+            <div className="mb-3 flex items-center gap-2.5">
+              <div className="grid h-8 w-8 place-items-center rounded-md bg-brand-50 text-brand-700">
                 <Upload className="h-4 w-4" aria-hidden="true" />
               </div>
               <div>
@@ -1857,7 +1903,7 @@ export default function UploadDashboard() {
               </div>
             </div>
 
-            <label className="group flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-white/70 px-2.5 py-2 text-center transition hover:border-brand-500 hover:bg-brand-50/50">
+            <label className="group flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-slate-50 px-2.5 py-2.5 text-center transition hover:border-brand-500 hover:bg-brand-50/60">
               <Upload className="h-4 w-4 text-brand-700" aria-hidden="true" />
               <span className="text-xs font-semibold text-ink">
                 {isLoading ? "Læser regnearket..." : "Vælg en Excel-fil"}
@@ -1879,7 +1925,7 @@ export default function UploadDashboard() {
               <button
                 type="button"
                 onClick={downloadSampleExcel}
-                className="inline-flex w-full items-center justify-center gap-1.5 rounded-md px-1.5 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-white hover:text-ink"
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-md px-1.5 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-ink"
                 title="Hent eksempelfil"
               >
                 <Download className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -1889,7 +1935,7 @@ export default function UploadDashboard() {
                 type="button"
                 onClick={loadDemoDataset}
                 disabled={isLoading}
-                className="inline-flex w-full items-center justify-center gap-1.5 rounded-md px-1.5 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-white hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-md px-1.5 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Sparkles className="h-3.5 w-3.5 shrink-0 text-accent-600" aria-hidden="true" />
                 Demodata
@@ -1902,24 +1948,25 @@ export default function UploadDashboard() {
                 Fleksible danske og engelske kolonnenavne, automatisk registrering af overskriftsrækker og manuel kolonnetilknytning.
               </p>
             </details>
+            </div>
           </div>
         </aside>
 
-        <section className="min-w-0 space-y-7">
-          <section className="space-y-3">
-          <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-white/90 shadow-[0_8px_30px_rgba(16,32,51,0.055)]">
-            <div className="flex flex-col gap-4 px-5 py-5 sm:px-6 md:flex-row md:items-start md:justify-between">
+        <section className="min-w-0 space-y-9">
+          <section className="space-y-4">
+          <div className="overflow-hidden rounded-lg border border-slate-800 bg-[#102033] shadow-[0_24px_60px_rgba(16,32,51,0.18)]">
+            <div className="flex flex-col gap-5 px-5 py-6 [background-image:linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] [background-size:32px_32px] sm:px-7 sm:py-7 md:flex-row md:items-start md:justify-between">
               <div>
-                <p className="text-xs font-semibold text-brand-700">{data?.fileName ?? analysis?.fileName ?? "Ingen fil uploadet endnu"}</p>
-                <h2 className="mt-1 text-2xl font-semibold text-ink sm:text-3xl">Salgsdashboard</h2>
-                <p className="mt-1.5 text-sm text-slate-500">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-200">{data?.fileName ?? analysis?.fileName ?? "Ingen fil uploadet endnu"}</p>
+                <h2 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">Salgsdashboard</h2>
+                <p className="mt-2 text-sm text-slate-300">
                   {hasData ? `${number(allRows.length)} rækker er klar til analyse.` : "Upload en Excel-fil for at udfylde dashboardet."}
                 </p>
               </div>
               <div className="flex flex-col items-start gap-2 md:items-end">
                 <StatusBox feedback={data?.feedback} analysis={analysis} />
-                <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
-                  <Sparkles className="h-3.5 w-3.5 text-brand-600" aria-hidden="true" />
+                <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-300">
+                  <Sparkles className="h-3.5 w-3.5 text-cyan-300" aria-hidden="true" />
                   {hasData ? "Ledelsesresume oprettet" : "Afventer upload"}
                 </div>
               </div>
@@ -1949,82 +1996,107 @@ export default function UploadDashboard() {
           ) : null}
           </section>
 
-          <section className="space-y-3.5">
+          <section className="space-y-4">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="text-xs font-semibold text-brand-700">Resultatoverblik</p>
-                <h2 className="mt-1 text-xl font-semibold text-ink">Centrale nøgletal</h2>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-700">Resultatoverblik</p>
+                <h2 className="mt-1.5 text-2xl font-semibold text-ink">Centrale nøgletal</h2>
               </div>
               <p className="text-xs text-slate-500">Beregnet ud fra de registrerede data</p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <KpiCard
                 label="Samlet omsætning"
                 value={hasData ? currency(metrics.totalRevenue) : "Ingen data"}
                 detail={hasData ? `Kilde: ${data?.feedback.revenueSource}` : "Upload et regneark"}
                 emphasis
+                icon={CircleDollarSign}
+                tone="brand"
               />
               <KpiCard
                 label={primaryProfitLabel}
                 value={primaryProfitValue}
                 detail={primaryProfitDetail}
                 emphasis
+                icon={TrendingUp}
+                tone="positive"
               />
               <KpiCard
                 label="Omsætning mod budget"
                 value={showBudget ? currency(metrics.revenueVsBudget) : "Ikke tilgængeligt"}
                 detail={showBudget ? `Budgetteret omsætning: ${currency(metrics.budgetRevenue)}` : "Kræver budgetdata"}
                 emphasis
+                icon={Target}
+                tone="warning"
               />
               <KpiCard
                 label="Samlet antal solgte enheder"
                 value={hasData ? number(metrics.totalUnits) : "Ingen data"}
                 detail={hasData ? "Beregnet ud fra antalskolonnen" : "Upload et regneark"}
                 emphasis
+                icon={PackageCheck}
+                tone="neutral"
               />
             </div>
-            <div className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200/70 bg-white/65 sm:grid sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-5">
+            <div className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_8px_26px_rgba(16,32,51,0.045)] sm:grid sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-5">
               {secondaryMetrics.map((metric) => (
                 <SecondaryMetric key={metric.label} label={metric.label} value={metric.value} detail={metric.detail} />
               ))}
             </div>
           </section>
 
-          <section className="space-y-5 border-t border-slate-200/70 pt-7">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <section className="space-y-6 border-y border-brand-100 bg-[#e8f4f5] px-4 py-7 sm:px-6 sm:py-8">
+            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="text-xs font-semibold text-brand-700">Ledelsesanalyse</p>
-                <h2 className="mt-1 text-xl font-semibold text-ink">Omsætningsudvikling og indsigt</h2>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-700">Ledelsesanalyse</p>
+                <h2 className="mt-1.5 text-2xl font-semibold text-ink">Omsætningsudvikling og indsigt</h2>
               </div>
-              <p className="text-xs text-slate-500">Hovedtendenser og beslutningsstøtte i én samlet visning</p>
+              <p className="max-w-sm text-xs leading-5 text-slate-600 sm:text-right">Hovedtendenser og beslutningsstøtte samlet i én ledelsesvisning</p>
             </div>
 
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.85fr)] lg:items-start">
-              <div className="rounded-lg border border-slate-200/80 bg-white p-5 shadow-[0_4px_18px_rgba(16,32,51,0.045)] sm:p-6">
-                <div className="mb-5 flex items-center justify-between gap-4">
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.85fr)] xl:items-start">
+              <div className="overflow-hidden rounded-lg border border-brand-100 bg-white shadow-[0_18px_48px_rgba(16,32,51,0.11)]">
+                <div className="flex items-center justify-between gap-4 border-b border-slate-100 bg-[linear-gradient(90deg,#ffffff_0%,#f5fbfc_100%)] px-5 py-4 sm:px-6">
                   <div>
-                    <h3 className="font-semibold text-ink">Omsætning pr. måned</h3>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-brand-700">Primær udvikling</p>
+                    <h3 className="mt-1 text-lg font-semibold text-ink">Omsætning pr. måned</h3>
                     <p className="text-xs leading-5 text-slate-500">Omsætningsudvikling i den valgte periode</p>
                   </div>
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-brand-50 text-brand-700">
-                    <LineChart className="h-4 w-4" aria-hidden="true" />
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-brand-600 text-white shadow-[0_8px_18px_rgba(8,145,178,0.2)]">
+                    <ChartNoAxesCombined className="h-5 w-5" aria-hidden="true" />
                   </span>
                 </div>
+                <div className="p-4 sm:p-6">
                 {hasFilteredData ? (
                   <div className="h-[380px] sm:h-[460px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <RechartsLineChart data={metrics.monthly} margin={{ top: 10, right: 20, bottom: 8, left: 0 }}>
-                        <CartesianGrid stroke="#edf2f7" vertical={false} />
-                        <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
-                        <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
+                      <RechartsAreaChart data={metrics.monthly} margin={{ top: 12, right: 20, bottom: 10, left: 0 }}>
+                        <defs>
+                          <linearGradient id="revenueAreaFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#0891b2" stopOpacity={0.28} />
+                            <stop offset="90%" stopColor="#0891b2" stopOpacity={0.025} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid stroke="#dcebed" strokeDasharray="4 5" vertical={false} />
+                        <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} dy={8} />
+                        <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} width={56} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
                         <Tooltip contentStyle={chartTooltipStyle} formatter={(value: number) => currency(value)} />
-                        <Line type="monotone" dataKey="revenue" stroke="#0891b2" strokeWidth={2.5} dot={{ r: 3, fill: "#ffffff", strokeWidth: 2 }} activeDot={{ r: 5 }} />
-                      </RechartsLineChart>
+                        <Area
+                          type="monotone"
+                          dataKey="revenue"
+                          stroke="#0891b2"
+                          strokeWidth={3}
+                          fill="url(#revenueAreaFill)"
+                          dot={{ r: 3, fill: "#ffffff", stroke: "#0891b2", strokeWidth: 2 }}
+                          activeDot={{ r: 6, fill: "#0891b2", stroke: "#ffffff", strokeWidth: 3 }}
+                        />
+                      </RechartsAreaChart>
                     </ResponsiveContainer>
                   </div>
                 ) : (
                   <EmptyChart message="Ingen rækker matcher de aktuelle filtre for dette diagram." />
                 )}
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -2039,27 +2111,29 @@ export default function UploadDashboard() {
                   />
                 ) : null}
 
-                <section className="rounded-lg border border-slate-200/80 bg-white p-4 sm:p-5">
+                <section className="rounded-lg border border-slate-800 bg-[#102033] p-5 text-white shadow-[0_16px_38px_rgba(16,32,51,0.18)] sm:p-6">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-xs font-semibold text-brand-700">Beslutningsgrundlag</p>
-                      <h2 className="mt-0.5 text-base font-semibold text-ink">Ledelsesresume</h2>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-cyan-200">Beslutningsgrundlag</p>
+                      <h2 className="mt-1 text-lg font-semibold text-white">Ledelsesresume</h2>
                     </div>
-                    <Sparkles className="h-4 w-4 shrink-0 text-brand-600" aria-hidden="true" />
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-white/10 text-cyan-200">
+                      <Sparkles className="h-4 w-4" aria-hidden="true" />
+                    </span>
                   </div>
 
-                  <ul className="mt-4 space-y-2.5">
+                  <ul className="mt-5 space-y-3.5">
                     {executiveSummary.insights.map((insight, index) => (
-                      <li key={insight} className="grid grid-cols-[20px_1fr] gap-2.5 text-xs leading-5 text-slate-700">
-                        <span className="text-[10px] font-semibold text-brand-700">0{index + 1}</span>
+                      <li key={insight} className="grid grid-cols-[22px_1fr] gap-3 text-xs leading-5 text-slate-200">
+                        <span className="text-[10px] font-semibold text-cyan-300">0{index + 1}</span>
                         <span>{insight}</span>
                       </li>
                     ))}
                   </ul>
 
-                  <div className="mt-4 border-t border-slate-100 pt-3.5">
-                    <p className="text-xs font-semibold leading-5 text-ink">{executiveSummary.conclusion}</p>
-                    <div className="mt-2.5 flex items-center gap-2 text-[11px] text-slate-500">
+                  <div className="mt-5 border-t border-white/10 pt-4">
+                    <p className="text-xs font-semibold leading-5 text-white">{executiveSummary.conclusion}</p>
+                    <div className="mt-3 flex items-center gap-2 text-[11px] text-slate-300">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
                       {executiveSummary.status}
                     </div>
@@ -2068,29 +2142,32 @@ export default function UploadDashboard() {
               </div>
             </div>
 
-            <div className="space-y-4 border-t border-slate-200/70 pt-7">
+            <div className="space-y-5 border-t border-brand-100/90 pt-7">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="text-xs font-semibold text-slate-500">Supplerende analyse</p>
-                  <h2 className="mt-1 text-lg font-semibold text-ink">Fordeling på produkter og kategorier</h2>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-brand-700">Supplerende analyse</p>
+                  <h2 className="mt-1.5 text-xl font-semibold text-ink">Fordeling på produkter og kategorier</h2>
                 </div>
                 <p className="text-xs text-slate-500">Rangerede visninger af de registrerede data</p>
               </div>
 
               <div className="grid gap-5 lg:grid-cols-12">
                 <div className={`${chartCardClass} lg:col-span-7`}>
-                  <div className="mb-4 flex items-center justify-between gap-4">
+                  <div className="flex items-center justify-between gap-4 border-b border-slate-100 bg-slate-50/80 px-5 py-4 sm:px-6">
                     <div>
                       <h3 className="font-semibold text-ink">Antal solgte pr. produkt</h3>
                       <p className="text-xs leading-5 text-slate-500">Produkter rangeret efter solgte enheder</p>
                     </div>
-                    <BarChart3 className="h-4 w-4 shrink-0 text-accent-600" aria-hidden="true" />
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-brand-50 text-brand-700">
+                      <BarChart3 className="h-4 w-4" aria-hidden="true" />
+                    </span>
                   </div>
+                  <div className="p-4 sm:p-5">
                   {hasFilteredData ? (
                     <div className="h-72">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={metrics.productsByUnits} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 8 }}>
-                          <CartesianGrid stroke="#edf2f7" horizontal={false} />
+                          <CartesianGrid stroke="#e7eef2" strokeDasharray="3 4" horizontal={false} />
                           <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} />
                           <YAxis type="category" dataKey="name" width={110} tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} />
                           <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f8fafc" }} formatter={(value: number) => `${number(value)} enheder`} />
@@ -2101,18 +2178,25 @@ export default function UploadDashboard() {
                   ) : (
                     <EmptyChart message="Ingen rækker matcher de aktuelle filtre for dette diagram." />
                   )}
+                  </div>
                 </div>
 
                 <div className={`${chartCardClass} lg:col-span-5`}>
-                  <div className="mb-4">
-                    <h3 className="font-semibold text-ink">Omsætning pr. kategori</h3>
-                    <p className="text-xs leading-5 text-slate-500">Kategorier rangeret efter omsætning</p>
+                  <div className="flex items-center justify-between gap-4 border-b border-slate-100 bg-slate-50/80 px-5 py-4 sm:px-6">
+                    <div>
+                      <h3 className="font-semibold text-ink">Omsætning pr. kategori</h3>
+                      <p className="text-xs leading-5 text-slate-500">Kategorier rangeret efter omsætning</p>
+                    </div>
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-brand-50 text-brand-700">
+                      <CircleDollarSign className="h-4 w-4" aria-hidden="true" />
+                    </span>
                   </div>
+                  <div className="p-4 sm:p-5">
                   {hasFilteredData ? (
                     <div className="h-72">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={metrics.categories} layout="vertical" margin={{ top: 4, right: 20, bottom: 4, left: 4 }}>
-                          <CartesianGrid stroke="#edf2f7" horizontal={false} />
+                          <CartesianGrid stroke="#e7eef2" strokeDasharray="3 4" horizontal={false} />
                           <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
                           <YAxis type="category" dataKey="name" width={90} tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} />
                           <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f8fafc" }} formatter={(value: number) => currency(value)} />
@@ -2123,18 +2207,25 @@ export default function UploadDashboard() {
                   ) : (
                     <EmptyChart message="Ingen rækker matcher de aktuelle filtre for dette diagram." />
                   )}
+                  </div>
                 </div>
 
                 <div className={`${chartCardClass} lg:col-span-6`}>
-                  <div className="mb-4">
-                    <h3 className="font-semibold text-ink">Dækningsbidrag pr. kategori</h3>
-                    <p className="text-xs leading-5 text-slate-500">Vises, når dækningsbidrag er fundet</p>
+                  <div className="flex items-center justify-between gap-4 border-b border-emerald-100 bg-emerald-50/70 px-5 py-4 sm:px-6">
+                    <div>
+                      <h3 className="font-semibold text-ink">Dækningsbidrag pr. kategori</h3>
+                      <p className="text-xs leading-5 text-slate-500">Vises, når dækningsbidrag er fundet</p>
+                    </div>
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-emerald-100 text-emerald-700">
+                      <TrendingUp className="h-4 w-4" aria-hidden="true" />
+                    </span>
                   </div>
+                  <div className="p-4 sm:p-5">
                   {showGrossProfit && metrics.grossProfitByCategory.length ? (
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={metrics.grossProfitByCategory} layout="vertical" margin={{ top: 4, right: 20, bottom: 4, left: 4 }}>
-                          <CartesianGrid stroke="#edf2f7" horizontal={false} />
+                          <CartesianGrid stroke="#e7eef2" strokeDasharray="3 4" horizontal={false} />
                           <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
                           <YAxis type="category" dataKey="name" width={96} tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} />
                           <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f8fafc" }} formatter={(value: number) => currency(value)} />
@@ -2145,18 +2236,25 @@ export default function UploadDashboard() {
                   ) : (
                     <EmptyChart message="Upload data med dækningsbidrag for at vise dette diagram." />
                   )}
+                  </div>
                 </div>
 
                 <div className={`${chartCardClass} lg:col-span-6`}>
-                  <div className="mb-4">
-                    <h3 className="font-semibold text-ink">Omkostninger pr. kategori</h3>
-                    <p className="text-xs leading-5 text-slate-500">Vises, når omkostningsdata er fundet</p>
+                  <div className="flex items-center justify-between gap-4 border-b border-orange-100 bg-orange-50/70 px-5 py-4 sm:px-6">
+                    <div>
+                      <h3 className="font-semibold text-ink">Omkostninger pr. kategori</h3>
+                      <p className="text-xs leading-5 text-slate-500">Vises, når omkostningsdata er fundet</p>
+                    </div>
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-orange-100 text-orange-700">
+                      <WalletCards className="h-4 w-4" aria-hidden="true" />
+                    </span>
                   </div>
+                  <div className="p-4 sm:p-5">
                   {showCosts && costsByCategory.length ? (
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={costsByCategory} layout="vertical" margin={{ top: 4, right: 20, bottom: 4, left: 4 }}>
-                          <CartesianGrid stroke="#edf2f7" horizontal={false} />
+                          <CartesianGrid stroke="#e7eef2" strokeDasharray="3 4" horizontal={false} />
                           <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
                           <YAxis type="category" dataKey="name" width={96} tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} />
                           <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f8fafc" }} formatter={(value: number) => currency(value)} />
@@ -2167,17 +2265,18 @@ export default function UploadDashboard() {
                   ) : (
                     <EmptyChart message="Upload et regneark med omkostningsdata for at vise fordelingen." />
                   )}
+                  </div>
                 </div>
               </div>
             </div>
           </section>
 
           {showBudget ? (
-            <section className="space-y-4 border-t border-slate-200/70 pt-8">
+            <section className="space-y-5 border-y border-orange-100 bg-[#fff8f2] px-4 py-6 sm:px-6 sm:py-7">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="text-xs font-semibold text-slate-500">Supplerende analyse</p>
-                  <h2 className="mt-1 text-xl font-semibold text-ink">Budgetoverblik</h2>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-orange-700">Økonomisk pejlemærke</p>
+                  <h2 className="mt-1.5 text-2xl font-semibold text-ink">Budgetoverblik</h2>
                 </div>
                 <p className="text-xs text-slate-500">Budgettal for den aktuelle visning</p>
               </div>
@@ -2186,13 +2285,23 @@ export default function UploadDashboard() {
                   label="Budgetteret omsætning"
                   value={currency(metrics.budgetRevenue)}
                   detail={isFiltered ? "Fordelt efter andelen af filtrerede rækker" : (data?.feedback.budget?.sheetName ?? "Budget")}
+                  icon={WalletCards}
+                  tone="brand"
                 />
                 <KpiCard
                   label="Budgetterede omkostninger"
                   value={currency(metrics.budgetCosts)}
                   detail={isFiltered ? "Fordelt efter andelen af filtrerede rækker" : "Fundne budgetomkostninger"}
+                  icon={Target}
+                  tone="warning"
                 />
-                <KpiCard label="Budgetteret resultat" value={currency(metrics.budgetResult)} detail="Budgetteret omsætning minus omkostninger" />
+                <KpiCard
+                  label="Budgetteret resultat"
+                  value={currency(metrics.budgetResult)}
+                  detail="Budgetteret omsætning minus omkostninger"
+                  icon={TrendingUp}
+                  tone="positive"
+                />
               </div>
             </section>
           ) : null}
