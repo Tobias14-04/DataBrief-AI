@@ -967,44 +967,44 @@ function calculateMetrics(
   };
 }
 
-function buildSummary(
+function buildExecutiveSummary(
   metrics: ReturnType<typeof calculateMetrics>,
   feedback?: MappingFeedback,
   context: { totalRows?: number; activeFilters?: string[] } = {},
 ) {
   if (!metrics.rowCount || !metrics.bestProduct || !metrics.bestCategory || !metrics.bestMonth) {
-    return "No sales rows match the current filters. Reset or adjust the filters to update this summary.";
+    return {
+      insights: [
+        "No sales rows match the current filters.",
+        "The uploaded workbook remains available for analysis.",
+        "Reset or adjust the filters to restore the dashboard view.",
+      ],
+      conclusion: "There is not enough matching data to form a business conclusion.",
+      status: "No matching rows",
+    };
   }
 
   const isFiltered = Boolean(context.activeFilters?.length);
+  const profitabilityInsight = metrics.hasGrossProfit
+    ? `Gross profit is ${currency(metrics.totalGrossProfit)} at a ${percent(metrics.grossMargin)} margin.`
+    : metrics.hasCosts
+      ? `The current result is ${currency(metrics.actualResult)} after ${currency(metrics.totalCosts)} in costs.`
+      : `${metrics.bestMonth.name} is the strongest month at ${currency(metrics.bestMonth.revenue)}.`;
+  const conclusion = feedback?.budget
+    ? `Revenue is ${currency(Math.abs(metrics.revenueVsBudget))} ${metrics.revenueVsBudget >= 0 ? "above" : "below"} budget for this view.`
+    : `${metrics.bestMonth.name} is the strongest period, led by ${metrics.bestCategory.name}.`;
 
-  const profitText = metrics.hasGrossProfit
-    ? ` Gross profit is ${currency(metrics.totalGrossProfit)}, with a gross margin of ${percent(metrics.grossMargin)}.`
-    : "";
-  const costText = metrics.hasCosts
-    ? ` ${isFiltered ? "For this selection, estimated" : "Workbook"} costs are ${currency(
-        metrics.totalCosts,
-      )}, giving a result of ${currency(metrics.actualResult)}.`
-    : "";
-  const budgetText = feedback?.budget
-    ? ` Against budget, actual revenue is ${currency(Math.abs(metrics.revenueVsBudget))} ${
-        metrics.revenueVsBudget >= 0 ? "above" : "below"
-      } budget revenue.`
-    : "";
-
-  const scopeText = isFiltered
-    ? `For ${context.activeFilters?.join(", ")}, DataBrief AI analyzed ${number(metrics.rowCount)} of ${number(
-        context.totalRows ?? metrics.rowCount,
-      )} sales rows`
-    : `DataBrief AI analyzed ${number(metrics.rowCount)} sales rows`;
-
-  return `${scopeText} from ${
-    feedback?.salesSheetName ?? "the detected sales sheet"
-  }, totaling ${currency(metrics.totalRevenue)} and ${number(metrics.totalUnits)} units sold. The best product is ${
-    metrics.bestProduct.name
-  }, and ${metrics.bestCategory.name} is the leading category by revenue. ${
-    metrics.bestMonth.name
-  } is the strongest month with ${currency(metrics.bestMonth.revenue)}.${profitText}${costText}${budgetText}`;
+  return {
+    insights: [
+      `${currency(metrics.totalRevenue)} revenue from ${number(metrics.totalUnits)} units across ${number(metrics.rowCount)} rows.`,
+      `${metrics.bestProduct.name} leads products, while ${metrics.bestCategory.name} is the top category.`,
+      profitabilityInsight,
+    ],
+    conclusion,
+    status: isFiltered
+      ? `Updated for ${context.activeFilters?.join(", ")}`
+      : `Based on ${number(context.totalRows ?? metrics.rowCount)} rows from ${feedback?.salesSheetName ?? "the sales sheet"}`,
+  };
 }
 
 function createSampleWorkbook() {
@@ -1052,17 +1052,17 @@ function KpiCard({
 }) {
   return (
     <div
-      className={`relative min-h-36 overflow-hidden rounded-lg border p-4 transition-shadow sm:p-5 ${
+      className={`relative overflow-hidden rounded-lg border p-4 transition-shadow sm:p-5 ${
         emphasis
-          ? "border-brand-100 bg-[linear-gradient(145deg,#ffffff_0%,#f2fbfc_100%)] shadow-[0_10px_28px_rgba(8,145,178,0.08)]"
-          : "border-slate-200/80 bg-white/80 shadow-[0_1px_2px_rgba(16,32,51,0.03)]"
+          ? "min-h-40 border-brand-100 bg-[linear-gradient(145deg,#ffffff_0%,#f2fbfc_100%)] shadow-[0_10px_28px_rgba(8,145,178,0.08)]"
+          : "min-h-32 border-slate-200/80 bg-white/75 shadow-[0_1px_2px_rgba(16,32,51,0.03)]"
       }`}
     >
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-semibold text-slate-500">{label}</p>
         <span className={`h-1.5 w-1.5 rounded-full ${emphasis ? "bg-brand-500" : "bg-slate-300"}`} aria-hidden="true" />
       </div>
-      <p className={`mt-3 break-words font-semibold text-ink ${emphasis ? "text-[1.7rem]" : "text-2xl"}`}>{value}</p>
+      <p className={`mt-3 break-words font-semibold text-ink ${emphasis ? "text-3xl sm:text-[2rem]" : "text-2xl"}`}>{value}</p>
       <p className="mt-3 border-t border-slate-100 pt-2.5 text-xs leading-5 text-slate-500">{detail}</p>
     </div>
   );
@@ -1455,8 +1455,8 @@ function MonthlyReportCard({
     : "";
 
   return (
-    <section className="overflow-hidden rounded-lg border border-slate-200/80 bg-white/85 shadow-[0_6px_22px_rgba(16,32,51,0.045)]">
-      <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+    <section className="h-full overflow-hidden rounded-lg border border-slate-200/80 bg-white/85 shadow-[0_6px_22px_rgba(16,32,51,0.045)]">
+      <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div className="flex items-center gap-3">
           <span className="grid h-10 w-10 place-items-center rounded-lg bg-orange-50 text-accent-600">
             <CalendarRange className="h-5 w-5" aria-hidden="true" />
@@ -1491,7 +1491,7 @@ function MonthlyReportCard({
           [resultLabel, resultValue],
           [hasBudget ? "Budget status" : "Rows included", hasBudget ? budgetStatus : number(reportMetrics.rowCount)],
         ].map(([label, value], index) => (
-          <div key={label} className={`px-5 py-4 sm:px-6 ${index ? "border-t border-slate-100 sm:border-l sm:border-t-0" : ""}`}>
+          <div key={label} className={`px-5 py-3.5 sm:px-6 ${index ? "border-t border-slate-100 sm:border-l sm:border-t-0" : ""}`}>
             <p className="text-xs font-semibold text-slate-500">{label}</p>
             <p
               className={`mt-2 text-2xl font-semibold text-ink ${hasBudget && label === "Budget status" ? `inline-flex rounded-md px-2.5 py-1 text-base ${budgetStatusClasses}` : ""}`}
@@ -1502,13 +1502,12 @@ function MonthlyReportCard({
         ))}
       </div>
 
-      <div className="bg-slate-50/65 px-5 py-5 sm:px-6">
-        <p className="border-l-2 border-brand-400 pl-4 text-sm font-medium leading-7 text-slate-700">
+      <div className="bg-slate-50/65 px-5 py-4 sm:px-6">
+        <p className="border-l-2 border-brand-400 pl-4 text-sm font-medium leading-6 text-slate-700">
           {reportRows.length
-            ? `In ${reportMonth}, revenue was ${currency(reportMetrics.totalRevenue)}${profitSentence}${budgetSentence}.`
+            ? `${reportMonth}: ${currency(reportMetrics.totalRevenue)} revenue${profitSentence}${budgetSentence}.`
             : `No rows match the current filters for ${reportMonth}.`}
         </p>
-        {hasBudget ? <p className="mt-1 text-xs text-slate-500">Budget comparison uses an allocated monthly benchmark for this selection.</p> : null}
       </div>
     </section>
   );
@@ -1535,8 +1534,8 @@ export default function UploadDashboard() {
     () => calculateMetrics(filteredRows, data?.feedback, { useWorkbookTotals: !isFiltered, budgetScale }),
     [budgetScale, data?.feedback, filteredRows, isFiltered],
   );
-  const summary = useMemo(
-    () => buildSummary(metrics, data?.feedback, { totalRows: allRows.length, activeFilters: activeFilterLabels }),
+  const executiveSummary = useMemo(
+    () => buildExecutiveSummary(metrics, data?.feedback, { totalRows: allRows.length, activeFilters: activeFilterLabels }),
     [activeFilterLabels, allRows.length, data?.feedback, metrics],
   );
   const hasData = allRows.length > 0;
@@ -1825,11 +1824,11 @@ export default function UploadDashboard() {
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-7xl gap-5 px-6 py-6 lg:grid-cols-[210px_minmax(0,1fr)] lg:px-8 lg:py-8">
+      <section className="mx-auto grid max-w-7xl gap-5 px-6 py-6 lg:grid-cols-[190px_minmax(0,1fr)] lg:px-8 lg:py-8">
         <aside className="self-start lg:sticky lg:top-6">
-          <div className="rounded-lg border border-slate-200/70 bg-white/65 p-3 shadow-[0_1px_3px_rgba(16,32,51,0.04)] backdrop-blur-sm">
-            <div className="mb-2.5 flex items-center gap-2.5">
-              <div className="grid h-8 w-8 place-items-center rounded-lg bg-brand-50 text-brand-700">
+          <div className="rounded-lg border border-slate-200/70 bg-white/60 p-2.5 shadow-[0_1px_3px_rgba(16,32,51,0.035)] backdrop-blur-sm">
+            <div className="mb-2 flex items-center gap-2">
+              <div className="grid h-7 w-7 place-items-center rounded-md bg-brand-50 text-brand-700">
                 <Upload className="h-4 w-4" aria-hidden="true" />
               </div>
               <div>
@@ -1838,7 +1837,7 @@ export default function UploadDashboard() {
               </div>
             </div>
 
-            <label className="group flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white/70 px-3 py-2.5 text-center transition hover:border-brand-500 hover:bg-brand-50/50">
+            <label className="group flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-white/70 px-2.5 py-2 text-center transition hover:border-brand-500 hover:bg-brand-50/50">
               <Upload className="h-4 w-4 text-brand-700" aria-hidden="true" />
               <span className="text-xs font-semibold text-ink">
                 {isLoading ? "Reading spreadsheet..." : "Choose an Excel file"}
@@ -1856,11 +1855,11 @@ export default function UploadDashboard() {
               <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-700">{error}</p>
             ) : null}
 
-            <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className="mt-1.5 grid grid-cols-2 gap-1">
               <button
                 type="button"
                 onClick={downloadSampleExcel}
-                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-semibold text-slate-600 transition hover:bg-white hover:text-ink"
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-md px-1.5 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-white hover:text-ink"
                 title="Download sample Excel file"
               >
                 <Download className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -1870,17 +1869,17 @@ export default function UploadDashboard() {
                 type="button"
                 onClick={loadDemoDataset}
                 disabled={isLoading}
-                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-semibold text-slate-600 transition hover:bg-white hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-md px-1.5 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-white hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Sparkles className="h-3.5 w-3.5 shrink-0 text-accent-600" aria-hidden="true" />
                 Demo data
               </button>
             </div>
 
-            <details className="mt-2 border-t border-slate-200/70 pt-2">
+            <details className="mt-1.5 border-t border-slate-200/70 pt-1.5">
               <summary className="cursor-pointer text-[11px] font-semibold text-slate-500 transition hover:text-ink">Workbook support</summary>
-              <p className="mt-2 text-[11px] leading-5 text-slate-500">
-              Flexible English and Danish aliases, header-row detection, and manual mapping fallback.
+              <p className="mt-1.5 text-[11px] leading-5 text-slate-500">
+                Flexible English and Danish aliases, header-row detection, and manual mapping fallback.
               </p>
             </details>
           </div>
@@ -1940,7 +1939,7 @@ export default function UploadDashboard() {
               </div>
               <p className="text-xs text-slate-500">Calculated from the detected workbook data</p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2">
               <KpiCard
                 label="Total revenue"
                 value={hasData ? currency(metrics.totalRevenue) : "No data"}
@@ -1953,6 +1952,8 @@ export default function UploadDashboard() {
                 detail={hasData ? "Summed from detected units column" : "Upload a workbook"}
                 emphasis
               />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <KpiCard
                 label="Best product"
                 value={metrics.bestProduct?.name ?? "No data"}
@@ -1990,193 +1991,192 @@ export default function UploadDashboard() {
             </div>
           </section>
 
-          <section className="space-y-7">
-          {hasData ? (
-            <MonthlyReportCard
-              rows={allRows}
-              filters={filters}
-              feedback={data?.feedback}
-              preferredMonth={baseMetrics.bestMonth?.name}
-              selectedMonth={reportMonth}
-              onMonthChange={setReportMonth}
-            />
-          ) : null}
+          <section className="space-y-8">
+            <div className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr] xl:items-stretch">
+              {hasData ? (
+                <MonthlyReportCard
+                  rows={allRows}
+                  filters={filters}
+                  feedback={data?.feedback}
+                  preferredMonth={baseMetrics.bestMonth?.name}
+                  selectedMonth={reportMonth}
+                  onMonthChange={setReportMonth}
+                />
+              ) : null}
 
-          <div className="space-y-5">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold text-brand-700">Visual analysis</p>
-                <h2 className="mt-1 text-xl font-semibold text-ink">Trends and breakdowns</h2>
-              </div>
-              <p className="text-xs text-slate-500">Interactive views generated from the mapped data</p>
+              <section className="h-full rounded-lg border border-brand-100/80 bg-white/85 p-5 shadow-[0_6px_22px_rgba(8,145,178,0.055)] sm:p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold text-brand-700">Decision brief</p>
+                    <h2 className="mt-1 text-lg font-semibold text-ink">Executive summary</h2>
+                  </div>
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700">
+                    <Sparkles className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                </div>
+
+                <ul className="mt-5 space-y-3">
+                  {executiveSummary.insights.map((insight, index) => (
+                    <li key={insight} className="grid grid-cols-[24px_1fr] gap-3 text-sm leading-6 text-slate-700">
+                      <span className="mt-0.5 text-[11px] font-semibold text-brand-700">0{index + 1}</span>
+                      <span>{insight}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="mt-5 border-t border-slate-100 pt-4">
+                  <p className="text-sm font-semibold leading-6 text-ink">{executiveSummary.conclusion}</p>
+                  <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+                    {executiveSummary.status}
+                  </div>
+                </div>
+              </section>
             </div>
 
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(360px,0.75fr)]">
-            <div className={chartCardClass}>
-              <div className="mb-4 flex items-center justify-between gap-4">
+            <div className="space-y-5 border-t border-slate-200/70 pt-8">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <h3 className="font-semibold text-ink">Revenue by month</h3>
-                  <p className="text-xs leading-5 text-slate-500">Uses Date, or Month when dates cannot be parsed</p>
+                  <p className="text-xs font-semibold text-brand-700">Visual analysis</p>
+                  <h2 className="mt-1 text-xl font-semibold text-ink">Trends and breakdowns</h2>
                 </div>
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-brand-100 bg-brand-50 text-brand-700">
-                  <LineChart className="h-4 w-4" aria-hidden="true" />
-                </span>
+                <p className="text-xs text-slate-500">Interactive views generated from the mapped data</p>
               </div>
-              {hasFilteredData ? (
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RechartsLineChart data={metrics.monthly} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                      <CartesianGrid stroke="#edf2f7" vertical={false} />
-                      <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
-                      <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} tickFormatter={(value) => `$${value / 1000}k`} />
-                      <Tooltip contentStyle={chartTooltipStyle} formatter={(value: number) => currency(value)} />
-                      <Line type="monotone" dataKey="revenue" stroke="#0891b2" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                    </RechartsLineChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <EmptyChart message="No rows match the current filters for this chart." />
-              )}
-            </div>
 
-            <div className={chartCardClass}>
-              <div className="mb-4 flex items-center justify-between gap-4">
-                <div>
-                  <h3 className="font-semibold text-ink">Units by product</h3>
-                  <p className="text-xs leading-5 text-slate-500">Units sold ranked by product</p>
+              <div className={chartCardClass}>
+                <div className="mb-4 flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="font-semibold text-ink">Revenue by month</h3>
+                    <p className="text-xs leading-5 text-slate-500">Primary revenue trend across the selected period</p>
+                  </div>
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-brand-100 bg-brand-50 text-brand-700">
+                    <LineChart className="h-4 w-4" aria-hidden="true" />
+                  </span>
                 </div>
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-orange-100 bg-orange-50 text-accent-600">
-                  <BarChart3 className="h-4 w-4" aria-hidden="true" />
-                </span>
+                {hasFilteredData ? (
+                  <div className="h-80 sm:h-96">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsLineChart data={metrics.monthly} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+                        <CartesianGrid stroke="#edf2f7" vertical={false} />
+                        <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
+                        <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} tickFormatter={(value) => `$${value / 1000}k`} />
+                        <Tooltip contentStyle={chartTooltipStyle} formatter={(value: number) => currency(value)} />
+                        <Line type="monotone" dataKey="revenue" stroke="#0891b2" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                      </RechartsLineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <EmptyChart message="No rows match the current filters for this chart." />
+                )}
               </div>
-              {hasFilteredData ? (
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={metrics.productsByUnits} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                      <CartesianGrid stroke="#edf2f7" vertical={false} />
-                      <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
-                      <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
-                      <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f1f5f9" }} formatter={(value: number) => `${number(value)} units`} />
-                      <Bar dataKey="units" radius={[6, 6, 0, 0]}>
-                        {metrics.productsByUnits.map((entry, index) => (
-                          <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <EmptyChart message="No rows match the current filters for this chart." />
-              )}
-            </div>
-          </div>
 
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            <div className={chartCardClass}>
-              <div className="mb-4">
-                <h3 className="font-semibold text-ink">Revenue by category</h3>
-                <p className="text-xs leading-5 text-slate-500">Share of sales by category</p>
-              </div>
-              {hasFilteredData ? (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={metrics.categories} dataKey="revenue" nameKey="name" innerRadius={58} outerRadius={96} paddingAngle={3}>
-                        {metrics.categories.map((entry, index) => (
-                          <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip contentStyle={chartTooltipStyle} formatter={(value: number) => currency(value)} />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
+              <div className="grid gap-5 md:grid-cols-2">
+                <div className={chartCardClass}>
+                  <div className="mb-4 flex items-center justify-between gap-4">
+                    <div>
+                      <h3 className="font-semibold text-ink">Units by product</h3>
+                      <p className="text-xs leading-5 text-slate-500">Units sold ranked by product</p>
+                    </div>
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-orange-100 bg-orange-50 text-accent-600">
+                      <BarChart3 className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                  </div>
+                  {hasFilteredData ? (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={metrics.productsByUnits} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+                          <CartesianGrid stroke="#edf2f7" vertical={false} />
+                          <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
+                          <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
+                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f1f5f9" }} formatter={(value: number) => `${number(value)} units`} />
+                          <Bar dataKey="units" radius={[6, 6, 0, 0]}>
+                            {metrics.productsByUnits.map((entry, index) => (
+                              <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <EmptyChart message="No rows match the current filters for this chart." />
+                  )}
                 </div>
-              ) : (
-                <EmptyChart message="No rows match the current filters for this chart." />
-              )}
-            </div>
 
-            <div className={chartCardClass}>
-              <div className="mb-4">
-                <h3 className="font-semibold text-ink">Gross profit by category</h3>
-                <p className="text-xs leading-5 text-slate-500">Shown when gross profit is mapped</p>
-              </div>
-              {showGrossProfit && metrics.grossProfitByCategory.length ? (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={metrics.grossProfitByCategory} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                      <CartesianGrid stroke="#edf2f7" vertical={false} />
-                      <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
-                      <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} tickFormatter={(value) => `$${value / 1000}k`} />
-                      <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f1f5f9" }} formatter={(value: number) => currency(value)} />
-                      <Bar dataKey="grossProfit" radius={[6, 6, 0, 0]}>
-                        {metrics.grossProfitByCategory.map((entry, index) => (
-                          <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                <div className={chartCardClass}>
+                  <div className="mb-4">
+                    <h3 className="font-semibold text-ink">Revenue by category</h3>
+                    <p className="text-xs leading-5 text-slate-500">Share of sales by category</p>
+                  </div>
+                  {hasFilteredData ? (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={metrics.categories} dataKey="revenue" nameKey="name" innerRadius={58} outerRadius={96} paddingAngle={3}>
+                            {metrics.categories.map((entry, index) => (
+                              <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip contentStyle={chartTooltipStyle} formatter={(value: number) => currency(value)} />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <EmptyChart message="No rows match the current filters for this chart." />
+                  )}
                 </div>
-              ) : (
-                <EmptyChart message="Upload data with gross profit / contribution margin to show this chart." />
-              )}
-            </div>
 
-            <div className={chartCardClass}>
-              <div className="mb-4">
-                <h3 className="font-semibold text-ink">Costs by category</h3>
-                <p className="text-xs leading-5 text-slate-500">Shown when a costs sheet is detected</p>
-              </div>
-              {showCosts && costsByCategory.length ? (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={costsByCategory} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                      <CartesianGrid stroke="#edf2f7" vertical={false} />
-                      <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
-                      <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} tickFormatter={(value) => `$${value / 1000}k`} />
-                      <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f1f5f9" }} formatter={(value: number) => currency(value)} />
-                      <Bar dataKey="cost" radius={[6, 6, 0, 0]}>
-                        {costsByCategory.map((entry, index) => (
-                          <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                <div className={chartCardClass}>
+                  <div className="mb-4">
+                    <h3 className="font-semibold text-ink">Gross profit by category</h3>
+                    <p className="text-xs leading-5 text-slate-500">Shown when gross profit is mapped</p>
+                  </div>
+                  {showGrossProfit && metrics.grossProfitByCategory.length ? (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={metrics.grossProfitByCategory} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+                          <CartesianGrid stroke="#edf2f7" vertical={false} />
+                          <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
+                          <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} tickFormatter={(value) => `$${value / 1000}k`} />
+                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f1f5f9" }} formatter={(value: number) => currency(value)} />
+                          <Bar dataKey="grossProfit" radius={[6, 6, 0, 0]}>
+                            {metrics.grossProfitByCategory.map((entry, index) => (
+                              <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <EmptyChart message="Upload data with gross profit / contribution margin to show this chart." />
+                  )}
                 </div>
-              ) : (
-                <EmptyChart message="Upload a workbook with a Costs / Omkostninger sheet to show costs by category." />
-              )}
-            </div>
 
-          </div>
-          </div>
-          </section>
-
-          <section className="grid gap-5 border-t border-slate-200/70 pt-8 xl:grid-cols-[0.55fr_1.45fr] xl:items-start">
-            <div className="max-w-sm pt-1">
-              <p className="text-xs font-semibold text-brand-700">Decision brief</p>
-              <h2 className="mt-1 text-xl font-semibold text-ink">Executive summary</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                A focused view of performance, momentum, and the strongest commercial signals in the current selection.
-              </p>
-            </div>
-
-            <div className="relative overflow-hidden rounded-lg border border-brand-100/80 bg-white/90 p-6 shadow-[0_8px_28px_rgba(8,145,178,0.07)] sm:p-7">
-              <div className="absolute inset-y-0 left-0 w-1 bg-brand-500" aria-hidden="true" />
-              <div className="mb-5 flex items-center gap-3">
-                <div className="grid h-10 w-10 place-items-center rounded-lg bg-brand-50 text-brand-700">
-                  <Sparkles className="h-5 w-5" aria-hidden="true" />
+                <div className={chartCardClass}>
+                  <div className="mb-4">
+                    <h3 className="font-semibold text-ink">Costs by category</h3>
+                    <p className="text-xs leading-5 text-slate-500">Shown when a costs sheet is detected</p>
+                  </div>
+                  {showCosts && costsByCategory.length ? (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={costsByCategory} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+                          <CartesianGrid stroke="#edf2f7" vertical={false} />
+                          <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
+                          <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} tickFormatter={(value) => `$${value / 1000}k`} />
+                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f1f5f9" }} formatter={(value: number) => currency(value)} />
+                          <Bar dataKey="cost" radius={[6, 6, 0, 0]}>
+                            {costsByCategory.map((entry, index) => (
+                              <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <EmptyChart message="Upload a workbook with a Costs / Omkostninger sheet to show costs by category." />
+                  )}
                 </div>
-                <div>
-                  <p className="text-xs font-semibold text-brand-700">Generated insight</p>
-                  <h3 className="mt-0.5 text-lg font-semibold text-ink">What the data says</h3>
-                  <p className="text-xs leading-5 text-slate-500">Rule-based summary from the current dashboard view</p>
-                </div>
-              </div>
-              <p className="border-l-2 border-slate-200 pl-4 text-[15px] font-medium leading-8 text-slate-700 sm:text-base">{summary}</p>
-              <div className="mt-6 flex items-center gap-2 border-t border-slate-100 pt-4 text-xs font-medium text-slate-500">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-                {isFiltered ? "Updated for the active filters" : "Based on all available sales rows"}
               </div>
             </div>
           </section>
