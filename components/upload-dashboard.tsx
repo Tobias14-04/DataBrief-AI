@@ -1083,7 +1083,7 @@ function StatusBox({ feedback, analysis }: { feedback?: MappingFeedback; analysi
   }
 
   const label =
-    status === "success" ? "Kolonner blev fundet automatisk" : status === "warning" ? "Kolonner blev fundet med forbehold" : "Manuel kolonnetilknytning er nødvendig";
+    status === "success" ? "Kolonner blev registreret automatisk" : status === "warning" ? "Kolonner blev registreret med forbehold" : "Manuel kolonnetilknytning er nødvendig";
   const classes =
     status === "success"
       ? "border-emerald-200 bg-emerald-50 text-emerald-800"
@@ -1128,9 +1128,9 @@ function DataDetectedCard({
 
   const statusText =
     feedback.status === "success"
-      ? "Kolonner blev fundet automatisk"
+      ? "Kolonner blev registreret automatisk"
       : feedback.status === "warning"
-        ? "Kolonner blev fundet med forbehold"
+        ? "Kolonner blev registreret med forbehold"
         : "Manuel kolonnetilknytning anvendt";
 
   return (
@@ -1704,7 +1704,7 @@ export default function UploadDashboard() {
           </div>
 
           <div className="mb-5 flex flex-wrap justify-center gap-2">
-            {["Danske og engelske kolonner", "Ingen skabelon nødvendig", "Analyse i browseren"].map((item) => (
+            {["Danske og engelske kolonnenavne", "Ingen skabelon nødvendig", "Behandles i din browser"].map((item) => (
               <div
                 key={item}
                 className="inline-flex items-center gap-2 rounded-lg border border-white/90 bg-white/75 px-3 py-2 text-xs font-medium text-slate-600 shadow-sm backdrop-blur"
@@ -1739,7 +1739,7 @@ export default function UploadDashboard() {
                   </span>
                   <span className="mt-1.5 text-sm text-slate-500">Vælg en .xlsx-fil fra din enhed</span>
                   <span className="mt-3 rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">
-                    Fleksible danske og engelske kolonner
+                    Fleksible danske og engelske kolonnenavne
                   </span>
                   <input
                     type="file"
@@ -1761,7 +1761,7 @@ export default function UploadDashboard() {
                     className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-ink shadow-sm transition hover:border-brand-500 hover:bg-slate-50"
                   >
                     <Download className="h-4 w-4 text-brand-700" aria-hidden="true" />
-                    Hent eksempel-Excel-fil
+                    Hent eksempelfil
                   </button>
                   <button
                     type="button"
@@ -1782,15 +1782,15 @@ export default function UploadDashboard() {
                   <Info className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <div className="min-w-0">
-                  <h2 className="font-semibold text-ink">Fleksible regneark og kolonner</h2>
+                  <h2 className="font-semibold text-ink">Understøttede regneark</h2>
                   <p className="mt-1.5 text-sm leading-6 text-slate-600">
-                    DataBrief AI finder den sandsynlige overskriftsrække og tilknytter almindelige salgsfelter automatisk,
-                    også når arket bruger danske navne eller begynder under en titelrække.
+                    DataBrief AI finder den mest sandsynlige overskriftsrække og tilknytter almindelige salgskolonner automatisk,
+                    også når regnearket har danske kolonnenavne eller starter under en titelrække.
                   </p>
                 </div>
               </div>
               <div className="mt-4 grid gap-2 border-t border-slate-100 pt-4 text-xs font-medium text-slate-600 sm:grid-cols-3">
-                {["Automatisk registrering af ark", "Fleksible overskriftsrækker", "Mulighed for manuel kolonnetilknytning"].map((item) => (
+                {["Automatisk registrering af regneark", "Fleksible overskriftsrækker", "Mulighed for manuel kolonnetilknytning"].map((item) => (
                   <div key={item} className="flex items-center gap-2">
                     <Check className="h-3.5 w-3.5 shrink-0 text-brand-600" aria-hidden="true" />
                     {item}
@@ -1833,7 +1833,7 @@ export default function UploadDashboard() {
               </div>
               <div>
                 <h1 className="text-sm font-semibold text-ink">Skift salgsdata</h1>
-                <p className="text-[11px] text-slate-500">Erstat regneark</p>
+                <p className="text-[11px] text-slate-500">Vælg en ny fil</p>
               </div>
             </div>
 
@@ -1860,7 +1860,7 @@ export default function UploadDashboard() {
                 type="button"
                 onClick={downloadSampleExcel}
                 className="inline-flex w-full items-center justify-center gap-1.5 rounded-md px-1.5 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-white hover:text-ink"
-                title="Hent eksempel-Excel-fil"
+                title="Hent eksempelfil"
               >
                 <Download className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 Eksempelfil

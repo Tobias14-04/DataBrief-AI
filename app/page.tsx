@@ -13,8 +13,8 @@ const benefits = [
     step: "01",
     action: "Upload",
     eyebrow: "Overblik over resultater",
-    title: "Øjeblikkelige salgsnøgletal",
-    description: "Gå fra regnearksrækker til et klart overblik over virksomhedens resultater på få sekunder.",
+    title: "Salgsnøgletal med det samme",
+    description: "Få et klart overblik over virksomhedens salgsresultater på få sekunder.",
     detail: "Omsætning, solgte enheder, bedste produkt og bedste måned",
     icon: TrendingUp,
     iconClass: "border-brand-100 bg-brand-50 text-brand-700",
@@ -24,7 +24,7 @@ const benefits = [
     action: "Analysér",
     eyebrow: "Visuel analyse",
     title: "Diagrammer uden opsætning",
-    description: "Se udviklingen bag totalerne uden formler, pivottabeller eller manuel opbygning af diagrammer.",
+    description: "Se udviklingen i salget uden formler, pivottabeller eller manuel opbygning af diagrammer.",
     detail: "Månedlig omsætning, kategorier og produkter",
     icon: BarChart3,
     iconClass: "border-orange-100 bg-orange-50 text-accent-600",
@@ -54,7 +54,7 @@ const sampleRows = [
   ["2026-06-22", "Morgenmenu", "Menu", "5.184 kr.", "54"],
 ];
 
-const featureChips = ["Danske og engelske kolonner", "Ingen manuel dashboardopsætning", "Kører i din browser"];
+const featureChips = ["Danske og engelske kolonnenavne", "Ingen manuel opsætning", "Behandles i din browser"];
 
 export default function Home() {
   return (
@@ -71,7 +71,7 @@ export default function Home() {
             href="/upload"
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-ink shadow-sm transition hover:border-brand-500 hover:text-brand-700"
           >
-            Åbn upload
+            Upload salgsdata
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         </div>
@@ -85,7 +85,7 @@ export default function Home() {
           <div className="max-w-xl">
             <div className="mb-5 inline-flex items-center gap-2 rounded-lg border border-brand-100 bg-white/85 px-3 py-2 text-sm font-semibold text-brand-700 shadow-sm backdrop-blur">
               <Sparkles className="h-4 w-4" aria-hidden="true" />
-              Gør regneark til forretningsdashboards
+              Gør salgsdata til et klart dashboard
             </div>
             <h1 className="text-5xl font-semibold leading-[1.02] text-ink sm:text-6xl lg:text-7xl">
               DataBrief AI
@@ -99,7 +99,7 @@ export default function Home() {
                 href="/upload"
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-ink px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_32px_rgba(16,32,51,0.22)] transition hover:bg-slate-800"
               >
-                Upload salgsfil
+                Upload salgsdata
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
               <a
@@ -258,11 +258,11 @@ export default function Home() {
             <div>
               <p className="text-sm font-semibold text-brand-700">Fra regneark til beslutning</p>
               <h2 className="mt-2 max-w-2xl text-3xl font-semibold leading-tight text-ink sm:text-4xl">
-                Det vigtigste er allerede struktureret.
+                Få overblik over det vigtigste.
               </h2>
             </div>
             <p className="max-w-lg text-sm leading-6 text-slate-600 lg:justify-self-end">
-              Ét upload fører dine salgsdata gennem tre enkle trin og giver et overblik, der er klar til ledelsen.
+              Når du uploader dine salgsdata, får du et ledelsesklart overblik i tre enkle trin.
             </p>
           </div>
 
@@ -303,20 +303,20 @@ export default function Home() {
           <div className="max-w-lg lg:pr-4">
             <div className="mb-5 inline-flex items-center gap-2 rounded-lg border border-brand-100 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 shadow-sm">
               <span className="h-1.5 w-1.5 rounded-full bg-brand-500" aria-hidden="true" />
-              Understøtter hverdagens regneark
+              Bygget til hverdagens regneark
             </div>
             <h2 className="text-3xl font-semibold leading-tight text-ink sm:text-4xl">
               Dit salgsregneark behøver ikke følge vores skabelon.
             </h2>
             <p className="mt-4 leading-7 text-slate-600">
               Upload almindelige salgsdata med danske eller engelske kolonnenavne. DataBrief AI finder det relevante
-              ark, tilknytter kolonnerne og omdanner rækkerne til et dashboardklart overblik.
+              ark, tilknytter kolonnerne og omdanner rækkerne til et klart dashboard.
             </p>
             <div className="mt-6 grid gap-3 text-sm text-slate-600">
               {[
                 "Finder det rette ark og den korrekte overskriftsrække",
                 "Tilknytter danske og engelske salgskolonner",
-                "Holder analysen i browseren i denne demo",
+                "Behandler data direkte i browseren",
               ].map((item) => (
                 <div key={item} className="flex items-start gap-3">
                   <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white text-brand-700 shadow-sm">
@@ -342,7 +342,7 @@ export default function Home() {
                   <FileSpreadsheet className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <div>
-                  <p className="text-sm font-semibold text-ink">Fundet automatisk</p>
+                  <p className="text-sm font-semibold text-ink">Registreret automatisk</p>
                   <p className="text-xs text-slate-500">Eksempelregneark · Café Nord · Salgsdata</p>
                 </div>
               </div>
@@ -352,7 +352,7 @@ export default function Home() {
             </div>
 
             <div className="grid border-b border-slate-200 bg-slate-50/80 sm:grid-cols-3 sm:divide-x sm:divide-slate-200">
-              {["Danske kolonner fundet", "Klar til analyse", "Ingen skabelon nødvendig"].map((status) => (
+              {["Danske kolonner registreret", "Klar til analyse", "Ingen skabelon nødvendig"].map((status) => (
                 <div key={status} className="flex items-center gap-2 border-b border-slate-200 px-4 py-3 text-xs font-medium text-slate-600 last:border-b-0 sm:border-b-0">
                   <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-emerald-100 text-emerald-700">
                     <Check className="h-2.5 w-2.5" strokeWidth={3} aria-hidden="true" />
@@ -391,7 +391,7 @@ export default function Home() {
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-3 text-xs text-slate-500">
               <span>Eksempelrækker fra et cafésalgsregneark</span>
-              <span className="font-medium text-brand-700">Danske og engelske kolonner understøttes</span>
+              <span className="font-medium text-brand-700">Danske og engelske kolonnenavne understøttes</span>
             </div>
           </div>
         </div>
@@ -407,14 +407,14 @@ export default function Home() {
               Klar til at gøre dit regneark til et dashboard?
             </h2>
             <p className="mt-3 max-w-xl leading-7 text-slate-300">
-              Upload en salgsfil, og få nøgletal, diagrammer og et kort ledelsesresume på få sekunder.
+              Upload dine salgsdata, og få nøgletal, diagrammer og et kort ledelsesresume på få sekunder.
             </p>
           </div>
           <Link
             href="/upload"
             className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold text-ink shadow-[0_14px_32px_rgba(0,0,0,0.22)] transition hover:bg-brand-50 sm:w-auto"
           >
-            Åbn upload
+            Upload salgsdata
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         </div>
