@@ -15,7 +15,7 @@ const benefits = [
     eyebrow: "Overblik over resultater",
     title: "Øjeblikkelige salgsnøgletal",
     description: "Gå fra regnearksrækker til et klart overblik over virksomhedens resultater på få sekunder.",
-    detail: "Omsætning, antal, bedste produkt og bedste måned",
+    detail: "Omsætning, solgte enheder, bedste produkt og bedste måned",
     icon: TrendingUp,
     iconClass: "border-brand-100 bg-brand-50 text-brand-700",
   },
@@ -35,7 +35,7 @@ const benefits = [
     eyebrow: "Ledelsesoverblik",
     title: "Ledelsesresume",
     description: "Saml de vigtigste resultater i et kort resume, der er klar til at dele.",
-    detail: "Kort forretningsresume baseret på dine data",
+    detail: "Kort ledelsesresume baseret på dine data",
     icon: Sparkles,
     iconClass: "border-emerald-100 bg-emerald-50 text-emerald-700",
   },
@@ -91,8 +91,8 @@ export default function Home() {
               DataBrief AI
             </h1>
             <p className="mt-5 max-w-lg text-lg leading-8 text-slate-600">
-              Upload dit salgsregneark, og få nøgletal, visuelle udviklinger og et klart forretningsresume med det
-              samme uden selv at bygge formler eller dashboards.
+              Upload dit salgsregneark, og få nøgletal, visuelle tendenser og et klart ledelsesresume med det samme,
+              uden selv at bygge formler eller dashboards.
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Link
@@ -310,12 +310,12 @@ export default function Home() {
             </h2>
             <p className="mt-4 leading-7 text-slate-600">
               Upload almindelige salgsdata med danske eller engelske kolonnenavne. DataBrief AI finder det relevante
-              ark, matcher kolonnerne og omdanner rækkerne til et dashboardklart overblik.
+              ark, tilknytter kolonnerne og omdanner rækkerne til et dashboardklart overblik.
             </p>
             <div className="mt-6 grid gap-3 text-sm text-slate-600">
               {[
                 "Finder det rette ark og den korrekte overskriftsrække",
-                "Matcher danske og engelske salgskolonner",
+                "Tilknytter danske og engelske salgskolonner",
                 "Holder analysen i browseren i denne demo",
               ].map((item) => (
                 <div key={item} className="flex items-start gap-3">
@@ -407,7 +407,7 @@ export default function Home() {
               Klar til at gøre dit regneark til et dashboard?
             </h2>
             <p className="mt-3 max-w-xl leading-7 text-slate-300">
-              Upload en salgsfil, og få nøgletal, diagrammer og et kort forretningsresume på få sekunder.
+              Upload en salgsfil, og få nøgletal, diagrammer og et kort ledelsesresume på få sekunder.
             </p>
           </div>
           <Link

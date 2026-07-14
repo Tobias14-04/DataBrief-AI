@@ -700,8 +700,8 @@ function buildParseResult({
 
   const status = manual ? "warning" : getStatus(candidate, parsed.rows);
   const warnings = [
-    ...(manual ? ["Manuelt kolonnematch anvendes."] : []),
-    ...(status === "warning" && !manual ? ["Det automatiske kolonnematch kan bruges, men sikkerheden er lavere end normalt."] : []),
+    ...(manual ? ["Manuel kolonnetilknytning anvendes."] : []),
+    ...(status === "warning" && !manual ? ["Den automatiske kolonnetilknytning kan bruges, men sikkerheden er lavere end normalt."] : []),
     ...(parsed.skippedRows.length ? [`${parsed.skippedRows.length} ufuldstændige rækker eller opsummeringsrækker blev ignoreret.`] : []),
   ];
 
@@ -975,12 +975,12 @@ function buildExecutiveSummary(
   if (!metrics.rowCount || !metrics.bestProduct || !metrics.bestCategory || !metrics.bestMonth) {
     return {
       insights: [
-        "Ingen salgsrækker matcher de aktuelle filtre.",
-        "Det uploadede regneark er stadig tilgængeligt for analysen.",
-        "Nulstil eller juster filtrene for at gendanne dashboardet.",
+        "Ingen salgsrækker passer til de valgte filtre.",
+        "Det uploadede regneark er fortsat tilgængeligt.",
+        "Nulstil eller tilpas filtrene for at få vist data igen.",
       ],
-      conclusion: "Der er ikke tilstrækkelige matchende data til at danne en forretningsmæssig konklusion.",
-      status: "Ingen matchende rækker",
+      conclusion: "Der er ikke nok data i den valgte visning til at danne en konklusion.",
+      status: "Ingen rækker i den valgte visning",
     };
   }
 
@@ -1083,7 +1083,7 @@ function StatusBox({ feedback, analysis }: { feedback?: MappingFeedback; analysi
   }
 
   const label =
-    status === "success" ? "Kolonner blev fundet automatisk" : status === "warning" ? "Kolonner blev fundet med forbehold" : "Manuelt kolonnematch er nødvendigt";
+    status === "success" ? "Kolonner blev fundet automatisk" : status === "warning" ? "Kolonner blev fundet med forbehold" : "Manuel kolonnetilknytning er nødvendig";
   const classes =
     status === "success"
       ? "border-emerald-200 bg-emerald-50 text-emerald-800"
@@ -1103,14 +1103,14 @@ function StatusBox({ feedback, analysis }: { feedback?: MappingFeedback; analysi
       <div className="min-w-0">
         <p className="font-semibold">{label}</p>
         {feedback?.warnings.length ? <p className="mt-0.5 text-xs leading-5">{feedback.warnings.join(" ")}</p> : null}
-        {!feedback && analysis ? <p className="mt-0.5 text-xs leading-5">Vælg et ark, og match de obligatoriske kolonner nedenfor.</p> : null}
+        {!feedback && analysis ? <p className="mt-0.5 text-xs leading-5">Vælg et ark, og tilknyt de obligatoriske kolonner nedenfor.</p> : null}
       </div>
     </div>
   );
 }
 
 function mappedColumn(feedback: MappingFeedback, label: string) {
-  return feedback.mappedColumns[label] ?? feedback.optionalColumns[label] ?? "Ikke matchet";
+  return feedback.mappedColumns[label] ?? feedback.optionalColumns[label] ?? "Ikke tilknyttet";
 }
 
 function DataDetectedCard({
@@ -1131,13 +1131,13 @@ function DataDetectedCard({
       ? "Kolonner blev fundet automatisk"
       : feedback.status === "warning"
         ? "Kolonner blev fundet med forbehold"
-        : "Manuelt kolonnematch anvendt";
+        : "Manuel kolonnetilknytning anvendt";
 
   return (
     <div className="border-t border-slate-200 px-5 py-4 sm:px-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-ink">Data fundet</h3>
+          <h3 className="text-sm font-semibold text-ink">Data registreret</h3>
           <p className="mt-1 text-xs leading-5 text-slate-500">
             {feedback.salesSheetName}, overskriftsrække {feedback.headerRow}, {number(rowCount)} gyldige rækker
           </p>
@@ -1147,13 +1147,13 @@ function DataDetectedCard({
           onClick={onEdit}
           className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-ink shadow-sm transition hover:border-brand-500 hover:text-brand-700"
         >
-          Rediger kolonnematch
+          Rediger kolonnetilknytning
         </button>
       </div>
 
       <div className="mt-4 grid gap-x-4 gap-y-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
-          ["Status for kolonnematch", statusText],
+          ["Status for kolonner", statusText],
           ["Omsætningskolonne", feedback.revenueSource],
           ["Antalskolonne", mappedColumn(feedback, "Antal")],
           ["Produktkolonne", mappedColumn(feedback, "Produkt")],
@@ -1178,11 +1178,11 @@ function FeedbackPanel({ feedback }: { feedback?: MappingFeedback }) {
 
   return (
     <details className="rounded-lg border border-slate-200/70 bg-white/45 px-4 py-3">
-      <summary className="cursor-pointer text-xs font-semibold text-slate-600 transition hover:text-ink">Vis registreringsdetaljer</summary>
+      <summary className="cursor-pointer text-xs font-semibold text-slate-600 transition hover:text-ink">Vis detaljer om dataregistrering</summary>
       <div className="mt-4 flex items-start gap-3 border-t border-slate-100 pt-4">
         <Info className="mt-0.5 h-5 w-5 text-brand-700" aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-ink">Registrering af regneark</h3>
+          <h3 className="font-semibold text-ink">Registrerede data</h3>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             Salgsark: <span className="font-semibold text-ink">{feedback.salesSheetName}</span>. Overskriftsrække:{" "}
             <span className="font-semibold text-ink">{feedback.headerRow}</span>. Fundne ark:{" "}
@@ -1190,7 +1190,7 @@ function FeedbackPanel({ feedback }: { feedback?: MappingFeedback }) {
           </p>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <div className="rounded-md border border-line bg-slate-50 p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Matchede kolonner</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Tilknyttede kolonner</p>
               <ul className="mt-2 space-y-1 text-sm text-slate-700">
                 {Object.entries(feedback.mappedColumns).map(([field, column]) => (
                   <li key={field}>
@@ -1258,12 +1258,12 @@ function ManualMappingPanel({
     <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div>
-          <h3 className="font-semibold text-ink">Manuelt kolonnematch</h3>
+          <h3 className="font-semibold text-ink">Manuel kolonnetilknytning</h3>
           <p className="mt-1 text-sm text-slate-500">
             Ark kan have forskellige overskriftsrækker. Den aktuelle overskriftsrække er {candidate.headerIndex + 1}.
           </p>
         </div>
-        <div className="text-sm text-slate-500">Sikkerhed: {candidate.confidence} %</div>
+        <div className="text-sm text-slate-500">Registreringssikkerhed: {candidate.confidence} %</div>
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -1292,7 +1292,7 @@ function ManualMappingPanel({
               onChange={(event) => onMappingChange(field.key, event.target.value)}
               className="mt-2 w-full rounded-md border border-line bg-white px-3 py-2 text-sm font-normal text-ink"
             >
-              <option value="">Ikke matchet</option>
+              <option value="">Ikke tilknyttet</option>
               {candidate.headers.map((header) => (
                 <option key={header} value={header}>
                   {header}
@@ -1308,7 +1308,7 @@ function ManualMappingPanel({
         onClick={onApply}
         className="mt-5 inline-flex items-center justify-center rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
       >
-        Anvend valgte kolonnematch
+        Anvend valgte kolonnetilknytninger
       </button>
     </div>
   );
@@ -1432,11 +1432,11 @@ function MonthlyReportCard({
   const hasBudget = Boolean(feedback?.budget && reportRows.length);
   const deviation = reportMetrics.revenueVsBudget;
   const tolerance = Math.max(1, reportMetrics.budgetRevenue * 0.01);
-  const budgetStatus = Math.abs(deviation) <= tolerance ? "På budget" : deviation > 0 ? "Over budget" : "Under budget";
+  const budgetStatus = Math.abs(deviation) <= tolerance ? "På budget" : deviation > 0 ? "Over budgettet" : "Under budgettet";
   const budgetStatusClasses =
     budgetStatus === "På budget"
       ? "bg-emerald-50 text-emerald-700"
-      : budgetStatus === "Over budget"
+      : budgetStatus === "Over budgettet"
         ? "bg-brand-50 text-brand-700"
         : "bg-amber-50 text-amber-700";
   const resultLabel = reportMetrics.hasGrossProfit ? "Dækningsbidrag" : reportMetrics.hasCosts ? "Resultat" : "Solgte enheder";
@@ -1585,7 +1585,7 @@ export default function UploadDashboard() {
 
       if (!parsed.autoResult) {
         setError(
-          `Manuelt kolonnematch er nødvendigt. Det bedste ark, "${best.name}", mangler: ${best.missingFields.join(
+          `Manuel kolonnetilknytning er nødvendig. Det bedst egnede ark, "${best.name}", mangler: ${best.missingFields.join(
             ", ",
           )}. Fundne kolonner: ${best.headers.join(", ") || "ingen"}.`,
         );
@@ -1624,7 +1624,7 @@ export default function UploadDashboard() {
 
       if (!parsed.autoResult) {
         setError(
-          `Manuelt kolonnematch er nødvendigt. Det bedste ark, "${best.name}", mangler: ${best.missingFields.join(
+          `Manuel kolonnetilknytning er nødvendig. Det bedst egnede ark, "${best.name}", mangler: ${best.missingFields.join(
             ", ",
           )}. Fundne kolonner: ${best.headers.join(", ") || "ingen"}.`,
         );
@@ -1663,7 +1663,7 @@ export default function UploadDashboard() {
       resetDashboardView();
     } catch (error) {
       setData(null);
-      setError(error instanceof Error ? error.message : "Det manuelle kolonnematch mislykkedes. Kontrollér de valgte kolonner.");
+      setError(error instanceof Error ? error.message : "Den manuelle kolonnetilknytning mislykkedes. Kontrollér de valgte kolonner.");
     }
   }
 
@@ -1699,7 +1699,7 @@ export default function UploadDashboard() {
             </div>
             <h1 className="text-3xl font-semibold leading-tight text-ink sm:text-4xl">Upload salgsdata</h1>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">
-              Vælg en Excel-fil, eller brug demodata til at oprette et dashboard og et forretningsresume.
+              Vælg en Excel-fil, eller brug demodata til at oprette et dashboard og et ledelsesresume.
             </p>
           </div>
 
@@ -1782,15 +1782,15 @@ export default function UploadDashboard() {
                   <Info className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <div className="min-w-0">
-                  <h2 className="font-semibold text-ink">Understøttede kolonner og opbygninger</h2>
+                  <h2 className="font-semibold text-ink">Fleksible regneark og kolonner</h2>
                   <p className="mt-1.5 text-sm leading-6 text-slate-600">
-                    DataBrief AI finder den sandsynlige overskriftsrække og matcher almindelige salgsfelter automatisk,
+                    DataBrief AI finder den sandsynlige overskriftsrække og tilknytter almindelige salgsfelter automatisk,
                     også når arket bruger danske navne eller begynder under en titelrække.
                   </p>
                 </div>
               </div>
               <div className="mt-4 grid gap-2 border-t border-slate-100 pt-4 text-xs font-medium text-slate-600 sm:grid-cols-3">
-                {["Automatisk registrering af ark", "Fleksible overskriftsrækker", "Mulighed for manuelt match"].map((item) => (
+                {["Automatisk registrering af ark", "Fleksible overskriftsrækker", "Mulighed for manuel kolonnetilknytning"].map((item) => (
                   <div key={item} className="flex items-center gap-2">
                     <Check className="h-3.5 w-3.5 shrink-0 text-brand-600" aria-hidden="true" />
                     {item}
@@ -1863,7 +1863,7 @@ export default function UploadDashboard() {
                 title="Hent eksempel-Excel-fil"
               >
                 <Download className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                Eksempel
+                Eksempelfil
               </button>
               <button
                 type="button"
@@ -1877,9 +1877,9 @@ export default function UploadDashboard() {
             </div>
 
             <details className="mt-1.5 border-t border-slate-200/70 pt-1.5">
-              <summary className="cursor-pointer text-[11px] font-semibold text-slate-500 transition hover:text-ink">Understøttelse af regneark</summary>
+              <summary className="cursor-pointer text-[11px] font-semibold text-slate-500 transition hover:text-ink">Understøttede regneark</summary>
               <p className="mt-1.5 text-[11px] leading-5 text-slate-500">
-                Fleksible danske og engelske kolonnenavne, registrering af overskriftsrækker og manuelt kolonnematch.
+                Fleksible danske og engelske kolonnenavne, automatisk registrering af overskriftsrækker og manuel kolonnetilknytning.
               </p>
             </details>
           </div>
@@ -1900,7 +1900,7 @@ export default function UploadDashboard() {
                 <StatusBox feedback={data?.feedback} analysis={analysis} />
                 <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
                   <Sparkles className="h-3.5 w-3.5 text-brand-600" aria-hidden="true" />
-                  {hasData ? "Forretningsresume oprettet" : "Afventer upload"}
+                  {hasData ? "Ledelsesresume oprettet" : "Afventer upload"}
                 </div>
               </div>
             </div>
@@ -1937,7 +1937,7 @@ export default function UploadDashboard() {
                 <p className="text-xs font-semibold text-brand-700">Resultatoverblik</p>
                 <h2 className="mt-1 text-xl font-semibold text-ink">Centrale nøgletal</h2>
               </div>
-              <p className="text-xs text-slate-500">Beregnet ud fra de registrerede data i regnearket</p>
+              <p className="text-xs text-slate-500">Beregnet ud fra de registrerede data</p>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <KpiCard
@@ -1949,7 +1949,7 @@ export default function UploadDashboard() {
               <KpiCard
                 label="Samlet antal solgte enheder"
                 value={hasData ? number(metrics.totalUnits) : "Ingen data"}
-                detail={hasData ? "Summeret fra den fundne antalskolonne" : "Upload et regneark"}
+                detail={hasData ? "Beregnet ud fra antalskolonnen" : "Upload et regneark"}
                 emphasis
               />
             </div>
@@ -1970,14 +1970,14 @@ export default function UploadDashboard() {
                 detail={metrics.bestMonth ? `${currency(metrics.bestMonth.revenue)} i omsætning` : "Beregnes efter upload"}
               />
               {showGrossProfit ? (
-                <KpiCard label="Dækningsbidrag" value={currency(metrics.totalGrossProfit)} detail="Fra kolonnen for dækningsbidrag" />
+                <KpiCard label="Dækningsbidrag" value={currency(metrics.totalGrossProfit)} detail="Beregnet ud fra dækningsbidraget" />
               ) : null}
-              {hasData && baseMetrics.hasGrossMargin ? <KpiCard label="Dækningsgrad" value={percent(metrics.grossMargin)} detail="Fra kolonnen for dækningsgrad" /> : null}
+              {hasData && baseMetrics.hasGrossMargin ? <KpiCard label="Dækningsgrad" value={percent(metrics.grossMargin)} detail="Beregnet ud fra dækningsgraden" /> : null}
               {showCosts ? (
                 <KpiCard
                   label="Samlede omkostninger"
                   value={currency(metrics.totalCosts)}
-                  detail={isFiltered ? "Beregnet ud fra de filtrerede salgsrækker" : data?.feedback.costs ? "Fra omkostningsarket" : "Fra matchede salgsomkostninger"}
+                  detail={isFiltered ? "Beregnet ud fra de filtrerede salgsrækker" : data?.feedback.costs ? "Beregnet ud fra omkostningsdata" : "Beregnet ud fra registrerede salgsomkostninger"}
                 />
               ) : null}
               {showCosts ? <KpiCard label="Resultat" value={currency(metrics.actualResult)} detail="Omsætning minus omkostninger" /> : null}
@@ -2040,7 +2040,7 @@ export default function UploadDashboard() {
                   <p className="text-xs font-semibold text-brand-700">Visuel analyse</p>
                   <h2 className="mt-1 text-xl font-semibold text-ink">Udvikling og fordeling</h2>
                 </div>
-                <p className="text-xs text-slate-500">Interaktive visninger baseret på de matchede data</p>
+                <p className="text-xs text-slate-500">Interaktive visninger baseret på de registrerede data</p>
               </div>
 
               <div className={chartCardClass}>
@@ -2129,7 +2129,7 @@ export default function UploadDashboard() {
                 <div className={chartCardClass}>
                   <div className="mb-4">
                     <h3 className="font-semibold text-ink">Dækningsbidrag pr. kategori</h3>
-                    <p className="text-xs leading-5 text-slate-500">Vises, når dækningsbidrag er matchet</p>
+                    <p className="text-xs leading-5 text-slate-500">Vises, når dækningsbidrag er fundet</p>
                   </div>
                   {showGrossProfit && metrics.grossProfitByCategory.length ? (
                     <div className="h-64">
@@ -2155,7 +2155,7 @@ export default function UploadDashboard() {
                 <div className={chartCardClass}>
                   <div className="mb-4">
                     <h3 className="font-semibold text-ink">Omkostninger pr. kategori</h3>
-                    <p className="text-xs leading-5 text-slate-500">Vises, når et omkostningsark er fundet</p>
+                    <p className="text-xs leading-5 text-slate-500">Vises, når omkostningsdata er fundet</p>
                   </div>
                   {showCosts && costsByCategory.length ? (
                     <div className="h-64">
@@ -2174,7 +2174,7 @@ export default function UploadDashboard() {
                       </ResponsiveContainer>
                     </div>
                   ) : (
-                    <EmptyChart message="Upload et regneark med et ark for omkostninger for at vise fordelingen." />
+                    <EmptyChart message="Upload et regneark med omkostningsdata for at vise fordelingen." />
                   )}
                 </div>
               </div>
@@ -2188,7 +2188,7 @@ export default function UploadDashboard() {
                   <p className="text-xs font-semibold text-slate-500">Supplerende analyse</p>
                   <h2 className="mt-1 text-xl font-semibold text-ink">Budgetoverblik</h2>
                 </div>
-                <p className="text-xs text-slate-500">Budgetkontekst for den aktuelle dashboardvisning</p>
+                <p className="text-xs text-slate-500">Budgettal for den aktuelle visning</p>
               </div>
               <div className="grid gap-4 sm:grid-cols-3">
                 <KpiCard
