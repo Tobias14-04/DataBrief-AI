@@ -1825,25 +1825,24 @@ export default function UploadDashboard() {
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-8 lg:py-8">
-        <aside className="self-start space-y-3 lg:sticky lg:top-6 lg:space-y-4">
-          <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-[0_10px_30px_rgba(16,32,51,0.06)] lg:p-4">
-            <div className="mb-2 flex items-center gap-3 lg:mb-3">
-              <div className="grid h-9 w-9 place-items-center rounded-lg border border-brand-100 bg-brand-50 text-brand-700">
+      <section className="mx-auto grid max-w-7xl gap-5 px-6 py-6 lg:grid-cols-[210px_minmax(0,1fr)] lg:px-8 lg:py-8">
+        <aside className="self-start lg:sticky lg:top-6">
+          <div className="rounded-lg border border-slate-200/70 bg-white/65 p-3 shadow-[0_1px_3px_rgba(16,32,51,0.04)] backdrop-blur-sm">
+            <div className="mb-2.5 flex items-center gap-2.5">
+              <div className="grid h-8 w-8 place-items-center rounded-lg bg-brand-50 text-brand-700">
                 <Upload className="h-4 w-4" aria-hidden="true" />
               </div>
               <div>
                 <h1 className="text-sm font-semibold text-ink">Change sales data</h1>
-                <p className="text-xs text-slate-500">Replace the current workbook</p>
+                <p className="text-[11px] text-slate-500">Replace workbook</p>
               </div>
             </div>
 
-            <label className="group flex cursor-pointer flex-row items-center justify-center gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-center transition hover:border-brand-500 hover:bg-brand-50/50 lg:min-h-28 lg:flex-col lg:gap-0 lg:py-4">
-              <Upload className="h-5 w-5 text-brand-700 lg:h-6 lg:w-6" aria-hidden="true" />
-              <span className="text-xs font-semibold text-ink lg:mt-2">
+            <label className="group flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white/70 px-3 py-2.5 text-center transition hover:border-brand-500 hover:bg-brand-50/50">
+              <Upload className="h-4 w-4 text-brand-700" aria-hidden="true" />
+              <span className="text-xs font-semibold text-ink">
                 {isLoading ? "Reading spreadsheet..." : "Choose an Excel file"}
               </span>
-              <span className="mt-1 hidden text-[11px] text-slate-500 lg:block">English or Danish .xlsx</span>
               <input
                 type="file"
                 accept=".xlsx"
@@ -1857,36 +1856,38 @@ export default function UploadDashboard() {
               <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-700">{error}</p>
             ) : null}
 
-            <div className="mt-2 grid grid-cols-2 gap-2 lg:mt-3 lg:grid-cols-1">
+            <div className="mt-2 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={downloadSampleExcel}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-ink transition hover:border-brand-500 lg:px-3"
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-semibold text-slate-600 transition hover:bg-white hover:text-ink"
+                title="Download sample Excel file"
               >
                 <Download className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                Download sample
+                Sample
               </button>
               <button
                 type="button"
                 onClick={loadDemoDataset}
                 disabled={isLoading}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-ink transition hover:border-brand-500 disabled:cursor-not-allowed disabled:opacity-60 lg:px-3"
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-semibold text-slate-600 transition hover:bg-white hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Sparkles className="h-3.5 w-3.5 shrink-0 text-accent-600" aria-hidden="true" />
-                Use demo dataset
+                Demo data
               </button>
             </div>
-          </div>
 
-          <details className="hidden rounded-lg border border-slate-200 bg-white/80 px-4 py-3 shadow-sm lg:block">
-            <summary className="cursor-pointer text-xs font-semibold text-slate-600">Workbook support</summary>
-            <p className="mt-3 border-t border-slate-100 pt-3 text-xs leading-5 text-slate-500">
+            <details className="mt-2 border-t border-slate-200/70 pt-2">
+              <summary className="cursor-pointer text-[11px] font-semibold text-slate-500 transition hover:text-ink">Workbook support</summary>
+              <p className="mt-2 text-[11px] leading-5 text-slate-500">
               Flexible English and Danish aliases, header-row detection, and manual mapping fallback.
-            </p>
-          </details>
+              </p>
+            </details>
+          </div>
         </aside>
 
-        <section className="min-w-0 space-y-8">
+        <section className="min-w-0 space-y-10">
+          <section className="space-y-3">
           <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-white/90 shadow-[0_8px_30px_rgba(16,32,51,0.055)]">
             <div className="flex flex-col gap-4 px-5 py-5 sm:px-6 md:flex-row md:items-start md:justify-between">
               <div>
@@ -1929,6 +1930,7 @@ export default function UploadDashboard() {
               onReset={() => setFilters(emptyDashboardFilters)}
             />
           ) : null}
+          </section>
 
           <section className="space-y-4">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
@@ -1938,7 +1940,7 @@ export default function UploadDashboard() {
               </div>
               <p className="text-xs text-slate-500">Calculated from the detected workbook data</p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <KpiCard
                 label="Total revenue"
                 value={hasData ? currency(metrics.totalRevenue) : "No data"}
@@ -1988,6 +1990,7 @@ export default function UploadDashboard() {
             </div>
           </section>
 
+          <section className="space-y-7">
           {hasData ? (
             <MonthlyReportCard
               rows={allRows}
@@ -1999,29 +2002,7 @@ export default function UploadDashboard() {
             />
           ) : null}
 
-          {showBudget ? (
-            <section className="space-y-4">
-              <div>
-                <p className="text-xs font-semibold text-brand-700">Plan comparison</p>
-                <h2 className="mt-1 text-xl font-semibold text-ink">Budget overview</h2>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <KpiCard
-                  label="Budget revenue"
-                  value={currency(metrics.budgetRevenue)}
-                  detail={isFiltered ? "Allocated to the current filtered row share" : (data?.feedback.budget?.sheetName ?? "Budget")}
-                />
-                <KpiCard
-                  label="Budget costs"
-                  value={currency(metrics.budgetCosts)}
-                  detail={isFiltered ? "Allocated to the current filtered row share" : "Detected budget costs"}
-                />
-                <KpiCard label="Budget result" value={currency(metrics.budgetResult)} detail="Budget revenue minus costs" />
-              </div>
-            </section>
-          ) : null}
-
-          <section className="space-y-5 border-t border-slate-200/70 pt-8">
+          <div className="space-y-5">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-xs font-semibold text-brand-700">Visual analysis</p>
@@ -2030,7 +2011,7 @@ export default function UploadDashboard() {
               <p className="text-xs text-slate-500">Interactive views generated from the mapped data</p>
             </div>
 
-          <div className="grid gap-5 xl:grid-cols-2">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(360px,0.75fr)]">
             <div className={chartCardClass}>
               <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
@@ -2042,7 +2023,7 @@ export default function UploadDashboard() {
                 </span>
               </div>
               {hasFilteredData ? (
-                <div className="h-72">
+                <div className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
                     <RechartsLineChart data={metrics.monthly} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
                       <CartesianGrid stroke="#edf2f7" vertical={false} />
@@ -2069,7 +2050,7 @@ export default function UploadDashboard() {
                 </span>
               </div>
               {hasFilteredData ? (
-                <div className="h-72">
+                <div className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={metrics.productsByUnits} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
                       <CartesianGrid stroke="#edf2f7" vertical={false} />
@@ -2090,14 +2071,14 @@ export default function UploadDashboard() {
             </div>
           </div>
 
-          <div className="grid gap-5 xl:grid-cols-2">
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             <div className={chartCardClass}>
               <div className="mb-4">
                 <h3 className="font-semibold text-ink">Revenue by category</h3>
                 <p className="text-xs leading-5 text-slate-500">Share of sales by category</p>
               </div>
               {hasFilteredData ? (
-                <div className="h-72">
+                <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie data={metrics.categories} dataKey="revenue" nameKey="name" innerRadius={58} outerRadius={96} paddingAngle={3}>
@@ -2121,7 +2102,7 @@ export default function UploadDashboard() {
                 <p className="text-xs leading-5 text-slate-500">Shown when gross profit is mapped</p>
               </div>
               {showGrossProfit && metrics.grossProfitByCategory.length ? (
-                <div className="h-72">
+                <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={metrics.grossProfitByCategory} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
                       <CartesianGrid stroke="#edf2f7" vertical={false} />
@@ -2140,16 +2121,14 @@ export default function UploadDashboard() {
                 <EmptyChart message="Upload data with gross profit / contribution margin to show this chart." />
               )}
             </div>
-          </div>
 
-          <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
             <div className={chartCardClass}>
               <div className="mb-4">
                 <h3 className="font-semibold text-ink">Costs by category</h3>
                 <p className="text-xs leading-5 text-slate-500">Shown when a costs sheet is detected</p>
               </div>
               {showCosts && costsByCategory.length ? (
-                <div className="h-72">
+                <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={costsByCategory} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
                       <CartesianGrid stroke="#edf2f7" vertical={false} />
@@ -2169,7 +2148,20 @@ export default function UploadDashboard() {
               )}
             </div>
 
-            <div className="relative h-full overflow-hidden rounded-lg border border-brand-100/80 bg-white/90 p-6 shadow-[0_8px_28px_rgba(8,145,178,0.07)] sm:p-7">
+          </div>
+          </div>
+          </section>
+
+          <section className="grid gap-5 border-t border-slate-200/70 pt-8 xl:grid-cols-[0.55fr_1.45fr] xl:items-start">
+            <div className="max-w-sm pt-1">
+              <p className="text-xs font-semibold text-brand-700">Decision brief</p>
+              <h2 className="mt-1 text-xl font-semibold text-ink">Executive summary</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                A focused view of performance, momentum, and the strongest commercial signals in the current selection.
+              </p>
+            </div>
+
+            <div className="relative overflow-hidden rounded-lg border border-brand-100/80 bg-white/90 p-6 shadow-[0_8px_28px_rgba(8,145,178,0.07)] sm:p-7">
               <div className="absolute inset-y-0 left-0 w-1 bg-brand-500" aria-hidden="true" />
               <div className="mb-5 flex items-center gap-3">
                 <div className="grid h-10 w-10 place-items-center rounded-lg bg-brand-50 text-brand-700">
@@ -2177,7 +2169,7 @@ export default function UploadDashboard() {
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-brand-700">Generated insight</p>
-                  <h3 className="mt-0.5 text-lg font-semibold text-ink">Executive summary</h3>
+                  <h3 className="mt-0.5 text-lg font-semibold text-ink">What the data says</h3>
                   <p className="text-xs leading-5 text-slate-500">Rule-based summary from the current dashboard view</p>
                 </div>
               </div>
@@ -2187,8 +2179,32 @@ export default function UploadDashboard() {
                 {isFiltered ? "Updated for the active filters" : "Based on all available sales rows"}
               </div>
             </div>
-          </div>
           </section>
+
+          {showBudget ? (
+            <section className="space-y-4 border-t border-slate-200/70 pt-8">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-slate-500">Secondary analysis</p>
+                  <h2 className="mt-1 text-xl font-semibold text-ink">Budget overview</h2>
+                </div>
+                <p className="text-xs text-slate-500">Planning context for the current dashboard view</p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <KpiCard
+                  label="Budget revenue"
+                  value={currency(metrics.budgetRevenue)}
+                  detail={isFiltered ? "Allocated to the current filtered row share" : (data?.feedback.budget?.sheetName ?? "Budget")}
+                />
+                <KpiCard
+                  label="Budget costs"
+                  value={currency(metrics.budgetCosts)}
+                  detail={isFiltered ? "Allocated to the current filtered row share" : "Detected budget costs"}
+                />
+                <KpiCard label="Budget result" value={currency(metrics.budgetResult)} detail="Budget revenue minus costs" />
+              </div>
+            </section>
+          ) : null}
         </section>
       </section>
     </main>
