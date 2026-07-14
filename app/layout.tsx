@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "DataBrief AI",
-  description: "Upload Excel sales data and turn it into a dashboard and business summary.",
+  description: "Upload salgsdata fra Excel, og få et dashboard med nøgletal og et kort ledelsesresume.",
 };
 
 export default function RootLayout({
@@ -12,7 +12,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="da">
       <body>{children}</body>
     </html>
   );

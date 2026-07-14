@@ -168,20 +168,20 @@ const chartTooltipStyle = {
 };
 
 const fieldLabels: Record<FieldKey, string> = {
-  date: "Date",
-  month: "Month",
-  product: "Product",
-  category: "Category",
-  channel: "Channel",
+  date: "Dato",
+  month: "Måned",
+  product: "Produkt",
+  category: "Kategori",
+  channel: "Kanal",
   region: "Region",
-  units: "Units",
-  netRevenue: "Net revenue",
-  grossRevenue: "Gross revenue",
-  revenue: "Revenue",
-  grossProfit: "Gross profit",
-  grossMargin: "Gross margin",
-  cost: "Cost",
-  unitPrice: "Unit price",
+  units: "Antal",
+  netRevenue: "Nettoomsætning",
+  grossRevenue: "Bruttoomsætning",
+  revenue: "Omsætning",
+  grossProfit: "Dækningsbidrag",
+  grossMargin: "Dækningsgrad",
+  cost: "Omkostning",
+  unitPrice: "Pris pr. enhed",
 };
 
 const aliases: Record<FieldKey, string[]> = {
@@ -253,12 +253,12 @@ const demoProducts = [
 ];
 
 const demoMonths = [
-  { month: "Jan 2026", monthIndex: 0, factor: 0.88 },
-  { month: "Feb 2026", monthIndex: 1, factor: 0.94 },
-  { month: "Mar 2026", monthIndex: 2, factor: 1 },
-  { month: "Apr 2026", monthIndex: 3, factor: 1.08 },
-  { month: "May 2026", monthIndex: 4, factor: 1.15 },
-  { month: "Jun 2026", monthIndex: 5, factor: 1.24 },
+  { month: "jan. 2026", monthIndex: 0, factor: 0.88 },
+  { month: "feb. 2026", monthIndex: 1, factor: 0.94 },
+  { month: "mar. 2026", monthIndex: 2, factor: 1 },
+  { month: "apr. 2026", monthIndex: 3, factor: 1.08 },
+  { month: "maj 2026", monthIndex: 4, factor: 1.15 },
+  { month: "jun. 2026", monthIndex: 5, factor: 1.24 },
 ];
 
 const sampleRows = demoMonths.flatMap((month, monthOffset) =>
@@ -370,31 +370,31 @@ function toDate(value: unknown) {
 }
 
 function monthLabel(date: Date) {
-  return new Intl.DateTimeFormat("en", { month: "short", year: "numeric" }).format(date);
+  return new Intl.DateTimeFormat("da-DK", { month: "short", year: "numeric" }).format(date);
 }
 
 function cleanMonth(value: unknown) {
   const text = String(value ?? "").trim();
-  return text || "Unknown month";
+  return text || "Ukendt måned";
 }
 
 function currency(value: number) {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("da-DK", {
     style: "currency",
-    currency: "USD",
+    currency: "DKK",
     maximumFractionDigits: 0,
   }).format(value);
 }
 
 function percent(value: number) {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("da-DK", {
     style: "percent",
     maximumFractionDigits: 1,
   }).format(value);
 }
 
 function number(value: number) {
-  return new Intl.NumberFormat("en-US").format(value);
+  return new Intl.NumberFormat("da-DK").format(value);
 }
 
 function getCell(row: Record<string, unknown>, mappings: FieldMappings, field: FieldKey) {
@@ -482,12 +482,12 @@ function rowsToRecords(rows: unknown[][], headerIndex: number, headers: string[]
 
 function getMissingFields(mappings: FieldMappings) {
   const missing: string[] = [];
-  if (!mappings.product) missing.push("Product / Produkt");
-  if (!mappings.category) missing.push("Category / Kategori");
-  if (!mappings.units) missing.push("Units / Antal");
-  if (!mappings.date && !mappings.month) missing.push("Date / Dato or Month / Maaned");
+  if (!mappings.product) missing.push("Produkt / Product");
+  if (!mappings.category) missing.push("Kategori / Category");
+  if (!mappings.units) missing.push("Antal / Units");
+  if (!mappings.date && !mappings.month) missing.push("Dato / Date eller Måned / Month");
   if (!mappings.netRevenue && !mappings.grossRevenue && !mappings.revenue && !mappings.unitPrice) {
-    missing.push("Revenue / Nettoomsaetning / Bruttoomsaetning or Units x Price");
+    missing.push("Omsætning / Revenue eller Antal × Pris");
   }
   return missing;
 }
@@ -519,23 +519,23 @@ function buildCandidates(workbook: XLSX.WorkBook) {
 function getRevenue(row: Record<string, unknown>, mappings: FieldMappings) {
   const netRevenue = toNumber(getCell(row, mappings, "netRevenue"));
   if (netRevenue !== null) {
-    return { value: netRevenue, source: mappings.netRevenue ?? "Net revenue" };
+    return { value: netRevenue, source: mappings.netRevenue ?? "Nettoomsætning" };
   }
 
   const grossRevenue = toNumber(getCell(row, mappings, "grossRevenue"));
   if (grossRevenue !== null) {
-    return { value: grossRevenue, source: mappings.grossRevenue ?? "Gross revenue" };
+    return { value: grossRevenue, source: mappings.grossRevenue ?? "Bruttoomsætning" };
   }
 
   const revenue = toNumber(getCell(row, mappings, "revenue"));
   if (revenue !== null) {
-    return { value: revenue, source: mappings.revenue ?? "Revenue" };
+    return { value: revenue, source: mappings.revenue ?? "Omsætning" };
   }
 
   const units = toNumber(getCell(row, mappings, "units"));
   const unitPrice = toNumber(getCell(row, mappings, "unitPrice"));
   if (units !== null && unitPrice !== null) {
-    return { value: units * unitPrice, source: `${mappings.units ?? "Units"} x ${mappings.unitPrice ?? "Price"}` };
+    return { value: units * unitPrice, source: `${mappings.units ?? "Antal"} × ${mappings.unitPrice ?? "Pris"}` };
   }
 
   return { value: null, source: "" };
@@ -607,7 +607,7 @@ function parseSalesRows(candidate: SheetCandidate, mappings = candidate.mappings
       const rawDate = getCell(row, mappings, "date");
       const date = toDate(rawDate);
       const mappedMonth = cleanMonth(getCell(row, mappings, "month"));
-      const month = mappedMonth !== "Unknown month" ? mappedMonth : date ? monthLabel(date) : mappedMonth;
+      const month = mappedMonth !== "Ukendt måned" ? mappedMonth : date ? monthLabel(date) : mappedMonth;
       const product = String(getCell(row, mappings, "product") ?? "").trim();
       const category = String(getCell(row, mappings, "category") ?? "").trim();
       const channel = String(getCell(row, mappings, "channel") ?? "").trim();
@@ -689,20 +689,20 @@ function buildParseResult({
   const missingFields = manual ? getMissingFields(mappings) : candidate.missingFields;
 
   if (missingFields.length) {
-    throw new Error(`Missing required mappings: ${missingFields.join(", ")}.`);
+    throw new Error(`Følgende obligatoriske kolonner mangler: ${missingFields.join(", ")}.`);
   }
 
   const parsed = parseSalesRows(candidate, mappings);
 
   if (!parsed.rows.length) {
-    throw new Error(`No valid sales rows found on "${candidate.name}". Try selecting the worksheet and columns manually.`);
+    throw new Error(`Der blev ikke fundet gyldige salgsrækker i "${candidate.name}". Vælg eventuelt ark og kolonner manuelt.`);
   }
 
   const status = manual ? "warning" : getStatus(candidate, parsed.rows);
   const warnings = [
-    ...(manual ? ["Manual column mapping is being used."] : []),
-    ...(status === "warning" && !manual ? ["Auto mapping looks usable, but confidence is below the ideal threshold."] : []),
-    ...(parsed.skippedRows.length ? [`Ignored ${parsed.skippedRows.length} incomplete or non-data rows.`] : []),
+    ...(manual ? ["Manuelt kolonnematch anvendes."] : []),
+    ...(status === "warning" && !manual ? ["Det automatiske kolonnematch kan bruges, men sikkerheden er lavere end normalt."] : []),
+    ...(parsed.skippedRows.length ? [`${parsed.skippedRows.length} ufuldstændige rækker eller opsummeringsrækker blev ignoreret.`] : []),
   ];
 
   return {
@@ -714,7 +714,7 @@ function buildParseResult({
       headerRow: candidate.headerIndex + 1,
       mappedColumns: buildMappedColumns(mappings),
       optionalColumns: buildOptionalColumns(mappings),
-      revenueSource: parsed.revenueSource || "Selected revenue column",
+      revenueSource: parsed.revenueSource || "Valgt omsætningskolonne",
       status,
       warnings,
       costs: analysis.costs,
@@ -727,7 +727,7 @@ function groupRows(rows: SaleRow[], keyGetter: (row: SaleRow) => string) {
   const groups = new Map<string, GroupedValue>();
 
   rows.forEach((row) => {
-    const key = keyGetter(row) || "Uncategorized";
+    const key = keyGetter(row) || "Ukategoriseret";
     const current = groups.get(key) ?? { name: key, revenue: 0, units: 0, grossProfit: 0, cost: 0 };
     current.revenue += row.revenue;
     current.units += row.units;
@@ -765,7 +765,7 @@ function groupRowsByMonth(rows: SaleRow[]) {
   rows.forEach((row, index) => {
     const sortKey = row.date ? new Date(row.date.getFullYear(), row.date.getMonth(), 1).getTime() : index;
     const key = row.date ? String(sortKey) : row.month;
-    const displayMonth = row.month || (row.date ? monthLabel(row.date) : "Unknown month");
+    const displayMonth = row.month || (row.date ? monthLabel(row.date) : "Ukendt måned");
     const current = groups.get(key) ?? {
       name: displayMonth,
       revenue: 0,
@@ -811,7 +811,7 @@ function parseCostSheet(workbook: XLSX.WorkBook) {
       return;
     }
 
-    const category = categoryHeader ? String(row[categoryHeader] ?? "Costs").trim() || "Costs" : "Costs";
+    const category = categoryHeader ? String(row[categoryHeader] ?? "Omkostninger").trim() || "Omkostninger" : "Omkostninger";
     const current = groups.get(category) ?? { name: category, revenue: 0, units: 0, grossProfit: 0, cost: 0 };
     current.cost += Math.abs(value);
     groups.set(category, current);
@@ -874,7 +874,7 @@ function analyzeWorkbook(file: File): Promise<{ analysis: WorkbookAnalysis; auto
         const candidates = buildCandidates(workbook);
 
         if (!candidates.length) {
-          reject(new Error("No worksheets found in this Excel file."));
+          reject(new Error("Excel-filen indeholder ingen regneark."));
           return;
         }
 
@@ -905,7 +905,7 @@ function analyzeWorkbook(file: File): Promise<{ analysis: WorkbookAnalysis; auto
       }
     };
 
-    reader.onerror = () => reject(new Error("Unable to read the uploaded file."));
+    reader.onerror = () => reject(new Error("Den uploadede fil kunne ikke læses."));
     reader.readAsArrayBuffer(file);
   });
 }
@@ -975,35 +975,35 @@ function buildExecutiveSummary(
   if (!metrics.rowCount || !metrics.bestProduct || !metrics.bestCategory || !metrics.bestMonth) {
     return {
       insights: [
-        "No sales rows match the current filters.",
-        "The uploaded workbook remains available for analysis.",
-        "Reset or adjust the filters to restore the dashboard view.",
+        "Ingen salgsrækker matcher de aktuelle filtre.",
+        "Det uploadede regneark er stadig tilgængeligt for analysen.",
+        "Nulstil eller juster filtrene for at gendanne dashboardet.",
       ],
-      conclusion: "There is not enough matching data to form a business conclusion.",
-      status: "No matching rows",
+      conclusion: "Der er ikke tilstrækkelige matchende data til at danne en forretningsmæssig konklusion.",
+      status: "Ingen matchende rækker",
     };
   }
 
   const isFiltered = Boolean(context.activeFilters?.length);
   const profitabilityInsight = metrics.hasGrossProfit
-    ? `Gross profit is ${currency(metrics.totalGrossProfit)} at a ${percent(metrics.grossMargin)} margin.`
+    ? `Dækningsbidraget er ${currency(metrics.totalGrossProfit)} med en dækningsgrad på ${percent(metrics.grossMargin)}.`
     : metrics.hasCosts
-      ? `The current result is ${currency(metrics.actualResult)} after ${currency(metrics.totalCosts)} in costs.`
-      : `${metrics.bestMonth.name} is the strongest month at ${currency(metrics.bestMonth.revenue)}.`;
+      ? `Det aktuelle resultat er ${currency(metrics.actualResult)} efter omkostninger på ${currency(metrics.totalCosts)}.`
+      : `${metrics.bestMonth.name} er den stærkeste måned med en omsætning på ${currency(metrics.bestMonth.revenue)}.`;
   const conclusion = feedback?.budget
-    ? `Revenue is ${currency(Math.abs(metrics.revenueVsBudget))} ${metrics.revenueVsBudget >= 0 ? "above" : "below"} budget for this view.`
-    : `${metrics.bestMonth.name} is the strongest period, led by ${metrics.bestCategory.name}.`;
+    ? `Omsætningen ligger ${currency(Math.abs(metrics.revenueVsBudget))} ${metrics.revenueVsBudget >= 0 ? "over" : "under"} budgettet i denne visning.`
+    : `${metrics.bestMonth.name} er den stærkeste periode med ${metrics.bestCategory.name} som førende kategori.`;
 
   return {
     insights: [
-      `${currency(metrics.totalRevenue)} revenue from ${number(metrics.totalUnits)} units across ${number(metrics.rowCount)} rows.`,
-      `${metrics.bestProduct.name} leads products, while ${metrics.bestCategory.name} is the top category.`,
+      `${currency(metrics.totalRevenue)} i omsætning fra ${number(metrics.totalUnits)} enheder fordelt på ${number(metrics.rowCount)} rækker.`,
+      `${metrics.bestProduct.name} er det førende produkt, mens ${metrics.bestCategory.name} er den største kategori.`,
       profitabilityInsight,
     ],
     conclusion,
     status: isFiltered
-      ? `Updated for ${context.activeFilters?.join(", ")}`
-      : `Based on ${number(context.totalRows ?? metrics.rowCount)} rows from ${feedback?.salesSheetName ?? "the sales sheet"}`,
+      ? `Opdateret for ${context.activeFilters?.join(", ")}`
+      : `Baseret på ${number(context.totalRows ?? metrics.rowCount)} rækker fra ${feedback?.salesSheetName ?? "salgsarket"}`,
   };
 }
 
@@ -1030,13 +1030,13 @@ function createSampleWorkbook() {
     XLSX.utils.json_to_sheet([{ Nettoomsaetning: Math.round(totalRevenue * 1.04), Omkostninger: Math.round(totalCosts * 1.03) }]),
     "Budget",
   );
-  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["Brief"], ["Sample workbook for DataBrief AI"]]), "Brief");
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["Beskrivelse"], ["Eksempelregneark til DataBrief AI"]]), "Beskrivelse");
   return workbook;
 }
 
 function downloadSampleExcel() {
   const workbook = createSampleWorkbook();
-  XLSX.writeFile(workbook, "databrief-ai-sample-workbook.xlsx");
+  XLSX.writeFile(workbook, "databrief-ai-eksempelregneark.xlsx");
 }
 
 function KpiCard({
@@ -1083,7 +1083,7 @@ function StatusBox({ feedback, analysis }: { feedback?: MappingFeedback; analysi
   }
 
   const label =
-    status === "success" ? "Auto-mapped successfully" : status === "warning" ? "Auto-mapped with warnings" : "Manual mapping required";
+    status === "success" ? "Kolonner blev fundet automatisk" : status === "warning" ? "Kolonner blev fundet med forbehold" : "Manuelt kolonnematch er nødvendigt";
   const classes =
     status === "success"
       ? "border-emerald-200 bg-emerald-50 text-emerald-800"
@@ -1103,14 +1103,14 @@ function StatusBox({ feedback, analysis }: { feedback?: MappingFeedback; analysi
       <div className="min-w-0">
         <p className="font-semibold">{label}</p>
         {feedback?.warnings.length ? <p className="mt-0.5 text-xs leading-5">{feedback.warnings.join(" ")}</p> : null}
-        {!feedback && analysis ? <p className="mt-0.5 text-xs leading-5">Choose a worksheet and map the required columns below.</p> : null}
+        {!feedback && analysis ? <p className="mt-0.5 text-xs leading-5">Vælg et ark, og match de obligatoriske kolonner nedenfor.</p> : null}
       </div>
     </div>
   );
 }
 
 function mappedColumn(feedback: MappingFeedback, label: string) {
-  return feedback.mappedColumns[label] ?? feedback.optionalColumns[label] ?? "Not mapped";
+  return feedback.mappedColumns[label] ?? feedback.optionalColumns[label] ?? "Ikke matchet";
 }
 
 function DataDetectedCard({
@@ -1128,18 +1128,18 @@ function DataDetectedCard({
 
   const statusText =
     feedback.status === "success"
-      ? "Auto-mapped successfully"
+      ? "Kolonner blev fundet automatisk"
       : feedback.status === "warning"
-        ? "Auto-mapped with warnings"
-        : "Manual mapping applied";
+        ? "Kolonner blev fundet med forbehold"
+        : "Manuelt kolonnematch anvendt";
 
   return (
     <div className="border-t border-slate-200 px-5 py-4 sm:px-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-ink">Data detected</h3>
+          <h3 className="text-sm font-semibold text-ink">Data fundet</h3>
           <p className="mt-1 text-xs leading-5 text-slate-500">
-            {feedback.salesSheetName}, header row {feedback.headerRow}, {number(rowCount)} valid rows
+            {feedback.salesSheetName}, overskriftsrække {feedback.headerRow}, {number(rowCount)} gyldige rækker
           </p>
         </div>
         <button
@@ -1147,17 +1147,17 @@ function DataDetectedCard({
           onClick={onEdit}
           className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-ink shadow-sm transition hover:border-brand-500 hover:text-brand-700"
         >
-          Edit column mapping
+          Rediger kolonnematch
         </button>
       </div>
 
       <div className="mt-4 grid gap-x-4 gap-y-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
-          ["Mapping status", statusText],
-          ["Revenue column", feedback.revenueSource],
-          ["Units column", mappedColumn(feedback, "Units")],
-          ["Product column", mappedColumn(feedback, "Product")],
-          ["Category column", mappedColumn(feedback, "Category")],
+          ["Status for kolonnematch", statusText],
+          ["Omsætningskolonne", feedback.revenueSource],
+          ["Antalskolonne", mappedColumn(feedback, "Antal")],
+          ["Produktkolonne", mappedColumn(feedback, "Produkt")],
+          ["Kategorikolonne", mappedColumn(feedback, "Kategori")],
         ].map(([label, value]) => (
           <div key={label} className="min-w-0 border-l border-slate-200 pl-3">
             <p className="text-[11px] font-medium text-slate-500">{label}</p>
@@ -1178,19 +1178,19 @@ function FeedbackPanel({ feedback }: { feedback?: MappingFeedback }) {
 
   return (
     <details className="rounded-lg border border-slate-200/70 bg-white/45 px-4 py-3">
-      <summary className="cursor-pointer text-xs font-semibold text-slate-600 transition hover:text-ink">View detection details</summary>
+      <summary className="cursor-pointer text-xs font-semibold text-slate-600 transition hover:text-ink">Vis registreringsdetaljer</summary>
       <div className="mt-4 flex items-start gap-3 border-t border-slate-100 pt-4">
         <Info className="mt-0.5 h-5 w-5 text-brand-700" aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-ink">Workbook detection</h3>
+          <h3 className="font-semibold text-ink">Registrering af regneark</h3>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Sales worksheet: <span className="font-semibold text-ink">{feedback.salesSheetName}</span>. Header row:{" "}
-            <span className="font-semibold text-ink">{feedback.headerRow}</span>. Detected sheets:{" "}
+            Salgsark: <span className="font-semibold text-ink">{feedback.salesSheetName}</span>. Overskriftsrække:{" "}
+            <span className="font-semibold text-ink">{feedback.headerRow}</span>. Fundne ark:{" "}
             {feedback.detectedSheets.join(", ")}.
           </p>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <div className="rounded-md border border-line bg-slate-50 p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Mapped columns</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Matchede kolonner</p>
               <ul className="mt-2 space-y-1 text-sm text-slate-700">
                 {Object.entries(feedback.mappedColumns).map(([field, column]) => (
                   <li key={field}>
@@ -1198,10 +1198,10 @@ function FeedbackPanel({ feedback }: { feedback?: MappingFeedback }) {
                   </li>
                 ))}
               </ul>
-              <p className="mt-2 text-xs text-slate-500">Revenue source: {feedback.revenueSource}</p>
+              <p className="mt-2 text-xs text-slate-500">Omsætningskilde: {feedback.revenueSource}</p>
             </div>
             <div className="rounded-md border border-line bg-slate-50 p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Optional data</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Valgfrie data</p>
               {optionalEntries.length ? (
                 <ul className="mt-2 space-y-1 text-sm text-slate-700">
                   {optionalEntries.map(([field, column]) => (
@@ -1211,10 +1211,10 @@ function FeedbackPanel({ feedback }: { feedback?: MappingFeedback }) {
                   ))}
                 </ul>
               ) : (
-                <p className="mt-2 text-sm text-slate-600">No gross profit, gross margin, or cost columns found.</p>
+                <p className="mt-2 text-sm text-slate-600">Der blev ikke fundet kolonner for dækningsbidrag, dækningsgrad eller omkostninger.</p>
               )}
-              {feedback.costs ? <p className="mt-2 text-xs text-slate-500">Costs sheet: {feedback.costs.sheetName}</p> : null}
-              {feedback.budget ? <p className="mt-1 text-xs text-slate-500">Budget sheet: {feedback.budget.sheetName}</p> : null}
+              {feedback.costs ? <p className="mt-2 text-xs text-slate-500">Omkostningsark: {feedback.costs.sheetName}</p> : null}
+              {feedback.budget ? <p className="mt-1 text-xs text-slate-500">Budgetark: {feedback.budget.sheetName}</p> : null}
             </div>
           </div>
         </div>
@@ -1244,31 +1244,31 @@ function ManualMappingPanel({
 
   const candidate = analysis.candidates.find((sheet) => sheet.name === selectedSheet) ?? analysis.candidates[0];
   const fields: Array<{ key: ManualField; label: string; required: boolean }> = [
-    { key: "dateOrMonth", label: "Date or Month", required: true },
-    { key: "product", label: "Product", required: true },
-    { key: "category", label: "Category", required: true },
-    { key: "units", label: "Units", required: true },
-    { key: "revenue", label: "Revenue", required: true },
-    { key: "cost", label: "Cost", required: false },
-    { key: "grossProfit", label: "Gross profit", required: false },
-    { key: "grossMargin", label: "Gross margin", required: false },
+    { key: "dateOrMonth", label: "Dato eller måned", required: true },
+    { key: "product", label: "Produkt", required: true },
+    { key: "category", label: "Kategori", required: true },
+    { key: "units", label: "Antal", required: true },
+    { key: "revenue", label: "Omsætning", required: true },
+    { key: "cost", label: "Omkostning", required: false },
+    { key: "grossProfit", label: "Dækningsbidrag", required: false },
+    { key: "grossMargin", label: "Dækningsgrad", required: false },
   ];
 
   return (
     <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div>
-          <h3 className="font-semibold text-ink">Manual column mapping</h3>
+          <h3 className="font-semibold text-ink">Manuelt kolonnematch</h3>
           <p className="mt-1 text-sm text-slate-500">
-            Worksheet candidates can use different header rows. Current header row: {candidate.headerIndex + 1}.
+            Ark kan have forskellige overskriftsrækker. Den aktuelle overskriftsrække er {candidate.headerIndex + 1}.
           </p>
         </div>
-        <div className="text-sm text-slate-500">Confidence: {candidate.confidence}%</div>
+        <div className="text-sm text-slate-500">Sikkerhed: {candidate.confidence} %</div>
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <label className="block text-sm font-semibold text-ink">
-          Worksheet
+          Regneark
           <select
             value={selectedSheet}
             onChange={(event) => onSheetChange(event.target.value)}
@@ -1276,7 +1276,7 @@ function ManualMappingPanel({
           >
             {analysis.candidates.map((sheet) => (
               <option key={sheet.name} value={sheet.name}>
-                {sheet.name} - row {sheet.headerIndex + 1} - {sheet.confidence}%
+                {sheet.name} - række {sheet.headerIndex + 1} - {sheet.confidence} %
               </option>
             ))}
           </select>
@@ -1292,7 +1292,7 @@ function ManualMappingPanel({
               onChange={(event) => onMappingChange(field.key, event.target.value)}
               className="mt-2 w-full rounded-md border border-line bg-white px-3 py-2 text-sm font-normal text-ink"
             >
-              <option value="">Not mapped</option>
+              <option value="">Ikke matchet</option>
               {candidate.headers.map((header) => (
                 <option key={header} value={header}>
                   {header}
@@ -1308,7 +1308,7 @@ function ManualMappingPanel({
         onClick={onApply}
         className="mt-5 inline-flex items-center justify-center rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
       >
-        Apply selected mappings
+        Anvend valgte kolonnematch
       </button>
     </div>
   );
@@ -1328,11 +1328,11 @@ function DashboardFilterBar({
   onReset: () => void;
 }) {
   const definitions: Array<{ field: DashboardFilterKey; label: string; allLabel: string }> = [
-    { field: "month", label: "Month", allLabel: "All months" },
-    { field: "product", label: "Product", allLabel: "All products" },
-    { field: "category", label: "Category", allLabel: "All categories" },
-    { field: "channel", label: "Channel", allLabel: "All channels" },
-    { field: "region", label: "Region", allLabel: "All regions" },
+    { field: "month", label: "Måned", allLabel: "Alle måneder" },
+    { field: "product", label: "Produkt", allLabel: "Alle produkter" },
+    { field: "category", label: "Kategori", allLabel: "Alle kategorier" },
+    { field: "channel", label: "Kanal", allLabel: "Alle kanaler" },
+    { field: "region", label: "Region", allLabel: "Alle regioner" },
   ];
   const controls = definitions
     .map((definition) => ({ ...definition, options: uniqueValues(rows, definition.field) }))
@@ -1347,8 +1347,8 @@ function DashboardFilterBar({
             <Filter className="h-4 w-4" aria-hidden="true" />
           </span>
           <div>
-            <p className="text-xs font-semibold text-brand-700">Explore your dashboard</p>
-            <h2 className="mt-0.5 text-lg font-semibold text-ink">Filter the current view</h2>
+            <p className="text-xs font-semibold text-brand-700">Udforsk dit dashboard</p>
+            <h2 className="mt-0.5 text-lg font-semibold text-ink">Filtrer den aktuelle visning</h2>
           </div>
         </div>
         <button
@@ -1358,7 +1358,7 @@ function DashboardFilterBar({
           className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-ink disabled:cursor-not-allowed disabled:opacity-35"
         >
           <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-          Reset filters
+          Nulstil filtre
         </button>
       </div>
 
@@ -1387,15 +1387,15 @@ function DashboardFilterBar({
 
       <div className="flex flex-col gap-2 border-t border-slate-100 px-5 py-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <p className="font-medium">
-          Showing <span className="font-semibold text-ink">{number(filteredRowCount)}</span> of {number(rows.length)} rows
+          Viser <span className="font-semibold text-ink">{number(filteredRowCount)}</span> af {number(rows.length)} rækker
         </p>
         <p className="truncate">
           {activeFilters.length ? (
             <>
-              Filtered by: <span className="font-semibold text-ink">{activeFilters.join(", ")}</span>
+              Filtreret efter: <span className="font-semibold text-ink">{activeFilters.join(", ")}</span>
             </>
           ) : (
-            "All available sales data is included"
+            "Alle tilgængelige salgsdata er medtaget"
           )}
         </p>
       </div>
@@ -1432,26 +1432,26 @@ function MonthlyReportCard({
   const hasBudget = Boolean(feedback?.budget && reportRows.length);
   const deviation = reportMetrics.revenueVsBudget;
   const tolerance = Math.max(1, reportMetrics.budgetRevenue * 0.01);
-  const budgetStatus = Math.abs(deviation) <= tolerance ? "On budget" : deviation > 0 ? "Over budget" : "Under budget";
+  const budgetStatus = Math.abs(deviation) <= tolerance ? "På budget" : deviation > 0 ? "Over budget" : "Under budget";
   const budgetStatusClasses =
-    budgetStatus === "On budget"
+    budgetStatus === "På budget"
       ? "bg-emerald-50 text-emerald-700"
       : budgetStatus === "Over budget"
         ? "bg-brand-50 text-brand-700"
         : "bg-amber-50 text-amber-700";
-  const resultLabel = reportMetrics.hasGrossProfit ? "Gross profit" : reportMetrics.hasCosts ? "Result" : "Units sold";
+  const resultLabel = reportMetrics.hasGrossProfit ? "Dækningsbidrag" : reportMetrics.hasCosts ? "Resultat" : "Solgte enheder";
   const resultValue = reportMetrics.hasGrossProfit
     ? currency(reportMetrics.totalGrossProfit)
     : reportMetrics.hasCosts
       ? currency(reportMetrics.actualResult)
       : number(reportMetrics.totalUnits);
   const profitSentence = reportMetrics.hasGrossProfit
-    ? `, gross profit was ${currency(reportMetrics.totalGrossProfit)}`
+    ? `, dækningsbidraget var ${currency(reportMetrics.totalGrossProfit)}`
     : reportMetrics.hasCosts
-      ? `, result was ${currency(reportMetrics.actualResult)}`
+      ? `, resultatet var ${currency(reportMetrics.actualResult)}`
       : "";
   const budgetSentence = hasBudget
-    ? `, and revenue was ${currency(Math.abs(deviation))} ${deviation >= 0 ? "above" : "below"} the allocated monthly budget`
+    ? `, og omsætningen lå ${currency(Math.abs(deviation))} ${deviation >= 0 ? "over" : "under"} det fordelte månedsbudget`
     : "";
 
   return (
@@ -1462,12 +1462,12 @@ function MonthlyReportCard({
             <CalendarRange className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
-            <p className="text-xs font-semibold text-accent-600">Period analysis</p>
-            <h2 className="mt-0.5 text-lg font-semibold text-ink">Monthly report</h2>
+            <p className="text-xs font-semibold text-accent-600">Periodeanalyse</p>
+            <h2 className="mt-0.5 text-lg font-semibold text-ink">Månedsrapport</h2>
           </div>
         </div>
         <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-          <span>Report month</span>
+          <span>Rapportmåned</span>
           <span className="relative block">
             <select
               value={reportMonth}
@@ -1487,14 +1487,14 @@ function MonthlyReportCard({
 
       <div className="grid border-y border-slate-100 sm:grid-cols-3">
         {[
-          ["Revenue", currency(reportMetrics.totalRevenue)],
+          ["Omsætning", currency(reportMetrics.totalRevenue)],
           [resultLabel, resultValue],
-          [hasBudget ? "Budget status" : "Rows included", hasBudget ? budgetStatus : number(reportMetrics.rowCount)],
+          [hasBudget ? "Budgetstatus" : "Medtagne rækker", hasBudget ? budgetStatus : number(reportMetrics.rowCount)],
         ].map(([label, value], index) => (
           <div key={label} className={`px-5 py-3.5 sm:px-6 ${index ? "border-t border-slate-100 sm:border-l sm:border-t-0" : ""}`}>
             <p className="text-xs font-semibold text-slate-500">{label}</p>
             <p
-              className={`mt-2 text-2xl font-semibold text-ink ${hasBudget && label === "Budget status" ? `inline-flex rounded-md px-2.5 py-1 text-base ${budgetStatusClasses}` : ""}`}
+              className={`mt-2 text-2xl font-semibold text-ink ${hasBudget && label === "Budgetstatus" ? `inline-flex rounded-md px-2.5 py-1 text-base ${budgetStatusClasses}` : ""}`}
             >
               {value}
             </p>
@@ -1505,8 +1505,8 @@ function MonthlyReportCard({
       <div className="bg-slate-50/65 px-5 py-4 sm:px-6">
         <p className="border-l-2 border-brand-400 pl-4 text-sm font-medium leading-6 text-slate-700">
           {reportRows.length
-            ? `${reportMonth}: ${currency(reportMetrics.totalRevenue)} revenue${profitSentence}${budgetSentence}.`
-            : `No rows match the current filters for ${reportMonth}.`}
+            ? `I ${reportMonth} var omsætningen ${currency(reportMetrics.totalRevenue)}${profitSentence}${budgetSentence}.`
+            : `Ingen rækker matcher de aktuelle filtre for ${reportMonth}.`}
         </p>
       </div>
     </section>
@@ -1585,9 +1585,9 @@ export default function UploadDashboard() {
 
       if (!parsed.autoResult) {
         setError(
-          `Manual mapping required. Best worksheet "${best.name}" is missing: ${best.missingFields.join(
+          `Manuelt kolonnematch er nødvendigt. Det bedste ark, "${best.name}", mangler: ${best.missingFields.join(
             ", ",
-          )}. Columns found: ${best.headers.join(", ") || "none"}.`,
+          )}. Fundne kolonner: ${best.headers.join(", ") || "ingen"}.`,
         );
       }
     } catch (error) {
@@ -1596,7 +1596,7 @@ export default function UploadDashboard() {
       setSelectedSheet("");
       setManualMappings(emptyManualMappings);
       setShowManualMapping(false);
-      setError(error instanceof Error ? error.message : "The spreadsheet could not be parsed.");
+      setError(error instanceof Error ? error.message : "Regnearket kunne ikke behandles.");
     } finally {
       setIsLoading(false);
       event.target.value = "";
@@ -1610,7 +1610,7 @@ export default function UploadDashboard() {
     try {
       const workbook = createSampleWorkbook();
       const workbookData = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-      const file = new File([workbookData], "DataBrief AI demo dataset.xlsx", {
+      const file = new File([workbookData], "DataBrief AI demodata.xlsx", {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
       const parsed = await analyzeWorkbook(file);
@@ -1624,9 +1624,9 @@ export default function UploadDashboard() {
 
       if (!parsed.autoResult) {
         setError(
-          `Manual mapping required. Best worksheet "${best.name}" is missing: ${best.missingFields.join(
+          `Manuelt kolonnematch er nødvendigt. Det bedste ark, "${best.name}", mangler: ${best.missingFields.join(
             ", ",
-          )}. Columns found: ${best.headers.join(", ") || "none"}.`,
+          )}. Fundne kolonner: ${best.headers.join(", ") || "ingen"}.`,
         );
       }
     } catch (error) {
@@ -1635,7 +1635,7 @@ export default function UploadDashboard() {
       setSelectedSheet("");
       setManualMappings(emptyManualMappings);
       setShowManualMapping(false);
-      setError(error instanceof Error ? error.message : "The demo dataset could not be loaded.");
+      setError(error instanceof Error ? error.message : "Demodata kunne ikke indlæses.");
     } finally {
       setIsLoading(false);
     }
@@ -1663,7 +1663,7 @@ export default function UploadDashboard() {
       resetDashboardView();
     } catch (error) {
       setData(null);
-      setError(error instanceof Error ? error.message : "Manual mapping failed. Check the selected columns.");
+      setError(error instanceof Error ? error.message : "Det manuelle kolonnematch mislykkedes. Kontrollér de valgte kolonner.");
     }
   }
 
@@ -1680,7 +1680,7 @@ export default function UploadDashboard() {
               className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-slate-600 transition hover:bg-white hover:text-ink"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              Home
+              Forside
             </Link>
             <div className="flex items-center gap-3">
               <span className="grid h-10 w-10 place-items-center rounded-lg bg-ink text-white shadow-[0_10px_24px_rgba(16,32,51,0.18)]">
@@ -1695,16 +1695,16 @@ export default function UploadDashboard() {
           <div className="mb-7 text-center">
             <div className="mx-auto mb-4 inline-flex items-center gap-2 rounded-lg border border-brand-100 bg-white/85 px-3 py-1.5 text-xs font-semibold text-brand-700 shadow-sm backdrop-blur">
               <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-              Spreadsheet analysis, without the setup
+              Regnearksanalyse uden opsætning
             </div>
-            <h1 className="text-3xl font-semibold leading-tight text-ink sm:text-4xl">Upload sales data</h1>
+            <h1 className="text-3xl font-semibold leading-tight text-ink sm:text-4xl">Upload salgsdata</h1>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">
-              Choose an Excel file or use the demo dataset to generate a dashboard and business summary.
+              Vælg en Excel-fil, eller brug demodata til at oprette et dashboard og et forretningsresume.
             </p>
           </div>
 
           <div className="mb-5 flex flex-wrap justify-center gap-2">
-            {["Danish & English headers supported", "No template required", "Browser-based analysis"].map((item) => (
+            {["Danske og engelske kolonner", "Ingen skabelon nødvendig", "Analyse i browseren"].map((item) => (
               <div
                 key={item}
                 className="inline-flex items-center gap-2 rounded-lg border border-white/90 bg-white/75 px-3 py-2 text-xs font-medium text-slate-600 shadow-sm backdrop-blur"
@@ -1724,8 +1724,8 @@ export default function UploadDashboard() {
                   <Upload className="h-5 w-5" aria-hidden="true" />
                 </div>
                 <div>
-                  <h2 className="font-semibold text-ink">Choose your sales workbook</h2>
-                  <p className="text-sm text-slate-500">Your file is processed locally in this browser.</p>
+                  <h2 className="font-semibold text-ink">Vælg dit salgsregneark</h2>
+                  <p className="text-sm text-slate-500">Filen behandles lokalt i denne browser.</p>
                 </div>
               </div>
 
@@ -1735,11 +1735,11 @@ export default function UploadDashboard() {
                     <Upload className="h-6 w-6" aria-hidden="true" />
                   </span>
                   <span className="mt-4 text-base font-semibold text-ink">
-                    {isLoading ? "Reading spreadsheet..." : "Choose an Excel file"}
+                    {isLoading ? "Læser regnearket..." : "Vælg en Excel-fil"}
                   </span>
-                  <span className="mt-1.5 text-sm text-slate-500">Select an .xlsx workbook from your device</span>
+                  <span className="mt-1.5 text-sm text-slate-500">Vælg en .xlsx-fil fra din enhed</span>
                   <span className="mt-3 rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">
-                    Flexible Danish and English columns
+                    Fleksible danske og engelske kolonner
                   </span>
                   <input
                     type="file"
@@ -1761,7 +1761,7 @@ export default function UploadDashboard() {
                     className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-ink shadow-sm transition hover:border-brand-500 hover:bg-slate-50"
                   >
                     <Download className="h-4 w-4 text-brand-700" aria-hidden="true" />
-                    Download sample Excel file
+                    Hent eksempel-Excel-fil
                   </button>
                   <button
                     type="button"
@@ -1770,7 +1770,7 @@ export default function UploadDashboard() {
                     className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-ink shadow-sm transition hover:border-brand-500 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Sparkles className="h-4 w-4 text-accent-600" aria-hidden="true" />
-                    Use demo dataset
+                    Brug demodata
                   </button>
                 </div>
               </div>
@@ -1782,15 +1782,15 @@ export default function UploadDashboard() {
                   <Info className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <div className="min-w-0">
-                  <h2 className="font-semibold text-ink">Supported columns and layouts</h2>
+                  <h2 className="font-semibold text-ink">Understøttede kolonner og opbygninger</h2>
                   <p className="mt-1.5 text-sm leading-6 text-slate-600">
-                    DataBrief AI finds likely header rows and maps common sales fields automatically, even when the
-                    worksheet uses Danish names or starts below a title row.
+                    DataBrief AI finder den sandsynlige overskriftsrække og matcher almindelige salgsfelter automatisk,
+                    også når arket bruger danske navne eller begynder under en titelrække.
                   </p>
                 </div>
               </div>
               <div className="mt-4 grid gap-2 border-t border-slate-100 pt-4 text-xs font-medium text-slate-600 sm:grid-cols-3">
-                {["Worksheet detection", "Flexible header rows", "Manual fallback available"].map((item) => (
+                {["Automatisk registrering af ark", "Fleksible overskriftsrækker", "Mulighed for manuelt match"].map((item) => (
                   <div key={item} className="flex items-center gap-2">
                     <Check className="h-3.5 w-3.5 shrink-0 text-brand-600" aria-hidden="true" />
                     {item}
@@ -1813,7 +1813,7 @@ export default function UploadDashboard() {
             className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-slate-600 transition hover:bg-white hover:text-ink"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Home
+            Forside
           </Link>
           <div className="flex items-center gap-3">
             <span className="grid h-10 w-10 place-items-center rounded-lg bg-ink text-white shadow-[0_10px_24px_rgba(16,32,51,0.18)]">
@@ -1832,15 +1832,15 @@ export default function UploadDashboard() {
                 <Upload className="h-4 w-4" aria-hidden="true" />
               </div>
               <div>
-                <h1 className="text-sm font-semibold text-ink">Change sales data</h1>
-                <p className="text-[11px] text-slate-500">Replace workbook</p>
+                <h1 className="text-sm font-semibold text-ink">Skift salgsdata</h1>
+                <p className="text-[11px] text-slate-500">Erstat regneark</p>
               </div>
             </div>
 
             <label className="group flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-white/70 px-2.5 py-2 text-center transition hover:border-brand-500 hover:bg-brand-50/50">
               <Upload className="h-4 w-4 text-brand-700" aria-hidden="true" />
               <span className="text-xs font-semibold text-ink">
-                {isLoading ? "Reading spreadsheet..." : "Choose an Excel file"}
+                {isLoading ? "Læser regnearket..." : "Vælg en Excel-fil"}
               </span>
               <input
                 type="file"
@@ -1860,10 +1860,10 @@ export default function UploadDashboard() {
                 type="button"
                 onClick={downloadSampleExcel}
                 className="inline-flex w-full items-center justify-center gap-1.5 rounded-md px-1.5 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-white hover:text-ink"
-                title="Download sample Excel file"
+                title="Hent eksempel-Excel-fil"
               >
                 <Download className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                Sample
+                Eksempel
               </button>
               <button
                 type="button"
@@ -1872,14 +1872,14 @@ export default function UploadDashboard() {
                 className="inline-flex w-full items-center justify-center gap-1.5 rounded-md px-1.5 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-white hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Sparkles className="h-3.5 w-3.5 shrink-0 text-accent-600" aria-hidden="true" />
-                Demo data
+                Demodata
               </button>
             </div>
 
             <details className="mt-1.5 border-t border-slate-200/70 pt-1.5">
-              <summary className="cursor-pointer text-[11px] font-semibold text-slate-500 transition hover:text-ink">Workbook support</summary>
+              <summary className="cursor-pointer text-[11px] font-semibold text-slate-500 transition hover:text-ink">Understøttelse af regneark</summary>
               <p className="mt-1.5 text-[11px] leading-5 text-slate-500">
-                Flexible English and Danish aliases, header-row detection, and manual mapping fallback.
+                Fleksible danske og engelske kolonnenavne, registrering af overskriftsrækker og manuelt kolonnematch.
               </p>
             </details>
           </div>
@@ -1890,17 +1890,17 @@ export default function UploadDashboard() {
           <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-white/90 shadow-[0_8px_30px_rgba(16,32,51,0.055)]">
             <div className="flex flex-col gap-4 px-5 py-5 sm:px-6 md:flex-row md:items-start md:justify-between">
               <div>
-                <p className="text-xs font-semibold text-brand-700">{data?.fileName ?? analysis?.fileName ?? "No file uploaded yet"}</p>
-                <h2 className="mt-1 text-2xl font-semibold text-ink sm:text-3xl">Sales dashboard</h2>
+                <p className="text-xs font-semibold text-brand-700">{data?.fileName ?? analysis?.fileName ?? "Ingen fil uploadet endnu"}</p>
+                <h2 className="mt-1 text-2xl font-semibold text-ink sm:text-3xl">Salgsdashboard</h2>
                 <p className="mt-1.5 text-sm text-slate-500">
-                  {hasData ? `${number(allRows.length)} rows available for analysis.` : "Upload an Excel file to populate this dashboard."}
+                  {hasData ? `${number(allRows.length)} rækker er klar til analyse.` : "Upload en Excel-fil for at udfylde dashboardet."}
                 </p>
               </div>
               <div className="flex flex-col items-start gap-2 md:items-end">
                 <StatusBox feedback={data?.feedback} analysis={analysis} />
                 <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
                   <Sparkles className="h-3.5 w-3.5 text-brand-600" aria-hidden="true" />
-                  {hasData ? "Business summary generated" : "Waiting for upload"}
+                  {hasData ? "Forretningsresume oprettet" : "Afventer upload"}
                 </div>
               </div>
             </div>
@@ -1934,58 +1934,58 @@ export default function UploadDashboard() {
           <section className="space-y-4">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="text-xs font-semibold text-brand-700">Performance overview</p>
-                <h2 className="mt-1 text-xl font-semibold text-ink">Key business metrics</h2>
+                <p className="text-xs font-semibold text-brand-700">Resultatoverblik</p>
+                <h2 className="mt-1 text-xl font-semibold text-ink">Centrale nøgletal</h2>
               </div>
-              <p className="text-xs text-slate-500">Calculated from the detected workbook data</p>
+              <p className="text-xs text-slate-500">Beregnet ud fra de registrerede data i regnearket</p>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <KpiCard
-                label="Total revenue"
-                value={hasData ? currency(metrics.totalRevenue) : "No data"}
-                detail={hasData ? `Source: ${data?.feedback.revenueSource}` : "Upload a workbook"}
+                label="Samlet omsætning"
+                value={hasData ? currency(metrics.totalRevenue) : "Ingen data"}
+                detail={hasData ? `Kilde: ${data?.feedback.revenueSource}` : "Upload et regneark"}
                 emphasis
               />
               <KpiCard
-                label="Total units sold"
-                value={hasData ? number(metrics.totalUnits) : "No data"}
-                detail={hasData ? "Summed from detected units column" : "Upload a workbook"}
+                label="Samlet antal solgte enheder"
+                value={hasData ? number(metrics.totalUnits) : "Ingen data"}
+                detail={hasData ? "Summeret fra den fundne antalskolonne" : "Upload et regneark"}
                 emphasis
               />
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <KpiCard
-                label="Best product"
-                value={metrics.bestProduct?.name ?? "No data"}
-                detail={metrics.bestProduct ? `${currency(metrics.bestProduct.revenue)} revenue` : "Calculated after upload"}
+                label="Bedste produkt"
+                value={metrics.bestProduct?.name ?? "Ingen data"}
+                detail={metrics.bestProduct ? `${currency(metrics.bestProduct.revenue)} i omsætning` : "Beregnes efter upload"}
               />
               <KpiCard
-                label="Best category"
-                value={metrics.bestCategory?.name ?? "No data"}
-                detail={metrics.bestCategory ? `${currency(metrics.bestCategory.revenue)} revenue` : "Calculated after upload"}
+                label="Bedste kategori"
+                value={metrics.bestCategory?.name ?? "Ingen data"}
+                detail={metrics.bestCategory ? `${currency(metrics.bestCategory.revenue)} i omsætning` : "Beregnes efter upload"}
               />
               <KpiCard
-                label="Best month"
-                value={metrics.bestMonth?.name ?? "No data"}
-                detail={metrics.bestMonth ? `${currency(metrics.bestMonth.revenue)} revenue` : "Calculated after upload"}
+                label="Bedste måned"
+                value={metrics.bestMonth?.name ?? "Ingen data"}
+                detail={metrics.bestMonth ? `${currency(metrics.bestMonth.revenue)} i omsætning` : "Beregnes efter upload"}
               />
               {showGrossProfit ? (
-                <KpiCard label="Gross profit" value={currency(metrics.totalGrossProfit)} detail="From gross profit / contribution margin" />
+                <KpiCard label="Dækningsbidrag" value={currency(metrics.totalGrossProfit)} detail="Fra kolonnen for dækningsbidrag" />
               ) : null}
-              {hasData && baseMetrics.hasGrossMargin ? <KpiCard label="Gross margin" value={percent(metrics.grossMargin)} detail="From margin column" /> : null}
+              {hasData && baseMetrics.hasGrossMargin ? <KpiCard label="Dækningsgrad" value={percent(metrics.grossMargin)} detail="Fra kolonnen for dækningsgrad" /> : null}
               {showCosts ? (
                 <KpiCard
-                  label="Total costs"
+                  label="Samlede omkostninger"
                   value={currency(metrics.totalCosts)}
-                  detail={isFiltered ? "Derived from the filtered sales rows" : data?.feedback.costs ? "From costs sheet" : "From mapped sales costs"}
+                  detail={isFiltered ? "Beregnet ud fra de filtrerede salgsrækker" : data?.feedback.costs ? "Fra omkostningsarket" : "Fra matchede salgsomkostninger"}
                 />
               ) : null}
-              {showCosts ? <KpiCard label="Result" value={currency(metrics.actualResult)} detail="Revenue minus costs" /> : null}
+              {showCosts ? <KpiCard label="Resultat" value={currency(metrics.actualResult)} detail="Omsætning minus omkostninger" /> : null}
               {showBudget ? (
                 <KpiCard
-                  label="Revenue vs budget"
+                  label="Omsætning mod budget"
                   value={currency(metrics.revenueVsBudget)}
-                  detail={`Budget revenue: ${currency(metrics.budgetRevenue)}`}
+                  detail={`Budgetteret omsætning: ${currency(metrics.budgetRevenue)}`}
                 />
               ) : null}
             </div>
@@ -2007,8 +2007,8 @@ export default function UploadDashboard() {
               <section className="h-full rounded-lg border border-brand-100/80 bg-white/85 p-5 shadow-[0_6px_22px_rgba(8,145,178,0.055)] sm:p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-xs font-semibold text-brand-700">Decision brief</p>
-                    <h2 className="mt-1 text-lg font-semibold text-ink">Executive summary</h2>
+                    <p className="text-xs font-semibold text-brand-700">Beslutningsgrundlag</p>
+                    <h2 className="mt-1 text-lg font-semibold text-ink">Ledelsesresume</h2>
                   </div>
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700">
                     <Sparkles className="h-4 w-4" aria-hidden="true" />
@@ -2037,17 +2037,17 @@ export default function UploadDashboard() {
             <div className="space-y-5 border-t border-slate-200/70 pt-8">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="text-xs font-semibold text-brand-700">Visual analysis</p>
-                  <h2 className="mt-1 text-xl font-semibold text-ink">Trends and breakdowns</h2>
+                  <p className="text-xs font-semibold text-brand-700">Visuel analyse</p>
+                  <h2 className="mt-1 text-xl font-semibold text-ink">Udvikling og fordeling</h2>
                 </div>
-                <p className="text-xs text-slate-500">Interactive views generated from the mapped data</p>
+                <p className="text-xs text-slate-500">Interaktive visninger baseret på de matchede data</p>
               </div>
 
               <div className={chartCardClass}>
                 <div className="mb-4 flex items-center justify-between gap-4">
                   <div>
-                    <h3 className="font-semibold text-ink">Revenue by month</h3>
-                    <p className="text-xs leading-5 text-slate-500">Primary revenue trend across the selected period</p>
+                    <h3 className="font-semibold text-ink">Omsætning pr. måned</h3>
+                    <p className="text-xs leading-5 text-slate-500">Primær omsætningsudvikling i den valgte periode</p>
                   </div>
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-brand-100 bg-brand-50 text-brand-700">
                     <LineChart className="h-4 w-4" aria-hidden="true" />
@@ -2059,14 +2059,14 @@ export default function UploadDashboard() {
                       <RechartsLineChart data={metrics.monthly} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
                         <CartesianGrid stroke="#edf2f7" vertical={false} />
                         <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
-                        <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} tickFormatter={(value) => `$${value / 1000}k`} />
+                        <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
                         <Tooltip contentStyle={chartTooltipStyle} formatter={(value: number) => currency(value)} />
                         <Line type="monotone" dataKey="revenue" stroke="#0891b2" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                       </RechartsLineChart>
                     </ResponsiveContainer>
                   </div>
                 ) : (
-                  <EmptyChart message="No rows match the current filters for this chart." />
+                  <EmptyChart message="Ingen rækker matcher de aktuelle filtre for dette diagram." />
                 )}
               </div>
 
@@ -2074,8 +2074,8 @@ export default function UploadDashboard() {
                 <div className={chartCardClass}>
                   <div className="mb-4 flex items-center justify-between gap-4">
                     <div>
-                      <h3 className="font-semibold text-ink">Units by product</h3>
-                      <p className="text-xs leading-5 text-slate-500">Units sold ranked by product</p>
+                      <h3 className="font-semibold text-ink">Antal solgte pr. produkt</h3>
+                      <p className="text-xs leading-5 text-slate-500">Solgte enheder rangeret efter produkt</p>
                     </div>
                     <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-orange-100 bg-orange-50 text-accent-600">
                       <BarChart3 className="h-4 w-4" aria-hidden="true" />
@@ -2088,7 +2088,7 @@ export default function UploadDashboard() {
                           <CartesianGrid stroke="#edf2f7" vertical={false} />
                           <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
                           <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
-                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f1f5f9" }} formatter={(value: number) => `${number(value)} units`} />
+                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f1f5f9" }} formatter={(value: number) => `${number(value)} enheder`} />
                           <Bar dataKey="units" radius={[6, 6, 0, 0]}>
                             {metrics.productsByUnits.map((entry, index) => (
                               <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
@@ -2098,14 +2098,14 @@ export default function UploadDashboard() {
                       </ResponsiveContainer>
                     </div>
                   ) : (
-                    <EmptyChart message="No rows match the current filters for this chart." />
+                    <EmptyChart message="Ingen rækker matcher de aktuelle filtre for dette diagram." />
                   )}
                 </div>
 
                 <div className={chartCardClass}>
                   <div className="mb-4">
-                    <h3 className="font-semibold text-ink">Revenue by category</h3>
-                    <p className="text-xs leading-5 text-slate-500">Share of sales by category</p>
+                    <h3 className="font-semibold text-ink">Omsætning pr. kategori</h3>
+                    <p className="text-xs leading-5 text-slate-500">Omsætningens fordeling på kategorier</p>
                   </div>
                   {hasFilteredData ? (
                     <div className="h-64">
@@ -2122,14 +2122,14 @@ export default function UploadDashboard() {
                       </ResponsiveContainer>
                     </div>
                   ) : (
-                    <EmptyChart message="No rows match the current filters for this chart." />
+                    <EmptyChart message="Ingen rækker matcher de aktuelle filtre for dette diagram." />
                   )}
                 </div>
 
                 <div className={chartCardClass}>
                   <div className="mb-4">
-                    <h3 className="font-semibold text-ink">Gross profit by category</h3>
-                    <p className="text-xs leading-5 text-slate-500">Shown when gross profit is mapped</p>
+                    <h3 className="font-semibold text-ink">Dækningsbidrag pr. kategori</h3>
+                    <p className="text-xs leading-5 text-slate-500">Vises, når dækningsbidrag er matchet</p>
                   </div>
                   {showGrossProfit && metrics.grossProfitByCategory.length ? (
                     <div className="h-64">
@@ -2137,7 +2137,7 @@ export default function UploadDashboard() {
                         <BarChart data={metrics.grossProfitByCategory} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
                           <CartesianGrid stroke="#edf2f7" vertical={false} />
                           <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
-                          <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} tickFormatter={(value) => `$${value / 1000}k`} />
+                          <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
                           <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f1f5f9" }} formatter={(value: number) => currency(value)} />
                           <Bar dataKey="grossProfit" radius={[6, 6, 0, 0]}>
                             {metrics.grossProfitByCategory.map((entry, index) => (
@@ -2148,14 +2148,14 @@ export default function UploadDashboard() {
                       </ResponsiveContainer>
                     </div>
                   ) : (
-                    <EmptyChart message="Upload data with gross profit / contribution margin to show this chart." />
+                    <EmptyChart message="Upload data med dækningsbidrag for at vise dette diagram." />
                   )}
                 </div>
 
                 <div className={chartCardClass}>
                   <div className="mb-4">
-                    <h3 className="font-semibold text-ink">Costs by category</h3>
-                    <p className="text-xs leading-5 text-slate-500">Shown when a costs sheet is detected</p>
+                    <h3 className="font-semibold text-ink">Omkostninger pr. kategori</h3>
+                    <p className="text-xs leading-5 text-slate-500">Vises, når et omkostningsark er fundet</p>
                   </div>
                   {showCosts && costsByCategory.length ? (
                     <div className="h-64">
@@ -2163,7 +2163,7 @@ export default function UploadDashboard() {
                         <BarChart data={costsByCategory} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
                           <CartesianGrid stroke="#edf2f7" vertical={false} />
                           <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} />
-                          <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} tickFormatter={(value) => `$${value / 1000}k`} />
+                          <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
                           <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f1f5f9" }} formatter={(value: number) => currency(value)} />
                           <Bar dataKey="cost" radius={[6, 6, 0, 0]}>
                             {costsByCategory.map((entry, index) => (
@@ -2174,7 +2174,7 @@ export default function UploadDashboard() {
                       </ResponsiveContainer>
                     </div>
                   ) : (
-                    <EmptyChart message="Upload a workbook with a Costs / Omkostninger sheet to show costs by category." />
+                    <EmptyChart message="Upload et regneark med et ark for omkostninger for at vise fordelingen." />
                   )}
                 </div>
               </div>
@@ -2185,23 +2185,23 @@ export default function UploadDashboard() {
             <section className="space-y-4 border-t border-slate-200/70 pt-8">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="text-xs font-semibold text-slate-500">Secondary analysis</p>
-                  <h2 className="mt-1 text-xl font-semibold text-ink">Budget overview</h2>
+                  <p className="text-xs font-semibold text-slate-500">Supplerende analyse</p>
+                  <h2 className="mt-1 text-xl font-semibold text-ink">Budgetoverblik</h2>
                 </div>
-                <p className="text-xs text-slate-500">Planning context for the current dashboard view</p>
+                <p className="text-xs text-slate-500">Budgetkontekst for den aktuelle dashboardvisning</p>
               </div>
               <div className="grid gap-4 sm:grid-cols-3">
                 <KpiCard
-                  label="Budget revenue"
+                  label="Budgetteret omsætning"
                   value={currency(metrics.budgetRevenue)}
-                  detail={isFiltered ? "Allocated to the current filtered row share" : (data?.feedback.budget?.sheetName ?? "Budget")}
+                  detail={isFiltered ? "Fordelt efter andelen af filtrerede rækker" : (data?.feedback.budget?.sheetName ?? "Budget")}
                 />
                 <KpiCard
-                  label="Budget costs"
+                  label="Budgetterede omkostninger"
                   value={currency(metrics.budgetCosts)}
-                  detail={isFiltered ? "Allocated to the current filtered row share" : "Detected budget costs"}
+                  detail={isFiltered ? "Fordelt efter andelen af filtrerede rækker" : "Fundne budgetomkostninger"}
                 />
-                <KpiCard label="Budget result" value={currency(metrics.budgetResult)} detail="Budget revenue minus costs" />
+                <KpiCard label="Budgetteret resultat" value={currency(metrics.budgetResult)} detail="Budgetteret omsætning minus omkostninger" />
               </div>
             </section>
           ) : null}
