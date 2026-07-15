@@ -159,8 +159,15 @@ const emptyDashboardFilters: DashboardFilters = {
   region: "",
 };
 
-const chartCardClass =
-  "overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-[0_8px_28px_rgba(16,32,51,0.055)]";
+const dashboardCardClass =
+  "overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_10px_30px_rgba(16,32,51,0.065)]";
+const chartCardClass = dashboardCardClass;
+const dashboardCardHeaderClass =
+  "flex items-center justify-between gap-4 border-b border-slate-100 bg-slate-50/70 px-5 py-4 sm:px-6";
+const dashboardEyebrowClass =
+  "text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-700";
+const dashboardIconClass =
+  "grid h-9 w-9 shrink-0 place-items-center rounded-md border border-brand-100 bg-brand-50 text-brand-700";
 const chartTooltipStyle = {
   border: "1px solid #cbd5e1",
   borderRadius: "8px",
@@ -1058,46 +1065,42 @@ function KpiCard({
 }) {
   const styles = {
     brand: {
-      card: "border-brand-100 bg-[#f4fbfc]",
-      icon: "bg-brand-600 text-white shadow-[0_8px_18px_rgba(8,145,178,0.2)]",
+      icon: "border-brand-200 bg-brand-50 text-brand-700",
       accent: "bg-brand-500",
-      detail: "border-brand-100/80 text-brand-700",
+      detail: "text-brand-700",
     },
     positive: {
-      card: "border-emerald-100 bg-[#f5fbf8]",
-      icon: "bg-emerald-600 text-white shadow-[0_8px_18px_rgba(5,150,105,0.18)]",
+      icon: "border-emerald-200 bg-emerald-50 text-emerald-700",
       accent: "bg-emerald-500",
-      detail: "border-emerald-100 text-emerald-700",
+      detail: "text-emerald-700",
     },
     warning: {
-      card: "border-orange-100 bg-[#fff9f4]",
-      icon: "bg-accent-500 text-white shadow-[0_8px_18px_rgba(249,115,22,0.18)]",
+      icon: "border-orange-200 bg-orange-50 text-orange-700",
       accent: "bg-accent-500",
-      detail: "border-orange-100 text-orange-700",
+      detail: "text-orange-700",
     },
     neutral: {
-      card: "border-slate-200 bg-white",
-      icon: "bg-ink text-white shadow-[0_8px_18px_rgba(16,32,51,0.16)]",
+      icon: "border-slate-200 bg-slate-100 text-ink",
       accent: "bg-slate-400",
-      detail: "border-slate-200 text-slate-500",
+      detail: "text-slate-500",
     },
   }[tone];
 
   return (
     <div
-      className={`relative overflow-hidden rounded-lg border ${styles.card} ${
-        emphasis ? "min-h-44 p-5 shadow-[0_14px_38px_rgba(16,32,51,0.09)]" : "min-h-32 p-4 shadow-[0_5px_18px_rgba(16,32,51,0.045)]"
+      className={`relative ${dashboardCardClass} ${
+        emphasis ? "min-h-44 p-5" : "min-h-32 p-4"
       }`}
     >
       <span className={`absolute inset-x-0 top-0 h-1 ${styles.accent}`} aria-hidden="true" />
       <div className="flex items-center justify-between gap-3">
-        <div className={`grid shrink-0 place-items-center rounded-md ${styles.icon} ${emphasis ? "h-10 w-10" : "h-8 w-8"}`}>
+        <div className={`grid shrink-0 place-items-center rounded-md border ${styles.icon} ${emphasis ? "h-10 w-10" : "h-8 w-8"}`}>
           <Icon className={emphasis ? "h-5 w-5" : "h-4 w-4"} aria-hidden="true" />
         </div>
         <p className="text-right text-[11px] font-semibold text-slate-500">{label}</p>
       </div>
       <p className={`mt-5 break-words font-semibold tracking-normal text-ink ${emphasis ? "text-2xl sm:text-[1.8rem]" : "text-xl"}`}>{value}</p>
-      <p className={`mt-4 border-t pt-3 text-[11px] font-medium leading-5 ${styles.detail}`}>{detail}</p>
+      <p className={`mt-4 border-t border-slate-100 pt-3 text-[11px] font-medium leading-5 ${styles.detail}`}>{detail}</p>
     </div>
   );
 }
@@ -1369,10 +1372,10 @@ function DashboardFilterBar({
   const activeFilters = getActiveFilterLabels(filters);
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(16,32,51,0.07)] sm:px-5">
+    <section className={`${dashboardCardClass} px-4 py-4 sm:px-5`}>
       <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
         <div className="flex shrink-0 items-center gap-2 pb-0.5 xl:pr-2">
-          <span className="grid h-8 w-8 place-items-center rounded-md bg-brand-50 text-brand-700">
+          <span className="grid h-8 w-8 place-items-center rounded-md border border-brand-100 bg-brand-50 text-brand-700">
             <Filter className="h-4 w-4" aria-hidden="true" />
           </span>
           <div>
@@ -1485,14 +1488,14 @@ function MonthlyReportCard({
     : "";
 
   return (
-    <section className="overflow-hidden rounded-lg border border-orange-100 bg-white shadow-[0_12px_30px_rgba(16,32,51,0.08)]">
-      <div className="flex flex-col gap-3 border-b border-orange-100 bg-[#fff9f4] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+    <section className={dashboardCardClass}>
+      <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center rounded-md bg-accent-500 text-white shadow-[0_8px_18px_rgba(249,115,22,0.2)]">
+          <span className={dashboardIconClass}>
             <CalendarRange className="h-[18px] w-[18px]" aria-hidden="true" />
           </span>
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-accent-600">Periodeanalyse</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-700">Periodeanalyse</p>
             <h2 className="mt-0.5 text-base font-semibold text-ink">Månedsrapport</h2>
           </div>
         </div>
@@ -1502,7 +1505,7 @@ function MonthlyReportCard({
             <select
               value={reportMonth}
               onChange={(event) => onMonthChange(event.target.value)}
-              className="appearance-none rounded-md border border-orange-200 bg-white py-2 pl-3 pr-8 text-xs font-semibold text-ink shadow-sm outline-none transition hover:border-orange-300 focus:border-accent-500 focus:ring-2 focus:ring-orange-100"
+              className="appearance-none rounded-md border border-slate-200 bg-white py-2 pl-3 pr-8 text-xs font-semibold text-ink shadow-sm outline-none transition hover:border-brand-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             >
               {monthOptions.map((month) => (
                 <option key={month} value={month}>
@@ -1532,8 +1535,8 @@ function MonthlyReportCard({
         ))}
       </div>
 
-      <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-4 sm:px-5">
-        <p className="border-l-2 border-accent-500 pl-3 text-xs font-semibold leading-5 text-slate-700">
+      <div className="border-t border-slate-100 bg-slate-50/50 px-5 py-4 sm:px-6">
+        <p className="border-l-2 border-brand-500 pl-3 text-xs font-semibold leading-5 text-slate-700">
           {reportRows.length
             ? `I ${reportMonth} var omsætningen ${currency(reportMetrics.totalRevenue)}${profitSentence}${budgetSentence}.`
             : `Ingen rækker matcher de aktuelle filtre for ${reportMonth}.`}
@@ -1890,8 +1893,8 @@ export default function UploadDashboard() {
 
       <section className="mx-auto grid max-w-[1480px] gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[184px_minmax(0,1fr)] lg:px-8 lg:py-8">
         <aside className="self-start lg:sticky lg:top-6">
-          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_10px_30px_rgba(16,32,51,0.07)]">
-            <div className="h-1 bg-brand-600" aria-hidden="true" />
+          <div className={dashboardCardClass}>
+            <div className="h-0.5 bg-brand-600" aria-hidden="true" />
             <div className="p-3">
             <div className="mb-3 flex items-center gap-2.5">
               <div className="grid h-8 w-8 place-items-center rounded-md bg-brand-50 text-brand-700">
@@ -1937,7 +1940,7 @@ export default function UploadDashboard() {
                 disabled={isLoading}
                 className="inline-flex w-full items-center justify-center gap-1.5 rounded-md px-1.5 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <Sparkles className="h-3.5 w-3.5 shrink-0 text-accent-600" aria-hidden="true" />
+                <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand-600" aria-hidden="true" />
                 Demodata
               </button>
             </div>
@@ -1953,7 +1956,7 @@ export default function UploadDashboard() {
         </aside>
 
         <section className="min-w-0 space-y-9">
-          <section className="space-y-4">
+          <section className="space-y-4 border-b border-brand-100 pb-1">
           <div className="overflow-hidden rounded-lg border border-slate-800 bg-[#102033] shadow-[0_24px_60px_rgba(16,32,51,0.18)]">
             <div className="flex flex-col gap-5 px-5 py-6 [background-image:linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] [background-size:32px_32px] sm:px-7 sm:py-7 md:flex-row md:items-start md:justify-between">
               <div>
@@ -1999,7 +2002,7 @@ export default function UploadDashboard() {
           <section className="space-y-4">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-700">Resultatoverblik</p>
+                <p className={dashboardEyebrowClass}>Resultatoverblik</p>
                 <h2 className="mt-1.5 text-2xl font-semibold text-ink">Centrale nøgletal</h2>
               </div>
               <p className="text-xs text-slate-500">Beregnet ud fra de registrerede data</p>
@@ -2045,24 +2048,24 @@ export default function UploadDashboard() {
             </div>
           </section>
 
-          <section className="space-y-6 border-y border-brand-100 bg-[#e8f4f5] px-4 py-7 sm:px-6 sm:py-8">
+          <section className="space-y-6 border-y border-slate-200 bg-[#f4f8f9] px-4 py-7 sm:px-6 sm:py-8">
             <div className="flex flex-col gap-1.5 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-700">Ledelsesanalyse</p>
+                <p className={dashboardEyebrowClass}>Ledelsesanalyse</p>
                 <h2 className="mt-1.5 text-2xl font-semibold text-ink">Omsætningsudvikling og indsigt</h2>
               </div>
               <p className="max-w-sm text-xs leading-5 text-slate-600 sm:text-right">Hovedtendenser og beslutningsstøtte samlet i én ledelsesvisning</p>
             </div>
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.85fr)] xl:items-start">
-              <div className="overflow-hidden rounded-lg border border-brand-100 bg-white shadow-[0_18px_48px_rgba(16,32,51,0.11)]">
-                <div className="flex items-center justify-between gap-4 border-b border-slate-100 bg-[linear-gradient(90deg,#ffffff_0%,#f5fbfc_100%)] px-5 py-4 sm:px-6">
+              <div className={dashboardCardClass}>
+                <div className={dashboardCardHeaderClass}>
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-brand-700">Primær udvikling</p>
                     <h3 className="mt-1 text-lg font-semibold text-ink">Omsætning pr. måned</h3>
                     <p className="text-xs leading-5 text-slate-500">Omsætningsudvikling i den valgte periode</p>
                   </div>
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-brand-600 text-white shadow-[0_8px_18px_rgba(8,145,178,0.2)]">
+                  <span className={dashboardIconClass}>
                     <ChartNoAxesCombined className="h-5 w-5" aria-hidden="true" />
                   </span>
                 </div>
@@ -2111,7 +2114,8 @@ export default function UploadDashboard() {
                   />
                 ) : null}
 
-                <section className="rounded-lg border border-slate-800 bg-[#102033] p-5 text-white shadow-[0_16px_38px_rgba(16,32,51,0.18)] sm:p-6">
+                <section className="relative overflow-hidden rounded-lg border border-slate-800 bg-[#102033] p-5 text-white shadow-[0_10px_30px_rgba(16,32,51,0.14)] sm:p-6">
+                  <span className="absolute inset-x-0 top-0 h-0.5 bg-brand-500" aria-hidden="true" />
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-cyan-200">Beslutningsgrundlag</p>
@@ -2142,10 +2146,10 @@ export default function UploadDashboard() {
               </div>
             </div>
 
-            <div className="space-y-5 border-t border-brand-100/90 pt-7">
+            <div className="space-y-5 border-t border-slate-200 pt-7">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-brand-700">Supplerende analyse</p>
+                  <p className={dashboardEyebrowClass}>Supplerende analyse</p>
                   <h2 className="mt-1.5 text-xl font-semibold text-ink">Fordeling på produkter og kategorier</h2>
                 </div>
                 <p className="text-xs text-slate-500">Rangerede visninger af de registrerede data</p>
@@ -2153,12 +2157,12 @@ export default function UploadDashboard() {
 
               <div className="grid gap-5 lg:grid-cols-12">
                 <div className={`${chartCardClass} lg:col-span-7`}>
-                  <div className="flex items-center justify-between gap-4 border-b border-slate-100 bg-slate-50/80 px-5 py-4 sm:px-6">
+                  <div className={dashboardCardHeaderClass}>
                     <div>
                       <h3 className="font-semibold text-ink">Antal solgte pr. produkt</h3>
                       <p className="text-xs leading-5 text-slate-500">Produkter rangeret efter solgte enheder</p>
                     </div>
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-brand-50 text-brand-700">
+                    <span className={dashboardIconClass}>
                       <BarChart3 className="h-4 w-4" aria-hidden="true" />
                     </span>
                   </div>
@@ -2182,12 +2186,12 @@ export default function UploadDashboard() {
                 </div>
 
                 <div className={`${chartCardClass} lg:col-span-5`}>
-                  <div className="flex items-center justify-between gap-4 border-b border-slate-100 bg-slate-50/80 px-5 py-4 sm:px-6">
+                  <div className={dashboardCardHeaderClass}>
                     <div>
                       <h3 className="font-semibold text-ink">Omsætning pr. kategori</h3>
                       <p className="text-xs leading-5 text-slate-500">Kategorier rangeret efter omsætning</p>
                     </div>
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-brand-50 text-brand-700">
+                    <span className={dashboardIconClass}>
                       <CircleDollarSign className="h-4 w-4" aria-hidden="true" />
                     </span>
                   </div>
@@ -2211,12 +2215,12 @@ export default function UploadDashboard() {
                 </div>
 
                 <div className={`${chartCardClass} lg:col-span-6`}>
-                  <div className="flex items-center justify-between gap-4 border-b border-emerald-100 bg-emerald-50/70 px-5 py-4 sm:px-6">
+                  <div className={dashboardCardHeaderClass}>
                     <div>
                       <h3 className="font-semibold text-ink">Dækningsbidrag pr. kategori</h3>
                       <p className="text-xs leading-5 text-slate-500">Vises, når dækningsbidrag er fundet</p>
                     </div>
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-emerald-100 text-emerald-700">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700">
                       <TrendingUp className="h-4 w-4" aria-hidden="true" />
                     </span>
                   </div>
@@ -2240,12 +2244,12 @@ export default function UploadDashboard() {
                 </div>
 
                 <div className={`${chartCardClass} lg:col-span-6`}>
-                  <div className="flex items-center justify-between gap-4 border-b border-orange-100 bg-orange-50/70 px-5 py-4 sm:px-6">
+                  <div className={dashboardCardHeaderClass}>
                     <div>
                       <h3 className="font-semibold text-ink">Omkostninger pr. kategori</h3>
                       <p className="text-xs leading-5 text-slate-500">Vises, når omkostningsdata er fundet</p>
                     </div>
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-orange-100 text-orange-700">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-orange-200 bg-orange-50 text-orange-700">
                       <WalletCards className="h-4 w-4" aria-hidden="true" />
                     </span>
                   </div>
@@ -2272,10 +2276,10 @@ export default function UploadDashboard() {
           </section>
 
           {showBudget ? (
-            <section className="space-y-5 border-y border-orange-100 bg-[#fff8f2] px-4 py-6 sm:px-6 sm:py-7">
+            <section className="space-y-5 border-y border-slate-200 bg-white/55 px-4 py-6 sm:px-6 sm:py-7">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-orange-700">Økonomisk pejlemærke</p>
+                  <p className={dashboardEyebrowClass}>Økonomisk pejlemærke</p>
                   <h2 className="mt-1.5 text-2xl font-semibold text-ink">Budgetoverblik</h2>
                 </div>
                 <p className="text-xs text-slate-500">Budgettal for den aktuelle visning</p>
