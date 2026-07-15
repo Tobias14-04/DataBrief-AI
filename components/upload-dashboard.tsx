@@ -174,6 +174,8 @@ const dashboardSectionHeaderClass =
   "flex flex-col gap-1.5 sm:flex-row sm:items-end sm:justify-between";
 const dashboardDarkCardClass =
   "overflow-hidden rounded-lg border border-slate-800 bg-[#102033] shadow-[0_18px_46px_rgba(16,32,51,0.16)]";
+const dashboardUtilityCardClass =
+  "overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_6px_22px_rgba(16,32,51,0.045)]";
 const chartGridColor = "#e4ecef";
 const chartAxisTick = { fill: "#6b7b8d" };
 const chartCursorFill = "#f2f7f8";
@@ -1104,13 +1106,13 @@ function KpiCard({
     >
       <span className={`absolute inset-x-0 top-0 h-1 ${styles.accent}`} aria-hidden="true" />
       <div className="flex items-center justify-between gap-3">
-        <div className={`grid shrink-0 place-items-center rounded-md border ${styles.icon} ${emphasis ? "h-10 w-10" : "h-8 w-8"}`}>
-          <Icon className={emphasis ? "h-5 w-5" : "h-4 w-4"} aria-hidden="true" />
+        <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-md border ${styles.icon}`}>
+          <Icon className="h-4 w-4" aria-hidden="true" />
         </div>
-        <p className="text-right text-[11px] font-semibold text-slate-500">{label}</p>
+        <p className="text-right text-xs font-semibold leading-5 text-slate-600">{label}</p>
       </div>
-      <p className={`mt-5 break-words font-semibold tracking-normal text-ink ${emphasis ? "text-2xl sm:text-[1.8rem]" : "text-xl"}`}>{value}</p>
-      <p className={`mt-4 border-t border-slate-100 pt-3 text-[11px] font-medium leading-5 ${styles.detail}`}>{detail}</p>
+      <p className={`mt-5 break-words font-semibold tracking-normal text-ink ${emphasis ? "text-2xl sm:text-[1.8rem]" : "text-[1.4rem]"}`}>{value}</p>
+      <p className={`mt-4 border-t border-slate-100 pt-3 text-xs font-medium leading-5 ${styles.detail}`}>{detail}</p>
     </div>
   );
 }
@@ -1118,7 +1120,7 @@ function KpiCard({
 function SecondaryMetric({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
     <div className="min-w-0 px-4 py-4 sm:px-5">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
       <p className="mt-1.5 truncate text-base font-semibold text-ink" title={value}>{value}</p>
       {detail ? <p className="mt-1 truncate text-[11px] text-slate-500" title={detail}>{detail}</p> : null}
     </div>
@@ -1141,26 +1143,35 @@ function StatusBox({ feedback, analysis }: { feedback?: MappingFeedback; analysi
 
   const label =
     status === "success" ? "Kolonner blev registreret automatisk" : status === "warning" ? "Kolonner blev registreret med forbehold" : "Manuel kolonnetilknytning er nødvendig";
-  const classes =
+  const styles =
     status === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+      ? {
+          panel: "border-emerald-300/25 bg-emerald-300/10 text-emerald-100",
+          icon: "border-emerald-300/20 bg-emerald-300/15 text-emerald-200",
+        }
       : status === "warning"
-        ? "border-amber-200 bg-amber-50 text-amber-800"
-        : "border-red-200 bg-red-50 text-red-800";
+        ? {
+            panel: "border-amber-300/30 bg-amber-300/10 text-amber-100",
+            icon: "border-amber-300/25 bg-amber-300/15 text-amber-200",
+          }
+        : {
+            panel: "border-rose-300/30 bg-rose-300/10 text-rose-100",
+            icon: "border-rose-300/25 bg-rose-300/15 text-rose-200",
+          };
 
   return (
-    <div className={`inline-flex max-w-full items-start gap-2 rounded-lg border px-3 py-2 text-sm ${classes}`}>
-      {status === "success" ? (
-        <span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full bg-emerald-600 text-white">
-          <Check className="h-2.5 w-2.5" strokeWidth={3} aria-hidden="true" />
-        </span>
-      ) : (
-        <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-      )}
+    <div className={`inline-flex max-w-full items-start gap-2.5 rounded-md border px-3 py-2.5 text-xs shadow-[0_8px_24px_rgba(0,0,0,0.08)] ${styles.panel}`}>
+      <span className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border ${styles.icon}`}>
+        {status === "success" ? (
+          <Check className="h-3 w-3" strokeWidth={2.75} aria-hidden="true" />
+        ) : (
+          <Info className="h-3 w-3" aria-hidden="true" />
+        )}
+      </span>
       <div className="min-w-0">
-        <p className="font-semibold">{label}</p>
-        {feedback?.warnings.length ? <p className="mt-0.5 text-xs leading-5">{feedback.warnings.join(" ")}</p> : null}
-        {!feedback && analysis ? <p className="mt-0.5 text-xs leading-5">Vælg et ark, og tilknyt de obligatoriske kolonner nedenfor.</p> : null}
+        <p className="font-semibold leading-5">{label}</p>
+        {feedback?.warnings.length ? <p className="mt-0.5 max-w-md leading-5 opacity-80">{feedback.warnings.join(" ")}</p> : null}
+        {!feedback && analysis ? <p className="mt-0.5 max-w-md leading-5 opacity-80">Vælg et ark, og tilknyt de obligatoriske kolonner nedenfor.</p> : null}
       </div>
     </div>
   );
@@ -1185,12 +1196,24 @@ function DataDetectedCard({
       : feedback.status === "warning"
         ? "Kolonner blev registreret med forbehold"
         : "Manuel kolonnetilknytning anvendt";
+  const statusAccent =
+    feedback.status === "success"
+      ? "text-emerald-300"
+      : feedback.status === "warning"
+        ? "text-amber-200"
+        : "text-cyan-200";
+  const statusDot =
+    feedback.status === "success"
+      ? "bg-emerald-400"
+      : feedback.status === "warning"
+        ? "bg-amber-300"
+        : "bg-cyan-300";
 
   return (
     <div className="flex flex-col gap-3 border-t border-white/10 bg-white/[0.035] px-5 py-4 sm:px-6 xl:flex-row xl:items-center xl:justify-between">
       <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-300">
-        <span className="inline-flex items-center gap-2 font-semibold text-emerald-300">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+        <span className={`inline-flex items-center gap-2 font-semibold ${statusAccent}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${statusDot}`} aria-hidden="true" />
           Data registreret
         </span>
         <span><span className="font-medium text-slate-400">Ark</span> <strong className="ml-1 font-semibold text-white">{feedback.salesSheetName}</strong></span>
@@ -1219,7 +1242,7 @@ function FeedbackPanel({ feedback }: { feedback?: MappingFeedback }) {
   const optionalEntries = Object.entries(feedback.optionalColumns);
 
   return (
-    <details className="rounded-lg border border-slate-200/70 bg-white/45 px-4 py-3">
+    <details className={`${dashboardUtilityCardClass} px-4 py-3`}>
       <summary className="cursor-pointer text-xs font-semibold text-slate-600 transition hover:text-ink">Vis detaljer om dataregistrering</summary>
       <div className="mt-4 flex items-start gap-3 border-t border-slate-100 pt-4">
         <Info className="mt-0.5 h-5 w-5 text-brand-700" aria-hidden="true" />
@@ -1297,7 +1320,7 @@ function ManualMappingPanel({
   ];
 
   return (
-    <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
+    <div className={`${dashboardCardClass} p-5 sm:p-6`}>
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div>
           <h3 className="font-semibold text-ink">Manuel kolonnetilknytning</h3>
@@ -1314,7 +1337,7 @@ function ManualMappingPanel({
           <select
             value={selectedSheet}
             onChange={(event) => onSheetChange(event.target.value)}
-            className="mt-2 w-full rounded-md border border-line bg-white px-3 py-2 text-sm font-normal text-ink"
+            className="mt-2 h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-normal text-ink outline-none transition hover:border-brand-200 hover:bg-white focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100"
           >
             {analysis.candidates.map((sheet) => (
               <option key={sheet.name} value={sheet.name}>
@@ -1332,7 +1355,7 @@ function ManualMappingPanel({
             <select
               value={mappings[field.key]}
               onChange={(event) => onMappingChange(field.key, event.target.value)}
-              className="mt-2 w-full rounded-md border border-line bg-white px-3 py-2 text-sm font-normal text-ink"
+              className="mt-2 h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-normal text-ink outline-none transition hover:border-brand-200 hover:bg-white focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100"
             >
               <option value="">Ikke tilknyttet</option>
               {candidate.headers.map((header) => (
@@ -1348,7 +1371,7 @@ function ManualMappingPanel({
       <button
         type="button"
         onClick={onApply}
-        className="mt-5 inline-flex items-center justify-center rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+        className="mt-5 inline-flex min-h-10 items-center justify-center rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-200 focus:ring-offset-2"
       >
         Anvend valgte kolonnetilknytninger
       </button>
@@ -1382,46 +1405,55 @@ function DashboardFilterBar({
   const activeFilters = getActiveFilterLabels(filters);
 
   return (
-    <section className={`${dashboardCardClass} px-4 py-4 sm:px-5`}>
+    <section className={`relative ${dashboardCardClass} px-4 py-4 sm:px-5`}>
+      <span className="absolute inset-x-0 top-0 h-0.5 bg-brand-500" aria-hidden="true" />
       <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
         <div className="flex shrink-0 items-center gap-2 pb-0.5 xl:pr-2">
-          <span className="grid h-8 w-8 place-items-center rounded-md border border-brand-100 bg-brand-50 text-brand-700">
+          <span className={dashboardIconClass}>
             <Filter className="h-4 w-4" aria-hidden="true" />
           </span>
           <div>
-            <span className="block text-xs font-semibold text-ink">Filtrer visning</span>
-            <span className="block text-[10px] text-slate-400">Afgræns analysen</span>
+            <span className="block text-sm font-semibold text-ink">Filtrer visning</span>
+            <span className="block text-[11px] text-slate-500">Afgræns analysen</span>
           </div>
         </div>
 
         <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
-          {controls.map((control) => (
-            <label key={control.field} className="block min-w-0 text-[11px] font-semibold text-slate-500">
-              {control.label}
-              <span className="relative mt-1 block">
-                <select
-                  value={filters[control.field]}
-                  onChange={(event) => onChange(control.field, event.target.value)}
-                  className="w-full appearance-none rounded-md border border-slate-200 bg-slate-50 py-2.5 pl-3 pr-8 text-xs font-semibold text-ink outline-none transition hover:border-brand-200 hover:bg-white focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100"
-                >
-                  <option value="">{control.allLabel}</option>
-                  {control.options.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-              </span>
-            </label>
-          ))}
+          {controls.map((control) => {
+            const isActive = Boolean(filters[control.field]);
+
+            return (
+              <label key={control.field} className="block min-w-0 text-xs font-semibold text-slate-600">
+                {control.label}
+                <span className="relative mt-1 block">
+                  <select
+                    value={filters[control.field]}
+                    onChange={(event) => onChange(control.field, event.target.value)}
+                    className={`h-10 w-full appearance-none rounded-md border py-2 pl-3 pr-8 text-xs font-semibold outline-none transition focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100 ${
+                      isActive
+                        ? "border-brand-200 bg-brand-50/70 text-brand-800 hover:border-brand-300"
+                        : "border-slate-200 bg-slate-50 text-ink hover:border-brand-200 hover:bg-white"
+                    }`}
+                  >
+                    <option value="">{control.allLabel}</option>
+                    {control.options.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                </span>
+              </label>
+            );
+          })}
         </div>
 
         <button
           type="button"
           onClick={onReset}
           disabled={!activeFilters.length}
-          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-white hover:text-ink disabled:cursor-not-allowed disabled:opacity-35"
+          className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:border-brand-200 hover:bg-brand-50/60 hover:text-brand-700 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 disabled:opacity-60"
         >
           <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
           Nulstil filtre
@@ -1432,11 +1464,11 @@ function DashboardFilterBar({
         <p className="font-medium">
           Viser <span className="font-semibold text-ink">{number(filteredRowCount)}</span> af {number(rows.length)} rækker
         </p>
-        <p className="truncate">
+        <p className="min-w-0 truncate">
           {activeFilters.length ? (
-            <>
-              Filtreret efter: <span className="font-semibold text-ink">{activeFilters.join(", ")}</span>
-            </>
+            <span className="inline-flex max-w-full rounded-md border border-brand-100 bg-brand-50 px-2 py-1 font-semibold text-brand-700">
+              Filtreret efter: {activeFilters.join(", ")}
+            </span>
           ) : (
             "Alle tilgængelige salgsdata er medtaget"
           )}
@@ -1903,11 +1935,11 @@ export default function UploadDashboard() {
 
       <section className="mx-auto grid max-w-[1480px] gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[184px_minmax(0,1fr)] lg:px-8 lg:py-8">
         <aside className="self-start lg:sticky lg:top-6">
-          <div className={dashboardCardClass}>
+          <div className={dashboardUtilityCardClass}>
             <div className="h-0.5 bg-brand-600" aria-hidden="true" />
-            <div className="p-3">
-            <div className="mb-3 flex items-center gap-2.5">
-              <div className="grid h-8 w-8 place-items-center rounded-md bg-brand-50 text-brand-700">
+            <div className="p-3.5">
+            <div className="mb-3.5 flex items-center gap-2.5">
+              <div className="grid h-9 w-9 place-items-center rounded-md border border-brand-100 bg-brand-50 text-brand-700">
                 <Upload className="h-4 w-4" aria-hidden="true" />
               </div>
               <div>
@@ -1916,7 +1948,7 @@ export default function UploadDashboard() {
               </div>
             </div>
 
-            <label className="group flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-slate-50 px-2.5 py-2.5 text-center transition hover:border-brand-500 hover:bg-brand-50/60">
+            <label className="group flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-slate-50 px-2.5 py-2.5 text-center transition hover:border-brand-400 hover:bg-brand-50/70 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100">
               <Upload className="h-4 w-4 text-brand-700" aria-hidden="true" />
               <span className="text-xs font-semibold text-ink">
                 {isLoading ? "Læser regnearket..." : "Vælg en Excel-fil"}
@@ -1934,11 +1966,11 @@ export default function UploadDashboard() {
               <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-700">{error}</p>
             ) : null}
 
-            <div className="mt-1.5 grid grid-cols-2 gap-1">
+            <div className="mt-3 grid grid-cols-2 gap-1.5 border-t border-slate-100 pt-2.5">
               <button
                 type="button"
                 onClick={downloadSampleExcel}
-                className="inline-flex w-full items-center justify-center gap-1.5 rounded-md px-1.5 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-ink"
+                className="inline-flex min-h-8 w-full items-center justify-center gap-1.5 rounded-md border border-transparent px-1.5 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:border-slate-200 hover:bg-slate-50 hover:text-ink"
                 title="Hent eksempelfil"
               >
                 <Download className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -1948,15 +1980,15 @@ export default function UploadDashboard() {
                 type="button"
                 onClick={loadDemoDataset}
                 disabled={isLoading}
-                className="inline-flex w-full items-center justify-center gap-1.5 rounded-md px-1.5 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-8 w-full items-center justify-center gap-1.5 rounded-md border border-transparent px-1.5 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:border-brand-100 hover:bg-brand-50/70 hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand-600" aria-hidden="true" />
                 Demodata
               </button>
             </div>
 
-            <details className="mt-1.5 border-t border-slate-200/70 pt-1.5">
-              <summary className="cursor-pointer text-[11px] font-semibold text-slate-500 transition hover:text-ink">Understøttede regneark</summary>
+            <details className="mt-2.5 border-t border-slate-100 pt-2.5">
+              <summary className="cursor-pointer text-[11px] font-semibold text-slate-500 marker:text-slate-400 transition hover:text-ink">Understøttede regneark</summary>
               <p className="mt-1.5 text-[11px] leading-5 text-slate-500">
                 Fleksible danske og engelske kolonnenavne, automatisk registrering af overskriftsrækker og manuel kolonnetilknytning.
               </p>
@@ -2051,7 +2083,7 @@ export default function UploadDashboard() {
                 tone="neutral"
               />
             </div>
-            <div className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_8px_26px_rgba(16,32,51,0.045)] sm:grid sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-5">
+            <div className={`${dashboardUtilityCardClass} divide-y divide-slate-100 sm:grid sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-5`}>
               {secondaryMetrics.map((metric) => (
                 <SecondaryMetric key={metric.label} label={metric.label} value={metric.value} detail={metric.detail} />
               ))}
