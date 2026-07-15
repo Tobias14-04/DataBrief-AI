@@ -160,18 +160,28 @@ const emptyDashboardFilters: DashboardFilters = {
 };
 
 const dashboardCardClass =
-  "overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_10px_30px_rgba(16,32,51,0.065)]";
+  "overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_12px_32px_rgba(16,32,51,0.065)]";
 const chartCardClass = dashboardCardClass;
 const dashboardCardHeaderClass =
   "flex items-center justify-between gap-4 border-b border-slate-100 bg-slate-50/70 px-5 py-4 sm:px-6";
 const dashboardEyebrowClass =
-  "text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-700";
+  "text-[11px] font-semibold uppercase tracking-[0.14em]";
 const dashboardIconClass =
   "grid h-9 w-9 shrink-0 place-items-center rounded-md border border-brand-100 bg-brand-50 text-brand-700";
+const dashboardSectionClass =
+  "space-y-6 border-y border-slate-200 bg-[#f4f8f9] px-4 py-8 sm:px-6 sm:py-9";
+const dashboardSectionHeaderClass =
+  "flex flex-col gap-1.5 sm:flex-row sm:items-end sm:justify-between";
+const dashboardDarkCardClass =
+  "overflow-hidden rounded-lg border border-slate-800 bg-[#102033] shadow-[0_18px_46px_rgba(16,32,51,0.16)]";
+const chartGridColor = "#e4ecef";
+const chartAxisTick = { fill: "#6b7b8d" };
+const chartCursorFill = "#f2f7f8";
 const chartTooltipStyle = {
   border: "1px solid #cbd5e1",
   borderRadius: "8px",
-  boxShadow: "0 14px 36px rgba(16,32,51,0.14)",
+  backgroundColor: "#ffffff",
+  boxShadow: "0 16px 38px rgba(16,32,51,0.14)",
   color: "#102033",
   fontSize: "12px",
 };
@@ -1468,10 +1478,10 @@ function MonthlyReportCard({
   const budgetStatus = Math.abs(deviation) <= tolerance ? "På budget" : deviation > 0 ? "Over budgettet" : "Under budgettet";
   const budgetStatusClasses =
     budgetStatus === "På budget"
-      ? "bg-emerald-50 text-emerald-700"
+      ? "bg-brand-50 text-brand-700"
       : budgetStatus === "Over budgettet"
-        ? "bg-brand-50 text-brand-700"
-        : "bg-amber-50 text-amber-700";
+        ? "bg-emerald-50 text-emerald-700"
+        : "bg-orange-50 text-orange-700";
   const resultLabel = reportMetrics.hasGrossProfit ? "Dækningsbidrag" : reportMetrics.hasCosts ? "Resultat" : "Solgte enheder";
   const resultValue = reportMetrics.hasGrossProfit
     ? currency(reportMetrics.totalGrossProfit)
@@ -1495,7 +1505,7 @@ function MonthlyReportCard({
             <CalendarRange className="h-[18px] w-[18px]" aria-hidden="true" />
           </span>
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-700">Periodeanalyse</p>
+            <p className={`${dashboardEyebrowClass} text-brand-700`}>Periodeanalyse</p>
             <h2 className="mt-0.5 text-base font-semibold text-ink">Månedsrapport</h2>
           </div>
         </div>
@@ -1957,7 +1967,7 @@ export default function UploadDashboard() {
 
         <section className="min-w-0 space-y-9">
           <section className="space-y-4 border-b border-brand-100 pb-1">
-          <div className="overflow-hidden rounded-lg border border-slate-800 bg-[#102033] shadow-[0_24px_60px_rgba(16,32,51,0.18)]">
+          <div className={dashboardDarkCardClass}>
             <div className="flex flex-col gap-5 px-5 py-6 [background-image:linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] [background-size:32px_32px] sm:px-7 sm:py-7 md:flex-row md:items-start md:justify-between">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-200">{data?.fileName ?? analysis?.fileName ?? "Ingen fil uploadet endnu"}</p>
@@ -1999,10 +2009,10 @@ export default function UploadDashboard() {
           ) : null}
           </section>
 
-          <section className="space-y-4">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <section className="space-y-5">
+            <div className={dashboardSectionHeaderClass}>
               <div>
-                <p className={dashboardEyebrowClass}>Resultatoverblik</p>
+                <p className={`${dashboardEyebrowClass} text-brand-700`}>Resultatoverblik</p>
                 <h2 className="mt-1.5 text-2xl font-semibold text-ink">Centrale nøgletal</h2>
               </div>
               <p className="text-xs text-slate-500">Beregnet ud fra de registrerede data</p>
@@ -2048,10 +2058,10 @@ export default function UploadDashboard() {
             </div>
           </section>
 
-          <section className="space-y-6 border-y border-slate-200 bg-[#f4f8f9] px-4 py-7 sm:px-6 sm:py-8">
-            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-end sm:justify-between">
+          <section className={dashboardSectionClass}>
+            <div className={dashboardSectionHeaderClass}>
               <div>
-                <p className={dashboardEyebrowClass}>Ledelsesanalyse</p>
+                <p className={`${dashboardEyebrowClass} text-brand-700`}>Ledelsesanalyse</p>
                 <h2 className="mt-1.5 text-2xl font-semibold text-ink">Omsætningsudvikling og indsigt</h2>
               </div>
               <p className="max-w-sm text-xs leading-5 text-slate-600 sm:text-right">Hovedtendenser og beslutningsstøtte samlet i én ledelsesvisning</p>
@@ -2061,7 +2071,7 @@ export default function UploadDashboard() {
               <div className={dashboardCardClass}>
                 <div className={dashboardCardHeaderClass}>
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-brand-700">Primær udvikling</p>
+                    <p className={`${dashboardEyebrowClass} text-brand-700`}>Primær udvikling</p>
                     <h3 className="mt-1 text-lg font-semibold text-ink">Omsætning pr. måned</h3>
                     <p className="text-xs leading-5 text-slate-500">Omsætningsudvikling i den valgte periode</p>
                   </div>
@@ -2080,9 +2090,9 @@ export default function UploadDashboard() {
                             <stop offset="90%" stopColor="#0891b2" stopOpacity={0.025} />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid stroke="#dcebed" strokeDasharray="4 5" vertical={false} />
-                        <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} dy={8} />
-                        <YAxis tickLine={false} axisLine={false} fontSize={12} tick={{ fill: "#64748b" }} width={56} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
+                        <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" vertical={false} />
+                        <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={chartAxisTick} dy={8} />
+                        <YAxis tickLine={false} axisLine={false} fontSize={12} tick={chartAxisTick} width={56} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
                         <Tooltip contentStyle={chartTooltipStyle} formatter={(value: number) => currency(value)} />
                         <Area
                           type="monotone"
@@ -2114,11 +2124,11 @@ export default function UploadDashboard() {
                   />
                 ) : null}
 
-                <section className="relative overflow-hidden rounded-lg border border-slate-800 bg-[#102033] p-5 text-white shadow-[0_10px_30px_rgba(16,32,51,0.14)] sm:p-6">
+                <section className={`relative ${dashboardDarkCardClass} p-5 text-white sm:p-6`}>
                   <span className="absolute inset-x-0 top-0 h-0.5 bg-brand-500" aria-hidden="true" />
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-cyan-200">Beslutningsgrundlag</p>
+                      <p className={`${dashboardEyebrowClass} text-cyan-200`}>Beslutningsgrundlag</p>
                       <h2 className="mt-1 text-lg font-semibold text-white">Ledelsesresume</h2>
                     </div>
                     <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-white/10 text-cyan-200">
@@ -2147,9 +2157,9 @@ export default function UploadDashboard() {
             </div>
 
             <div className="space-y-5 border-t border-slate-200 pt-7">
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div className={dashboardSectionHeaderClass}>
                 <div>
-                  <p className={dashboardEyebrowClass}>Supplerende analyse</p>
+                  <p className={`${dashboardEyebrowClass} text-brand-700`}>Supplerende analyse</p>
                   <h2 className="mt-1.5 text-xl font-semibold text-ink">Fordeling på produkter og kategorier</h2>
                 </div>
                 <p className="text-xs text-slate-500">Rangerede visninger af de registrerede data</p>
@@ -2171,10 +2181,10 @@ export default function UploadDashboard() {
                     <div className="h-72">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={metrics.productsByUnits} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 8 }}>
-                          <CartesianGrid stroke="#e7eef2" strokeDasharray="3 4" horizontal={false} />
-                          <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} />
-                          <YAxis type="category" dataKey="name" width={110} tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} />
-                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f8fafc" }} formatter={(value: number) => `${number(value)} enheder`} />
+                          <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" horizontal={false} />
+                          <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} />
+                          <YAxis type="category" dataKey="name" width={110} tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} />
+                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: chartCursorFill }} formatter={(value: number) => `${number(value)} enheder`} />
                           <Bar dataKey="units" fill="#0891b2" radius={[0, 5, 5, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -2200,10 +2210,10 @@ export default function UploadDashboard() {
                     <div className="h-72">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={metrics.categories} layout="vertical" margin={{ top: 4, right: 20, bottom: 4, left: 4 }}>
-                          <CartesianGrid stroke="#e7eef2" strokeDasharray="3 4" horizontal={false} />
-                          <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
-                          <YAxis type="category" dataKey="name" width={90} tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} />
-                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f8fafc" }} formatter={(value: number) => currency(value)} />
+                          <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" horizontal={false} />
+                          <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
+                          <YAxis type="category" dataKey="name" width={90} tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} />
+                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: chartCursorFill }} formatter={(value: number) => currency(value)} />
                           <Bar dataKey="revenue" fill="#0891b2" radius={[0, 5, 5, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -2229,10 +2239,10 @@ export default function UploadDashboard() {
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={metrics.grossProfitByCategory} layout="vertical" margin={{ top: 4, right: 20, bottom: 4, left: 4 }}>
-                          <CartesianGrid stroke="#e7eef2" strokeDasharray="3 4" horizontal={false} />
-                          <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
-                          <YAxis type="category" dataKey="name" width={96} tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} />
-                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f8fafc" }} formatter={(value: number) => currency(value)} />
+                          <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" horizontal={false} />
+                          <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
+                          <YAxis type="category" dataKey="name" width={96} tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} />
+                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: chartCursorFill }} formatter={(value: number) => currency(value)} />
                           <Bar dataKey="grossProfit" fill="#22c55e" radius={[0, 5, 5, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -2258,10 +2268,10 @@ export default function UploadDashboard() {
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={costsByCategory} layout="vertical" margin={{ top: 4, right: 20, bottom: 4, left: 4 }}>
-                          <CartesianGrid stroke="#e7eef2" strokeDasharray="3 4" horizontal={false} />
-                          <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
-                          <YAxis type="category" dataKey="name" width={96} tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "#64748b" }} />
-                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: "#f8fafc" }} formatter={(value: number) => currency(value)} />
+                          <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" horizontal={false} />
+                          <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
+                          <YAxis type="category" dataKey="name" width={96} tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} />
+                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: chartCursorFill }} formatter={(value: number) => currency(value)} />
                           <Bar dataKey="cost" fill="#f97316" radius={[0, 5, 5, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -2276,10 +2286,10 @@ export default function UploadDashboard() {
           </section>
 
           {showBudget ? (
-            <section className="space-y-5 border-y border-slate-200 bg-white/55 px-4 py-6 sm:px-6 sm:py-7">
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <section className={dashboardSectionClass}>
+              <div className={dashboardSectionHeaderClass}>
                 <div>
-                  <p className={dashboardEyebrowClass}>Økonomisk pejlemærke</p>
+                  <p className={`${dashboardEyebrowClass} text-orange-700`}>Økonomisk pejlemærke</p>
                   <h2 className="mt-1.5 text-2xl font-semibold text-ink">Budgetoverblik</h2>
                 </div>
                 <p className="text-xs text-slate-500">Budgettal for den aktuelle visning</p>
