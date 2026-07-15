@@ -118,7 +118,7 @@ type FieldKey =
   | "unitPrice";
 
 type RequiredManualField = "dateOrMonth" | "product" | "category" | "units" | "revenue";
-type OptionalManualField = "cost" | "grossProfit" | "grossMargin";
+type OptionalManualField = "channel" | "region" | "cost" | "grossProfit" | "grossMargin" | "unitPrice";
 type ManualField = RequiredManualField | OptionalManualField;
 type FieldMappings = Partial<Record<FieldKey, string>>;
 type ManualMappings = Record<ManualField, string>;
@@ -148,9 +148,12 @@ const emptyManualMappings: ManualMappings = {
   category: "",
   units: "",
   revenue: "",
+  channel: "",
+  region: "",
   cost: "",
   grossProfit: "",
   grossMargin: "",
+  unitPrice: "",
 };
 
 const emptyDashboardFilters: DashboardFilters = {
@@ -572,16 +575,17 @@ function manualToFieldMappings(manual: ManualMappings): FieldMappings {
     revenue: manual.revenue || undefined,
     date: manual.dateOrMonth || undefined,
     month: manual.dateOrMonth || undefined,
+    channel: manual.channel || undefined,
+    region: manual.region || undefined,
     cost: manual.cost || undefined,
     grossProfit: manual.grossProfit || undefined,
     grossMargin: manual.grossMargin || undefined,
+    unitPrice: manual.unitPrice || undefined,
   };
 }
 
 function manualToFieldMappingsForCandidate(manual: ManualMappings, candidate: SheetCandidate): FieldMappings {
   const mappings = manualToFieldMappings(manual);
-  mappings.channel = candidate.mappings.channel;
-  mappings.region = candidate.mappings.region;
 
   if (manual.dateOrMonth) {
     const sampleRecord = rowsToRecords(candidate.rows, candidate.headerIndex, candidate.headers)[0] ?? {};
@@ -602,9 +606,12 @@ function initialManualMappings(candidate: SheetCandidate): ManualMappings {
     category: candidate.mappings.category ?? "",
     units: candidate.mappings.units ?? "",
     revenue: candidate.mappings.netRevenue ?? candidate.mappings.grossRevenue ?? candidate.mappings.revenue ?? "",
+    channel: candidate.mappings.channel ?? "",
+    region: candidate.mappings.region ?? "",
     cost: candidate.mappings.cost ?? "",
     grossProfit: candidate.mappings.grossProfit ?? "",
     grossMargin: candidate.mappings.grossMargin ?? "",
+    unitPrice: candidate.mappings.unitPrice ?? "",
   };
 }
 
@@ -1144,7 +1151,7 @@ function StatusBox({ feedback, analysis }: { feedback?: MappingFeedback; analysi
   }
 
   const label =
-    status === "success" ? "Kolonner blev registreret automatisk" : status === "warning" ? "Kolonner blev registreret med forbehold" : "Manuel kolonnetilknytning er nødvendig";
+    status === "success" ? "Kolonner blev registreret automatisk" : status === "warning" ? "Kolonner blev registreret med forbehold" : "Kolonnerne skal kontrolleres";
   const styles =
     status === "success"
       ? {
@@ -1248,94 +1255,354 @@ function FeedbackPanel({ feedback, rowCount }: { feedback?: MappingFeedback; row
   );
 }
 
+type MappingFieldConfig = {
+  key: ManualField;
+  label: string;
+  helper: string;
+  required: boolean;
+};
+
+const requiredMappingFields: MappingFieldConfig[] = [
+  { key: "dateOrMonth", label: "Dato eller måned", helper: "Bruges til perioder, sortering og månedsrapporter.", required: true },
+  { key: "product", label: "Produkt", helper: "Navnet på den solgte vare eller ydelse.", required: true },
+  { key: "category", label: "Kategori", helper: "Produktets kategori eller varegruppe.", required: true },
+  { key: "units", label: "Antal", helper: "Antal solgte enheder på rækken.", required: true },
+  { key: "revenue", label: "Omsætning", helper: "Vælg omsætning, eller brug Pris pr. enhed under valgfrie kolonner.", required: true },
+];
+
+const optionalMappingFields: MappingFieldConfig[] = [
+  { key: "channel", label: "Kanal", helper: "For eksempel café, webshop eller takeaway.", required: false },
+  { key: "region", label: "Region", helper: "Geografisk område, distrikt eller salgsregion.", required: false },
+  { key: "cost", label: "Omkostning", helper: "Vareforbrug eller samlet omkostning pr. række.", required: false },
+  { key: "grossProfit", label: "Dækningsbidrag", helper: "Bidrag efter variable omkostninger.", required: false },
+  { key: "grossMargin", label: "Dækningsgrad", helper: "Dækningsbidrag som procent af omsætningen.", required: false },
+  { key: "unitPrice", label: "Pris pr. enhed", helper: "Kan bruges til at beregne omsætning som Antal × Pris.", required: false },
+];
+
+const manualFieldLabels = [...requiredMappingFields, ...optionalMappingFields].reduce<Record<ManualField, string>>(
+  (labels, field) => ({ ...labels, [field.key]: field.label }),
+  {} as Record<ManualField, string>,
+);
+
+function MappingFieldSelect({
+  field,
+  candidate,
+  mappings,
+  recommendedMappings,
+  hasError,
+  onChange,
+}: {
+  field: MappingFieldConfig;
+  candidate: SheetCandidate;
+  mappings: ManualMappings;
+  recommendedMappings: ManualMappings;
+  hasError: boolean;
+  onChange: (field: ManualField, column: string) => void;
+}) {
+  const currentValue = mappings[field.key];
+  const recommendedValue = recommendedMappings[field.key];
+  const preferredHeaders = Array.from(new Set([currentValue, recommendedValue].filter(Boolean)));
+  const availableHeaders = candidate.headers.filter((header) => !preferredHeaders.includes(header));
+  const usedByOtherField = (header: string) =>
+    Object.entries(mappings).some(([key, value]) => key !== field.key && value === header);
+  const currentIsRecommended = Boolean(currentValue && currentValue === recommendedValue);
+
+  return (
+    <label className="block min-w-0 rounded-md border border-slate-200 bg-white p-4">
+      <span className="flex items-center justify-between gap-3">
+        <span className="text-sm font-semibold text-ink">{field.label}</span>
+        {field.required ? (
+          <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-600">Nødvendig</span>
+        ) : null}
+      </span>
+      <span className="mt-1 block min-h-10 text-xs leading-5 text-slate-500">{field.helper}</span>
+      <span className="relative mt-2 block">
+        <select
+          value={currentValue}
+          onChange={(event) => onChange(field.key, event.target.value)}
+          className={`h-11 w-full appearance-none rounded-md border bg-slate-50 py-2 pl-3 pr-9 text-sm font-medium text-ink outline-none transition hover:bg-white focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100 ${
+            hasError ? "border-red-300" : currentValue ? "border-brand-200" : "border-slate-200"
+          }`}
+        >
+          {preferredHeaders.length ? (
+            <optgroup label="Valgt og anbefalet">
+              {preferredHeaders.map((header) => (
+                <option key={header} value={header} disabled={usedByOtherField(header)}>
+                  {header}{header === recommendedValue ? " (anbefalet)" : ""}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
+          {availableHeaders.length ? (
+            <optgroup label="Tilgængelige kolonner">
+              {availableHeaders.map((header) => (
+                <option key={header} value={header} disabled={usedByOtherField(header)}>
+                  {header}{usedByOtherField(header) ? " (allerede valgt)" : ""}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
+          <optgroup label="Ingen tilknytning">
+            <option value="">Ikke tilknyttet</option>
+          </optgroup>
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+      </span>
+      <span className={`mt-2 flex min-h-5 items-center gap-1.5 text-[11px] font-medium ${hasError ? "text-red-600" : currentIsRecommended ? "text-emerald-700" : "text-slate-500"}`}>
+        {hasError ? (
+          <><Info className="h-3.5 w-3.5" aria-hidden="true" /> Kontrollér dette felt</>
+        ) : currentIsRecommended ? (
+          <><Check className="h-3.5 w-3.5" aria-hidden="true" /> Anbefalet valg</>
+        ) : recommendedValue ? (
+          <>Forslag: {recommendedValue}</>
+        ) : currentValue ? (
+          <><Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" /> Kolonne valgt</>
+        ) : (
+          <>Ikke tilknyttet</>
+        )}
+      </span>
+    </label>
+  );
+}
+
 function ManualMappingPanel({
   analysis,
   selectedSheet,
   mappings,
+  error,
   onSheetChange,
   onMappingChange,
   onApply,
+  onCancel,
 }: {
   analysis: WorkbookAnalysis | null;
   selectedSheet: string;
   mappings: ManualMappings;
+  error?: string;
   onSheetChange: (sheetName: string) => void;
   onMappingChange: (field: ManualField, column: string) => void;
   onApply: () => void;
+  onCancel: () => void;
 }) {
   if (!analysis) {
     return null;
   }
 
   const candidate = analysis.candidates.find((sheet) => sheet.name === selectedSheet) ?? analysis.candidates[0];
-  const fields: Array<{ key: ManualField; label: string; required: boolean }> = [
-    { key: "dateOrMonth", label: "Dato eller måned", required: true },
-    { key: "product", label: "Produkt", required: true },
-    { key: "category", label: "Kategori", required: true },
-    { key: "units", label: "Antal", required: true },
-    { key: "revenue", label: "Omsætning", required: true },
-    { key: "cost", label: "Omkostning", required: false },
-    { key: "grossProfit", label: "Dækningsbidrag", required: false },
-    { key: "grossMargin", label: "Dækningsgrad", required: false },
+  const recommendedMappings = initialManualMappings(candidate);
+  const duplicateAssignments = Object.entries(
+    Object.entries(mappings).reduce<Record<string, ManualField[]>>((columns, [key, column]) => {
+      if (column) {
+        columns[column] = [...(columns[column] ?? []), key as ManualField];
+      }
+      return columns;
+    }, {}),
+  ).filter(([, fields]) => fields.length > 1);
+  const duplicateFields = new Set(duplicateAssignments.flatMap(([, fields]) => fields));
+  const missingRequiredFields = requiredMappingFields.filter((field) => {
+    if (field.key === "revenue") {
+      return !mappings.revenue && !mappings.unitPrice;
+    }
+    return !mappings[field.key];
+  });
+  const requiredMappingsValid = missingRequiredFields.length === 0 && duplicateAssignments.length === 0;
+  const previewRows = requiredMappingsValid
+    ? parseSalesRows(candidate, manualToFieldMappingsForCandidate(mappings, candidate)).rows
+    : [];
+  const validRowCount = previewRows.length;
+  const canApply = requiredMappingsValid && validRowCount > 0;
+  const optionalMatchedCount = optionalMappingFields.filter((field) => Boolean(mappings[field.key])).length;
+  const invalidItems = [
+    ...missingRequiredFields.map((field) => `${field.label} mangler`),
+    ...duplicateAssignments.map(([column, fields]) => `${column} er valgt til ${fields.map((field) => manualFieldLabels[field]).join(" og ")}`),
+    ...(requiredMappingsValid && !validRowCount ? ["Ingen gyldige datarækker med de valgte kolonner"] : []),
   ];
+  const statusText = missingRequiredFields.length
+    ? `${missingRequiredFields.length} ${missingRequiredFields.length === 1 ? "felt mangler" : "felter mangler"}`
+    : duplicateAssignments.length
+      ? `Kontrollér ${duplicateAssignments.length} ${duplicateAssignments.length === 1 ? "felt" : "felter"}`
+      : validRowCount
+        ? "Alle nødvendige kolonner er fundet"
+        : "Kontrollér de valgte kolonner";
 
   return (
-    <div className={`${dashboardCardClass} p-5 sm:p-6`}>
-      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h3 className="font-semibold text-ink">Manuel kolonnetilknytning</h3>
-          <p className="mt-1 text-sm text-slate-500">
-            Ark kan have forskellige overskriftsrækker. Den aktuelle overskriftsrække er {candidate.headerIndex + 1}.
-          </p>
+    <section className={`mx-auto w-full max-w-5xl ${dashboardCardClass}`} aria-labelledby="mapping-title">
+      <div className="border-b border-slate-200 bg-slate-50/70 px-5 py-5 sm:px-7 sm:py-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className={`${dashboardEyebrowClass} text-brand-700`}>Opsætning af data</p>
+            <h3 id="mapping-title" className="mt-1.5 text-xl font-semibold text-ink">Tilpas kolonner</h3>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+              Vi har automatisk fundet de vigtigste kolonner. Kontrollér dem herunder.
+            </p>
+          </div>
+          <div className={`inline-flex items-center gap-2 self-start rounded-md border px-3 py-2 text-xs font-semibold ${canApply ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+            {canApply ? <Check className="h-4 w-4" aria-hidden="true" /> : <Info className="h-4 w-4" aria-hidden="true" />}
+            {statusText}
+          </div>
         </div>
-        <div className="text-sm text-slate-500">Registreringssikkerhed: {candidate.confidence} %</div>
+
+        <ol className="mt-5 grid gap-2 text-[11px] font-semibold text-slate-600 sm:grid-cols-4">
+          {["Vælg datakilde", "Match nødvendige", "Tilføj valgfrie", "Kontrollér og fortsæt"].map((step, index) => (
+            <li key={step} className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2.5">
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-brand-50 text-brand-700">{index + 1}</span>
+              {step}
+            </li>
+          ))}
+        </ol>
+        {error ? (
+          <div className="mt-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-900">
+            <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>{error}</span>
+          </div>
+        ) : null}
       </div>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <label className="block text-sm font-semibold text-ink">
-          Regneark
-          <select
-            value={selectedSheet}
-            onChange={(event) => onSheetChange(event.target.value)}
-            className="mt-2 h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-normal text-ink outline-none transition hover:border-brand-200 hover:bg-white focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100"
-          >
-            {analysis.candidates.map((sheet) => (
-              <option key={sheet.name} value={sheet.name}>
-                {sheet.name} - række {sheet.headerIndex + 1} - {sheet.confidence} %
-              </option>
+      <div className="space-y-7 p-5 sm:p-7">
+        <section aria-labelledby="mapping-step-source">
+          <div className="flex items-center gap-3">
+            <span className="grid h-8 w-8 place-items-center rounded-md bg-ink text-xs font-semibold text-white">1</span>
+            <div>
+              <h4 id="mapping-step-source" className="text-sm font-semibold text-ink">Vælg regneark og kontrollér overskriftsrækken</h4>
+              <p className="mt-0.5 text-xs text-slate-500">Vi har fundet den mest sandsynlige overskriftsrække i hvert ark.</p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
+            <label className="block text-xs font-semibold text-slate-600">
+              Regneark
+              <span className="relative mt-1.5 block">
+                <select
+                  value={selectedSheet}
+                  onChange={(event) => onSheetChange(event.target.value)}
+                  className="h-11 w-full appearance-none rounded-md border border-slate-200 bg-slate-50 py-2 pl-3 pr-9 text-sm font-semibold text-ink outline-none transition hover:border-brand-200 hover:bg-white focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100"
+                >
+                  {analysis.candidates.map((sheet) => (
+                    <option key={sheet.name} value={sheet.name}>
+                      {sheet.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+              </span>
+            </label>
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Overskriftsrække</p>
+              <p className="mt-1 text-sm font-semibold text-ink">Række {candidate.headerIndex + 1}</p>
+              <p className="mt-0.5 text-[11px] text-slate-500">Fundet automatisk</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-t border-slate-100 pt-7" aria-labelledby="mapping-step-required">
+          <div className="flex items-center gap-3">
+            <span className="grid h-8 w-8 place-items-center rounded-md bg-ink text-xs font-semibold text-white">2</span>
+            <div>
+              <h4 id="mapping-step-required" className="text-sm font-semibold text-ink">Match nødvendige kolonner</h4>
+              <p className="mt-0.5 text-xs text-slate-500">Alle fem områder skal være dækket, før dashboardet kan oprettes.</p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {requiredMappingFields.map((field) => (
+              <MappingFieldSelect
+                key={field.key}
+                field={field}
+                candidate={candidate}
+                mappings={mappings}
+                recommendedMappings={recommendedMappings}
+                hasError={missingRequiredFields.some((missingField) => missingField.key === field.key) || duplicateFields.has(field.key)}
+                onChange={onMappingChange}
+              />
             ))}
-          </select>
-        </label>
+          </div>
+        </section>
+
+        <details className="group border-t border-slate-100 pt-7" open={!requiredMappingsValid ? true : undefined}>
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-100">
+            <span className="flex items-center gap-3">
+              <span className="grid h-8 w-8 place-items-center rounded-md bg-slate-100 text-xs font-semibold text-slate-700">3</span>
+              <span>
+                <span className="block text-sm font-semibold text-ink">Match valgfrie kolonner</span>
+                <span className="mt-0.5 block text-xs text-slate-500">Tilføj flere dimensioner og økonomiske nøgletal, hvis de findes.</span>
+              </span>
+            </span>
+            <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500">
+              {optionalMatchedCount} valgt
+              <ChevronDown className="h-4 w-4 transition group-open:rotate-180" aria-hidden="true" />
+            </span>
+          </summary>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {optionalMappingFields.map((field) => (
+              <MappingFieldSelect
+                key={field.key}
+                field={field}
+                candidate={candidate}
+                mappings={mappings}
+                recommendedMappings={recommendedMappings}
+                hasError={duplicateFields.has(field.key)}
+                onChange={onMappingChange}
+              />
+            ))}
+          </div>
+        </details>
+
+        <section className="border-t border-slate-100 pt-7" aria-labelledby="mapping-step-review">
+          <div className="flex items-center gap-3">
+            <span className="grid h-8 w-8 place-items-center rounded-md bg-ink text-xs font-semibold text-white">4</span>
+            <div>
+              <h4 id="mapping-step-review" className="text-sm font-semibold text-ink">Kontrollér og fortsæt</h4>
+              <p className="mt-0.5 text-xs text-slate-500">Se opsætningen igennem, før dashboardet opdateres.</p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {[
+              ["Regneark", candidate.name],
+              ["Overskriftsrække", number(candidate.headerIndex + 1)],
+              ["Gyldige rækker", number(validRowCount)],
+              ["Nødvendige", `${requiredMappingFields.length - missingRequiredFields.length}/${requiredMappingFields.length}`],
+              ["Valgfrie", number(optionalMatchedCount)],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">{label}</p>
+                <p className="mt-1 truncate text-sm font-semibold text-ink" title={value}>{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {invalidItems.length ? (
+            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
+              <p className="font-semibold">Kontrollér følgende, før du fortsætter:</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                {invalidItems.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </div>
+          ) : (
+            <div className="mt-3 flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-800">
+              <Check className="h-4 w-4" aria-hidden="true" />
+              Opsætningen er klar til at blive anvendt på dashboardet.
+            </div>
+          )}
+        </section>
       </div>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {fields.map((field) => (
-          <label key={field.key} className="block text-sm font-semibold text-ink">
-            {field.label} {field.required ? <span className="text-red-600">*</span> : null}
-            <select
-              value={mappings[field.key]}
-              onChange={(event) => onMappingChange(field.key, event.target.value)}
-              className="mt-2 h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-normal text-ink outline-none transition hover:border-brand-200 hover:bg-white focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100"
-            >
-              <option value="">Ikke tilknyttet</option>
-              {candidate.headers.map((header) => (
-                <option key={header} value={header}>
-                  {header}
-                </option>
-              ))}
-            </select>
-          </label>
-        ))}
+      <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-7">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-ink focus:outline-none focus:ring-2 focus:ring-brand-100"
+        >
+          Annuller
+        </button>
+        <button
+          type="button"
+          onClick={onApply}
+          disabled={!canApply}
+          className="inline-flex min-h-11 items-center justify-center rounded-md bg-ink px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-200 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none"
+        >
+          Anvend og fortsæt til dashboard
+        </button>
       </div>
-
-      <button
-        type="button"
-        onClick={onApply}
-        className="mt-5 inline-flex min-h-10 items-center justify-center rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-200 focus:ring-offset-2"
-      >
-        Anvend valgte kolonnetilknytninger
-      </button>
-    </div>
+    </section>
   );
 }
 
@@ -1768,11 +2035,7 @@ export default function UploadDashboard() {
       resetDashboardView();
 
       if (!parsed.autoResult) {
-        setError(
-          `Manuel kolonnetilknytning er nødvendig. Det bedst egnede ark, "${best.name}", mangler: ${best.missingFields.join(
-            ", ",
-          )}. Fundne kolonner: ${best.headers.join(", ") || "ingen"}.`,
-        );
+        setError("Vi kunne ikke finde alle nødvendige kolonner automatisk. Kontrollér de markerede felter.");
       }
     } catch (error) {
       setData(null);
@@ -1807,11 +2070,7 @@ export default function UploadDashboard() {
       resetDashboardView();
 
       if (!parsed.autoResult) {
-        setError(
-          `Manuel kolonnetilknytning er nødvendig. Det bedst egnede ark, "${best.name}", mangler: ${best.missingFields.join(
-            ", ",
-          )}. Fundne kolonner: ${best.headers.join(", ") || "ingen"}.`,
-        );
+        setError("Vi kunne ikke finde alle nødvendige kolonner automatisk. Kontrollér de markerede felter.");
       }
     } catch (error) {
       setData(null);
@@ -1849,6 +2108,21 @@ export default function UploadDashboard() {
       setData(null);
       setError(error instanceof Error ? error.message : "Den manuelle kolonnetilknytning mislykkedes. Kontrollér de valgte kolonner.");
     }
+  }
+
+  function cancelManualMapping() {
+    if (data) {
+      selectSheet(data.feedback.salesSheetName);
+      setShowManualMapping(false);
+      setError("");
+      return;
+    }
+
+    setAnalysis(null);
+    setSelectedSheet("");
+    setManualMappings(emptyManualMappings);
+    setShowManualMapping(false);
+    setError("");
   }
 
   if (!hasWorkbook) {
@@ -2018,7 +2292,7 @@ export default function UploadDashboard() {
         <WorkbookSidebar
           isCollapsed={isSidebarCollapsed}
           isLoading={isLoading}
-          error={error}
+          error={shouldShowManualMapping ? "" : error}
           onCollapse={() => setIsSidebarCollapsed(true)}
           onExpand={() => setIsSidebarCollapsed(false)}
           onFileChange={handleFileChange}
@@ -2032,20 +2306,26 @@ export default function UploadDashboard() {
             <div className="flex flex-col gap-5 px-5 py-6 [background-image:linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] [background-size:32px_32px] sm:px-7 sm:py-7 md:flex-row md:items-start md:justify-between">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-200">{data?.fileName ?? analysis?.fileName ?? "Ingen fil uploadet endnu"}</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">Salgsdashboard</h2>
+                <h2 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">{shouldShowManualMapping ? "Tilpas kolonner" : "Salgsdashboard"}</h2>
                 <p className="mt-2 text-sm text-slate-300">
-                  {hasData ? `${number(allRows.length)} rækker er klar til analyse.` : "Upload en Excel-fil for at udfylde dashboardet."}
+                  {shouldShowManualMapping
+                    ? "Kontrollér datakilden og de foreslåede kolonner, før dashboardet vises."
+                    : hasData
+                      ? `${number(allRows.length)} rækker er klar til analyse.`
+                      : "Upload en Excel-fil for at udfylde dashboardet."}
                 </p>
               </div>
               <div className="flex flex-col items-start gap-2 md:items-end">
                 <StatusBox feedback={data?.feedback} analysis={analysis} />
-                <button
-                  type="button"
-                  onClick={() => setShowManualMapping(true)}
-                  className="inline-flex min-h-9 items-center justify-center rounded-md border border-white/15 bg-white/10 px-3 text-xs font-semibold text-white transition hover:border-brand-400 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-cyan-300/40"
-                >
-                  Rediger kolonnetilknytning
-                </button>
+                {!shouldShowManualMapping ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowManualMapping(true)}
+                    className="inline-flex min-h-9 items-center justify-center rounded-md border border-white/15 bg-white/10 px-3 text-xs font-semibold text-white transition hover:border-brand-400 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-cyan-300/40"
+                  >
+                    Tilpas kolonner
+                  </button>
+                ) : null}
               </div>
             </div>
           </div>
@@ -2055,13 +2335,21 @@ export default function UploadDashboard() {
               analysis={analysis}
               selectedSheet={selectedSheet}
               mappings={manualMappings}
-              onSheetChange={(sheetName) => selectSheet(sheetName)}
-              onMappingChange={(field, column) => setManualMappings((current) => ({ ...current, [field]: column }))}
+              error={error}
+              onSheetChange={(sheetName) => {
+                selectSheet(sheetName);
+                setError("");
+              }}
+              onMappingChange={(field, column) => {
+                setManualMappings((current) => ({ ...current, [field]: column }));
+                setError("");
+              }}
               onApply={applyManualMappings}
+              onCancel={cancelManualMapping}
             />
           ) : null}
 
-          {hasData ? (
+          {hasData && !shouldShowManualMapping ? (
             <DashboardFilterBar
               rows={allRows}
               filteredRowCount={metrics.rowCount}
@@ -2072,6 +2360,8 @@ export default function UploadDashboard() {
           ) : null}
           </section>
 
+          {!shouldShowManualMapping ? (
+          <>
           <section className="space-y-5">
             <div className={dashboardSectionHeaderClass}>
               <div>
@@ -2386,6 +2676,8 @@ export default function UploadDashboard() {
           <div className="border-t border-slate-200/70 pt-5">
             <FeedbackPanel feedback={data?.feedback} rowCount={allRows.length} />
           </div>
+          </>
+          ) : null}
         </section>
       </section>
     </main>
