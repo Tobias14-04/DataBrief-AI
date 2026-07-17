@@ -1263,20 +1263,20 @@ type MappingFieldConfig = {
 };
 
 const requiredMappingFields: MappingFieldConfig[] = [
-  { key: "dateOrMonth", label: "Dato eller måned", helper: "Bruges til perioder, sortering og månedsrapporter.", required: true },
-  { key: "product", label: "Produkt", helper: "Navnet på den solgte vare eller ydelse.", required: true },
+  { key: "dateOrMonth", label: "Dato eller måned", helper: "Bruges til perioder og månedsrapporter.", required: true },
+  { key: "product", label: "Produkt", helper: "Varen eller ydelsen på rækken.", required: true },
   { key: "category", label: "Kategori", helper: "Produktets kategori eller varegruppe.", required: true },
-  { key: "units", label: "Antal", helper: "Antal solgte enheder på rækken.", required: true },
-  { key: "revenue", label: "Omsætning", helper: "Vælg omsætning, eller brug Pris pr. enhed under valgfrie kolonner.", required: true },
+  { key: "units", label: "Antal", helper: "Solgte enheder på rækken.", required: true },
+  { key: "revenue", label: "Omsætning", helper: "Vælg omsætning, eller brug enhedspris nedenfor.", required: true },
 ];
 
 const optionalMappingFields: MappingFieldConfig[] = [
-  { key: "channel", label: "Kanal", helper: "For eksempel café, webshop eller takeaway.", required: false },
-  { key: "region", label: "Region", helper: "Geografisk område, distrikt eller salgsregion.", required: false },
-  { key: "cost", label: "Omkostning", helper: "Vareforbrug eller samlet omkostning pr. række.", required: false },
+  { key: "channel", label: "Kanal", helper: "Fx café, webshop eller takeaway.", required: false },
+  { key: "region", label: "Region", helper: "Område, distrikt eller salgsregion.", required: false },
+  { key: "cost", label: "Omkostning", helper: "Vareforbrug eller omkostning pr. række.", required: false },
   { key: "grossProfit", label: "Dækningsbidrag", helper: "Bidrag efter variable omkostninger.", required: false },
-  { key: "grossMargin", label: "Dækningsgrad", helper: "Dækningsbidrag som procent af omsætningen.", required: false },
-  { key: "unitPrice", label: "Pris pr. enhed", helper: "Kan bruges til at beregne omsætning som Antal × Pris.", required: false },
+  { key: "grossMargin", label: "Dækningsgrad", helper: "Dækningsbidrag i procent.", required: false },
+  { key: "unitPrice", label: "Pris pr. enhed", helper: "Beregner omsætning som Antal × Pris.", required: false },
 ];
 
 const manualFieldLabels = [...requiredMappingFields, ...optionalMappingFields].reduce<Record<ManualField, string>>(
@@ -1312,21 +1312,21 @@ function MappingFieldSelect({
   return (
     <label className={`block min-w-0 rounded-lg border transition-colors ${
       field.required
-        ? "border-slate-200 bg-white p-4 shadow-[0_6px_18px_rgba(16,32,51,0.045)]"
-        : "border-slate-200/80 bg-slate-50/75 p-3.5"
+        ? "border-slate-200 bg-white p-3.5 shadow-[0_6px_18px_rgba(16,32,51,0.045)]"
+        : "border-slate-200/80 bg-slate-50/75 p-3"
     }`}>
       <span className="flex items-center justify-between gap-3">
         <span className="text-sm font-semibold text-ink">{field.label}</span>
         {field.required ? (
-          <span className="rounded-md border border-brand-100 bg-brand-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-brand-700">Nødvendig</span>
+          <span className="rounded-md border border-brand-100 bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-brand-700">Nødvendig</span>
         ) : null}
       </span>
-      <span className={`mt-1 block text-xs leading-5 text-slate-500 ${field.required ? "min-h-10" : "min-h-5"}`}>{field.helper}</span>
-      <span className="relative mt-2 block">
+      <span className={`mt-0.5 block text-xs leading-4 text-slate-500 ${field.required ? "min-h-8" : "min-h-4"}`}>{field.helper}</span>
+      <span className="relative mt-1.5 block">
         <select
           value={currentValue}
           onChange={(event) => onChange(field.key, event.target.value)}
-          className={`h-11 w-full appearance-none rounded-md border bg-slate-50 py-2 pl-3 pr-9 text-sm font-medium text-ink outline-none transition hover:bg-white focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100 ${
+          className={`h-10 w-full appearance-none rounded-md border bg-slate-50 py-1.5 pl-3 pr-9 text-sm font-medium text-ink outline-none transition hover:bg-white focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100 ${
             hasError ? "border-red-300" : currentValue ? "border-brand-200" : "border-slate-200"
           }`}
         >
@@ -1363,7 +1363,7 @@ function MappingFieldSelect({
         </select>
         <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
       </span>
-      <span className={`mt-2 inline-flex min-h-6 items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium ${
+      <span className={`mt-1.5 inline-flex min-h-5 items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium ${
         hasError
           ? "border border-red-100 bg-red-50 text-red-700"
           : currentIsRecommended
@@ -1451,54 +1451,53 @@ function ManualMappingPanel({
       className="mx-auto w-full max-w-5xl rounded-lg border border-slate-200 bg-[#f8fbfc] shadow-[0_20px_48px_rgba(16,32,51,0.09)]"
       aria-labelledby="mapping-title"
     >
-      <div className="rounded-t-lg border-b border-slate-200 bg-white/80 px-5 py-5 sm:px-7 sm:py-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="rounded-t-lg border-b border-slate-200 bg-white/80 px-5 py-4 sm:px-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className={`${dashboardEyebrowClass} text-brand-700`}>Opsætning af data</p>
-            <h3 id="mapping-title" className="mt-1.5 text-xl font-semibold text-ink">Tilpas kolonner</h3>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+            <p id="mapping-title" className={`${dashboardEyebrowClass} text-brand-700`}>Kontrollér kolonner</p>
+            <p className="mt-1.5 max-w-2xl text-sm leading-5 text-slate-600">
               Vi har automatisk fundet de vigtigste kolonner. Kontrollér dem herunder.
             </p>
           </div>
-          <div className={`inline-flex items-center gap-2 self-start rounded-md border px-3 py-2 text-xs font-semibold ${canApply ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+          <div className={`inline-flex items-center gap-2 self-start rounded-md border px-3 py-1.5 text-xs font-semibold ${canApply ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
             {canApply ? <Check className="h-4 w-4" aria-hidden="true" /> : <Info className="h-4 w-4" aria-hidden="true" />}
             {statusText}
           </div>
         </div>
 
-        <ol className="mt-5 grid gap-2 text-[11px] font-semibold text-slate-600 sm:grid-cols-4">
+        <ol className="mt-3 grid gap-2 text-[11px] font-semibold text-slate-600 sm:grid-cols-4">
           {["Vælg datakilde", "Match nødvendige", "Tilføj valgfrie", "Kontrollér og fortsæt"].map((step, index) => (
-            <li key={step} className="flex items-center gap-2 rounded-md border border-slate-200/80 bg-slate-50/80 px-3 py-2.5">
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-brand-100 bg-brand-50 text-brand-700">{index + 1}</span>
+            <li key={step} className="flex items-center gap-2 rounded-md border border-slate-200/80 bg-slate-50/80 px-2.5 py-2">
+              <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md border border-brand-100 bg-brand-50 text-[10px] text-brand-700">{index + 1}</span>
               {step}
             </li>
           ))}
         </ol>
         {error ? (
-          <div className="mt-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-900">
+          <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
             <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <span>{error}</span>
           </div>
         ) : null}
       </div>
 
-      <div className="space-y-4 bg-[#f3f7f8] p-4 sm:p-5">
-        <section className="rounded-lg border border-slate-200 bg-[#edf4f6] p-4 sm:p-5" aria-labelledby="mapping-step-source">
-          <div className="flex items-center gap-3 border-b border-slate-200/80 pb-3.5">
-            <span className="grid h-8 w-8 place-items-center rounded-md border border-brand-100 bg-brand-50 text-xs font-semibold text-brand-700">1</span>
+      <div className="space-y-3 bg-[#f3f7f8] p-3 pb-24 sm:p-4 sm:pb-20">
+        <section className="rounded-lg border border-slate-200 bg-[#edf4f6] p-3.5 sm:p-4" aria-labelledby="mapping-step-source">
+          <div className="flex items-center gap-3 border-b border-slate-200/80 pb-2.5">
+            <span className="grid h-7 w-7 place-items-center rounded-md border border-brand-100 bg-brand-50 text-xs font-semibold text-brand-700">1</span>
             <div>
               <h4 id="mapping-step-source" className="text-sm font-semibold text-ink">Vælg regneark og kontrollér overskriftsrækken</h4>
               <p className="mt-0.5 text-xs text-slate-500">Vi har fundet den mest sandsynlige overskriftsrække i hvert ark.</p>
             </div>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
+          <div className="mt-3 grid gap-2.5 sm:grid-cols-[minmax(0,1fr)_220px]">
             <label className="block text-xs font-semibold text-slate-600">
               Regneark
               <span className="relative mt-1.5 block">
                 <select
                   value={selectedSheet}
                   onChange={(event) => onSheetChange(event.target.value)}
-                  className="h-11 w-full appearance-none rounded-md border border-slate-200 bg-slate-50 py-2 pl-3 pr-9 text-sm font-semibold text-ink outline-none transition hover:border-brand-200 hover:bg-white focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100"
+                  className="h-10 w-full appearance-none rounded-md border border-slate-200 bg-slate-50 py-1.5 pl-3 pr-9 text-sm font-semibold text-ink outline-none transition hover:border-brand-200 hover:bg-white focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100"
                 >
                   {analysis.candidates.map((sheet) => (
                     <option key={sheet.name} value={sheet.name}>
@@ -1509,7 +1508,7 @@ function ManualMappingPanel({
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
               </span>
             </label>
-            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5">
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Overskriftsrække</p>
               <p className="mt-1 text-sm font-semibold text-ink">Række {candidate.headerIndex + 1}</p>
               <p className="mt-0.5 text-[11px] text-slate-500">Fundet automatisk</p>
@@ -1517,15 +1516,15 @@ function ManualMappingPanel({
           </div>
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(16,32,51,0.04)] sm:p-5" aria-labelledby="mapping-step-required">
-          <div className="flex items-center gap-3 border-b border-slate-100 pb-3.5">
-            <span className="grid h-8 w-8 place-items-center rounded-md border border-brand-100 bg-brand-50 text-xs font-semibold text-brand-700">2</span>
+        <section className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-[0_8px_24px_rgba(16,32,51,0.04)] sm:p-4" aria-labelledby="mapping-step-required">
+          <div className="flex items-center gap-3 border-b border-slate-100 pb-2.5">
+            <span className="grid h-7 w-7 place-items-center rounded-md border border-brand-100 bg-brand-50 text-xs font-semibold text-brand-700">2</span>
             <div>
               <h4 id="mapping-step-required" className="text-sm font-semibold text-ink">Match nødvendige kolonner</h4>
               <p className="mt-0.5 text-xs text-slate-500">Alle fem områder skal være dækket, før dashboardet kan oprettes.</p>
             </div>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div className="mt-3 grid gap-2.5 md:grid-cols-2">
             {requiredMappingFields.map((field) => (
               <MappingFieldSelect
                 key={field.key}
@@ -1540,24 +1539,21 @@ function ManualMappingPanel({
           </div>
         </section>
 
-        <details className="group rounded-lg border border-slate-200 bg-[#eef3f5] p-4 sm:p-5" open={!requiredMappingsValid ? true : undefined}>
+        <details className="group rounded-lg border border-slate-200 bg-[#eef3f5] p-3.5 sm:p-4" open={!requiredMappingsValid ? true : undefined}>
           <summary className="flex cursor-pointer list-none flex-col items-stretch justify-between gap-3 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-100 sm:flex-row sm:items-center sm:gap-4">
             <span className="flex min-w-0 items-center gap-3">
-              <span className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-700">3</span>
+              <span className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-700">3</span>
               <span>
                 <span className="block text-sm font-semibold text-ink">Match valgfrie kolonner</span>
                 <span className="mt-0.5 block text-xs text-slate-500">Tilføj flere dimensioner og økonomiske nøgletal, hvis de findes.</span>
               </span>
             </span>
-            <span className="flex w-full shrink-0 items-center justify-between gap-3 border-t border-slate-200/80 pt-3 text-left text-[11px] font-medium text-slate-500 sm:w-auto sm:justify-start sm:border-0 sm:pt-0 sm:text-right">
-              <span>
-                <span className="block font-semibold text-slate-700">{optionalMatchedCount} valgfrie felter matchet</span>
-                <span className="block">{optionalMappingFields.length - optionalMatchedCount} {optionalMappingFields.length - optionalMatchedCount === 1 ? "felt" : "felter"} ikke tilknyttet</span>
-              </span>
+            <span className="flex w-full shrink-0 items-center justify-between gap-3 border-t border-slate-200/80 pt-3 text-left text-[11px] font-medium text-slate-600 sm:w-auto sm:justify-start sm:border-0 sm:pt-0 sm:text-right">
+              <span className="font-semibold">{optionalMatchedCount} valgfrie felter matchet · {optionalMappingFields.length - optionalMatchedCount} ikke tilknyttet</span>
               <ChevronDown className="h-4 w-4 transition group-open:rotate-180" aria-hidden="true" />
             </span>
           </summary>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
             {optionalMappingFields.map((field) => (
               <MappingFieldSelect
                 key={field.key}
@@ -1572,16 +1568,16 @@ function ManualMappingPanel({
           </div>
         </details>
 
-        <section className="rounded-lg border border-brand-100 bg-[#edf7f7] p-4 sm:p-5" aria-labelledby="mapping-step-review">
-          <div className="flex items-center gap-3 border-b border-brand-100/80 pb-3.5">
-            <span className="grid h-8 w-8 place-items-center rounded-md border border-brand-200 bg-white text-xs font-semibold text-brand-700">4</span>
+        <section className="rounded-lg border border-brand-100 bg-[#edf7f7] p-3.5 sm:p-4" aria-labelledby="mapping-step-review">
+          <div className="flex items-center gap-3 border-b border-brand-100/80 pb-2.5">
+            <span className="grid h-7 w-7 place-items-center rounded-md border border-brand-200 bg-white text-xs font-semibold text-brand-700">4</span>
             <div>
               <h4 id="mapping-step-review" className="text-sm font-semibold text-ink">Kontrollér og fortsæt</h4>
               <p className="mt-0.5 text-xs text-slate-500">Se opsætningen igennem, før dashboardet opdateres.</p>
             </div>
           </div>
 
-          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
             {[
               ["Regneark", candidate.name],
               ["Overskriftsrække", number(candidate.headerIndex + 1)],
@@ -1589,22 +1585,22 @@ function ManualMappingPanel({
               ["Nødvendige", `${requiredMappingFields.length - missingRequiredFields.length}/${requiredMappingFields.length}`],
               ["Valgfrie", number(optionalMatchedCount)],
             ].map(([label, value]) => (
-              <div key={label} className="rounded-md border border-brand-100 bg-white/85 px-3 py-2.5 shadow-[0_3px_10px_rgba(16,32,51,0.025)]">
+              <div key={label} className="rounded-md border border-brand-100 bg-white/85 px-2.5 py-2 shadow-[0_3px_10px_rgba(16,32,51,0.025)]">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">{label}</p>
-                <p className="mt-1 truncate text-sm font-semibold text-ink" title={value}>{value}</p>
+                <p className="mt-0.5 truncate text-sm font-semibold text-ink" title={value}>{value}</p>
               </div>
             ))}
           </div>
 
           {invalidItems.length ? (
-            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
+            <div className="mt-2.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
               <p className="font-semibold">Kontrollér følgende, før du fortsætter:</p>
               <ul className="mt-1 list-disc space-y-0.5 pl-4">
                 {invalidItems.map((item) => <li key={item}>{item}</li>)}
               </ul>
             </div>
           ) : (
-            <div className="mt-3 inline-flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+            <div className="mt-2.5 inline-flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
               <Check className="h-4 w-4" aria-hidden="true" />
               Opsætningen er klar til at blive anvendt på dashboardet.
             </div>
@@ -1612,22 +1608,34 @@ function ManualMappingPanel({
         </section>
       </div>
 
-      <div className="sticky bottom-0 z-20 flex flex-col-reverse gap-3 rounded-b-lg border-t border-slate-200 bg-[#f8fbfc]/95 px-5 py-4 shadow-[0_-10px_24px_rgba(16,32,51,0.065)] backdrop-blur-sm sm:flex-row sm:items-center sm:justify-end sm:px-7">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-ink focus:outline-none focus:ring-2 focus:ring-brand-100"
-        >
-          Annuller
-        </button>
-        <button
-          type="button"
-          onClick={onApply}
-          disabled={!canApply}
-          className="inline-flex min-h-11 items-center justify-center rounded-md bg-ink px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-200 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none"
-        >
-          Anvend og fortsæt til dashboard
-        </button>
+      <div className="sticky bottom-0 z-20 flex flex-col gap-2.5 rounded-b-lg border-t border-slate-200 bg-[#f8fbfc]/95 px-4 py-3 shadow-[0_-10px_24px_rgba(16,32,51,0.065)] backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-slate-600">
+          <span className="inline-flex items-center gap-1.5">
+            {canApply ? <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" /> : <Info className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />}
+            {requiredMappingFields.length - missingRequiredFields.length}/{requiredMappingFields.length} nødvendige felter matchet
+          </span>
+          <span className="hidden text-slate-300 sm:inline" aria-hidden="true">·</span>
+          <span className={canApply ? "font-semibold text-emerald-700" : "text-slate-500"}>
+            {canApply ? "Klar til dashboard" : statusText}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:flex">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="inline-flex min-h-10 items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-ink focus:outline-none focus:ring-2 focus:ring-brand-100 sm:text-sm"
+          >
+            Annuller
+          </button>
+          <button
+            type="button"
+            onClick={onApply}
+            disabled={!canApply}
+            className="inline-flex min-h-10 items-center justify-center rounded-md bg-ink px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-200 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none sm:px-5 sm:text-sm"
+          >
+            Anvend og fortsæt til dashboard
+          </button>
+        </div>
       </div>
     </section>
   );
