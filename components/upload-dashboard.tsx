@@ -423,6 +423,33 @@ function number(value: number) {
   return new Intl.NumberFormat("da-DK").format(value);
 }
 
+function paddedChartDomain(values: number[]): [number, number] {
+  if (!values.length) {
+    return [0, 1];
+  }
+
+  const minimum = Math.min(...values);
+  const maximum = Math.max(...values);
+  const spread = maximum - minimum;
+  const padding = spread > 0 ? spread * 0.12 : Math.max(Math.abs(maximum) * 0.1, 1);
+  const rawMinimum = minimum - padding;
+  const rawMaximum = maximum + padding;
+  const targetStep = Math.max((rawMaximum - rawMinimum) / 4, 1);
+  const magnitude = 10 ** Math.floor(Math.log10(targetStep));
+  const normalizedStep = targetStep / magnitude;
+  const niceStep = (normalizedStep <= 1 ? 1 : normalizedStep <= 2 ? 2 : normalizedStep <= 5 ? 5 : 10) * magnitude;
+  const domainMinimum = minimum >= 0
+    ? Math.max(0, Math.floor(rawMinimum / niceStep) * niceStep)
+    : Math.floor(rawMinimum / niceStep) * niceStep;
+  const domainMaximum = maximum <= 0
+    ? Math.min(0, Math.ceil(rawMaximum / niceStep) * niceStep)
+    : Math.ceil(rawMaximum / niceStep) * niceStep;
+
+  return domainMinimum === domainMaximum
+    ? [domainMinimum - niceStep, domainMaximum + niceStep]
+    : [domainMinimum, domainMaximum];
+}
+
 function getCell(row: Record<string, unknown>, mappings: FieldMappings, field: FieldKey) {
   const header = mappings[field];
   return header ? row[header] : undefined;
@@ -1803,13 +1830,13 @@ function MonthlyReportCard({
             <h2 className="mt-0.5 text-base font-semibold text-ink">Månedsrapport</h2>
           </div>
         </div>
-        <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+        <label className="flex flex-col items-start gap-1 text-xs font-semibold text-slate-500">
           <span>Rapportmåned</span>
-          <span className="relative block">
+          <span className="relative block min-w-[128px]">
             <select
               value={reportMonth}
               onChange={(event) => onMonthChange(event.target.value)}
-              className="appearance-none rounded-md border border-slate-200 bg-white py-2 pl-3 pr-8 text-xs font-semibold text-ink shadow-sm outline-none transition hover:border-brand-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              className="w-full min-w-[128px] appearance-none rounded-md border border-slate-200 bg-white py-2 pl-3 pr-8 text-xs font-semibold text-ink shadow-sm outline-none transition hover:border-brand-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             >
               {monthOptions.map((month) => (
                 <option key={month} value={month}>
@@ -1822,7 +1849,7 @@ function MonthlyReportCard({
         </label>
       </div>
 
-      <div className="grid sm:grid-cols-3">
+      <div className="grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(130px,1.2fr)]">
         {[
           ["Omsætning", currency(reportMetrics.totalRevenue)],
           [resultLabel, resultValue],
@@ -1831,7 +1858,7 @@ function MonthlyReportCard({
           <div key={label} className={`px-4 py-4 sm:px-5 ${index ? "border-t border-slate-100 sm:border-l sm:border-t-0" : ""}`}>
             <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">{label}</p>
             <p
-              className={`mt-2 text-xl font-semibold text-ink ${hasBudget && label === "Budgetstatus" ? `inline-flex rounded-md px-2.5 py-1.5 text-xs ${budgetStatusClasses}` : ""}`}
+              className={`mt-2 text-xl font-semibold text-ink ${hasBudget && label === "Budgetstatus" ? `inline-flex whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs ${budgetStatusClasses}` : ""}`}
             >
               {value}
             </p>
@@ -1989,6 +2016,10 @@ export default function UploadDashboard() {
   const executiveSummary = useMemo(
     () => buildExecutiveSummary(metrics, data?.feedback, { totalRows: allRows.length, activeFilters: activeFilterLabels }),
     [activeFilterLabels, allRows.length, data?.feedback, metrics],
+  );
+  const revenueChartDomain = useMemo(
+    () => paddedChartDomain(metrics.monthly.map((month) => month.revenue)),
+    [metrics.monthly],
   );
   const hasData = allRows.length > 0;
   const hasFilteredData = metrics.rowCount > 0;
@@ -2486,7 +2517,16 @@ export default function UploadDashboard() {
                         </defs>
                         <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" vertical={false} />
                         <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={chartAxisTick} dy={8} />
-                        <YAxis tickLine={false} axisLine={false} fontSize={12} tick={chartAxisTick} width={56} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
+                        <YAxis
+                          domain={revenueChartDomain}
+                          tickCount={5}
+                          tickLine={false}
+                          axisLine={false}
+                          fontSize={12}
+                          tick={chartAxisTick}
+                          width={56}
+                          tickFormatter={(value) => `${number(value / 1000)} t.kr.`}
+                        />
                         <Tooltip contentStyle={chartTooltipStyle} formatter={(value: number) => currency(value)} />
                         <Area
                           type="monotone"
@@ -2530,9 +2570,9 @@ export default function UploadDashboard() {
                     </span>
                   </div>
 
-                  <ul className="mt-5 space-y-3.5">
+                  <ul className="mt-5 space-y-4">
                     {executiveSummary.insights.map((insight, index) => (
-                      <li key={insight} className="grid grid-cols-[22px_1fr] gap-3 text-xs leading-5 text-slate-200">
+                      <li key={insight} className="grid grid-cols-[22px_1fr] gap-3 text-xs leading-6 text-slate-200">
                         <span className="text-[10px] font-semibold text-cyan-300">0{index + 1}</span>
                         <span>{insight}</span>
                       </li>
