@@ -18,11 +18,13 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   RotateCcw,
+  Search,
   Sparkles,
   Target,
   TrendingUp,
   Upload,
   WalletCards,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -31,12 +33,13 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { ChangeEvent, useMemo, useState } from "react";
+import { ChangeEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 
 type SaleRow = {
   date: Date | null;
@@ -78,7 +81,13 @@ type BudgetSummary = {
 };
 
 type DashboardFilterKey = "month" | "product" | "category" | "channel" | "region";
-type DashboardFilters = Record<DashboardFilterKey, string>;
+type DashboardFilters = Record<DashboardFilterKey, string[]>;
+
+type ActiveFilter = {
+  field: DashboardFilterKey;
+  label: string;
+  value: string;
+};
 
 type MappingStatus = "success" | "warning" | "manual";
 
@@ -157,11 +166,19 @@ const emptyManualMappings: ManualMappings = {
 };
 
 const emptyDashboardFilters: DashboardFilters = {
-  month: "",
-  product: "",
-  category: "",
-  channel: "",
-  region: "",
+  month: [],
+  product: [],
+  category: [],
+  channel: [],
+  region: [],
+};
+
+const dashboardFilterLabels: Record<DashboardFilterKey, string> = {
+  month: "Måned",
+  product: "Produkt",
+  category: "Kategori",
+  channel: "Kanal",
+  region: "Region",
 };
 
 const dashboardCardClass =
@@ -806,14 +823,16 @@ function uniqueValues(rows: SaleRow[], field: DashboardFilterKey) {
 
 function applyDashboardFilters(rows: SaleRow[], filters: DashboardFilters, ignoredField?: DashboardFilterKey) {
   return rows.filter((row) =>
-    (Object.entries(filters) as Array<[DashboardFilterKey, string]>).every(
-      ([field, value]) => !value || field === ignoredField || row[field] === value,
+    (Object.entries(filters) as Array<[DashboardFilterKey, string[]]>).every(
+      ([field, values]) => !values.length || field === ignoredField || values.includes(row[field]),
     ),
   );
 }
 
-function getActiveFilterLabels(filters: DashboardFilters) {
-  return Object.values(filters).filter(Boolean);
+function getActiveFilters(filters: DashboardFilters): ActiveFilter[] {
+  return (Object.entries(filters) as Array<[DashboardFilterKey, string[]]>).flatMap(([field, values]) =>
+    values.map((value) => ({ field, label: dashboardFilterLabels[field], value })),
+  );
 }
 
 function groupRowsByMonth(rows: SaleRow[]) {
@@ -1668,25 +1687,106 @@ function ManualMappingPanel({
   );
 }
 
+type MonthFilterOption = {
+  value: string;
+  label: string;
+  year: string;
+  sortKey: number;
+};
+
+function getMonthFilterOptions(rows: SaleRow[]): MonthFilterOption[] {
+  const options = new Map<string, MonthFilterOption>();
+
+  rows.forEach((row, index) => {
+    if (options.has(row.month)) {
+      return;
+    }
+
+    if (row.date) {
+      const monthName = new Intl.DateTimeFormat("da-DK", { month: "short" })
+        .format(row.date)
+        .replace(".", "");
+      options.set(row.month, {
+        value: row.month,
+        label: monthName.charAt(0).toUpperCase() + monthName.slice(1),
+        year: String(row.date.getFullYear()),
+        sortKey: new Date(row.date.getFullYear(), row.date.getMonth(), 1).getTime(),
+      });
+      return;
+    }
+
+    const yearMatch = row.month.match(/\b(?:19|20)\d{2}\b/);
+    const year = yearMatch?.[0] ?? "Perioder";
+    const label = row.month.replace(year, "").replace(/[.,\s]+$/g, "").trim() || row.month;
+    options.set(row.month, {
+      value: row.month,
+      label: label.charAt(0).toUpperCase() + label.slice(1),
+      year,
+      sortKey: index,
+    });
+  });
+
+  return Array.from(options.values()).sort((a, b) => a.sortKey - b.sortKey || a.value.localeCompare(b.value));
+}
+
+function FilterAccordion({
+  label,
+  selectedCount,
+  isOpen,
+  onToggle,
+  children,
+}: {
+  label: string;
+  selectedCount: number;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <section className="border-t border-slate-100">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-3 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-brand-100"
+        aria-expanded={isOpen}
+      >
+        <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-600">{label}</span>
+        <span className="flex items-center gap-2">
+          {selectedCount ? (
+            <span className="rounded-md bg-brand-50 px-2 py-1 text-[10px] font-semibold text-brand-700">
+              {selectedCount} valgt
+            </span>
+          ) : null}
+          <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+        </span>
+      </button>
+      {isOpen ? <div className="pb-3">{children}</div> : null}
+    </section>
+  );
+}
+
 function AnalysisFilterPanel({
   rows,
   filteredRowCount,
   filters,
   isOpen,
   onToggle,
-  onChange,
+  onToggleValue,
+  onClearField,
   onReset,
+  onCollapseSidebar,
 }: {
   rows: SaleRow[];
   filteredRowCount: number;
   filters: DashboardFilters;
   isOpen: boolean;
   onToggle: () => void;
-  onChange: (field: DashboardFilterKey, value: string) => void;
+  onToggleValue: (field: DashboardFilterKey, value: string) => void;
+  onClearField: (field: DashboardFilterKey) => void;
   onReset: () => void;
+  onCollapseSidebar: () => void;
 }) {
-  const slicerDefinitions: Array<{ field: Exclude<DashboardFilterKey, "product">; label: string }> = [
-    { field: "month", label: "Måned" },
+  const slicerDefinitions: Array<{ field: "category" | "channel" | "region"; label: string }> = [
     { field: "category", label: "Kategori" },
     { field: "channel", label: "Kanal" },
     { field: "region", label: "Region" },
@@ -1694,35 +1794,100 @@ function AnalysisFilterPanel({
   const slicers = slicerDefinitions
     .map((definition) => ({ ...definition, options: uniqueValues(rows, definition.field) }))
     .filter((definition) => definition.options.length > 0);
+  const monthOptions = useMemo(() => getMonthFilterOptions(rows), [rows]);
+  const years = useMemo(() => Array.from(new Set(monthOptions.map((option) => option.year))), [monthOptions]);
   const productOptions = uniqueValues(rows, "product");
-  const activeFilters = getActiveFilterLabels(filters);
+  const activeFilters = getActiveFilters(filters);
+  const [selectedYear, setSelectedYear] = useState(() => years.at(-1) ?? "");
+  const [productSearch, setProductSearch] = useState("");
+  const [openSections, setOpenSections] = useState<Record<DashboardFilterKey, boolean>>({
+    month: true,
+    category: true,
+    product: false,
+    channel: false,
+    region: false,
+  });
+  const activeMonthYear = monthOptions.find((option) => filters.month.includes(option.value))?.year;
+  const visibleYear = activeMonthYear ?? (years.includes(selectedYear) ? selectedYear : years.at(-1) ?? "");
+  const visibleMonths = monthOptions.filter((option) => option.year === visibleYear);
+  const normalizedProductSearch = productSearch.trim().toLocaleLowerCase("da-DK");
+  const matchingProducts = productOptions
+    .filter((product) => !normalizedProductSearch || product.toLocaleLowerCase("da-DK").includes(normalizedProductSearch))
+    .slice(0, 6);
+
+  useEffect(() => {
+    if (activeMonthYear) {
+      setSelectedYear(activeMonthYear);
+    } else if (!years.includes(selectedYear)) {
+      setSelectedYear(years.at(-1) ?? "");
+    }
+  }, [activeMonthYear, selectedYear, years]);
+
+  function isSectionOpen(field: DashboardFilterKey) {
+    return filters[field].length > 0 || openSections[field];
+  }
+
+  function toggleSection(field: DashboardFilterKey) {
+    if (filters[field].length) {
+      return;
+    }
+    setOpenSections((current) => ({ ...current, [field]: !current[field] }));
+  }
+
+  function toggleValue(field: DashboardFilterKey, value: string) {
+    setOpenSections((current) => ({ ...current, [field]: true }));
+    onToggleValue(field, value);
+  }
+
+  function clearField(field: DashboardFilterKey) {
+    setOpenSections((current) => ({ ...current, [field]: true }));
+    onClearField(field);
+  }
 
   return (
-    <section className={`relative ${dashboardUtilityCardClass}`}>
+    <section className={`relative overflow-visible ${dashboardUtilityCardClass}`}>
       <span className="absolute inset-x-0 top-0 h-0.5 bg-brand-500" aria-hidden="true" />
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center justify-between gap-3 px-3.5 pb-3 pt-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-200 lg:cursor-default"
-        aria-expanded={isOpen}
-        aria-controls="analysis-filter-controls"
-      >
-        <span className="flex min-w-0 items-center gap-2.5">
-          <span className={dashboardIconClass}>
-            <Filter className="h-4 w-4" aria-hidden="true" />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-sm font-semibold text-ink">Analysefiltre</span>
-            <span className="block text-[11px] text-slate-500">
-              {activeFilters.length ? `${activeFilters.length} aktive valg` : "Alle salgsdata"}
+      <div className="sticky top-0 z-10 rounded-t-lg bg-white px-3.5 pb-3 pt-4">
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={onToggle}
+            className="flex min-w-0 flex-1 items-center gap-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-brand-200 lg:cursor-default"
+            aria-expanded={isOpen}
+            aria-controls="analysis-filter-controls"
+          >
+            <span className={dashboardIconClass}>
+              <Filter className="h-4 w-4" aria-hidden="true" />
             </span>
-          </span>
-        </span>
-        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition lg:hidden ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
-      </button>
-
-      <div id="analysis-filter-controls" className={`${isOpen ? "block" : "hidden"} lg:block`}>
-        <div className="mx-3.5 flex items-center justify-between border-y border-slate-100 py-2.5 text-[11px] text-slate-500">
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-ink">Analysefiltre</span>
+              <span className="block text-[11px] text-slate-500">
+                {activeFilters.length ? `${activeFilters.length} aktive valg` : "Alle salgsdata"}
+              </span>
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={onReset}
+            disabled={!activeFilters.length}
+            className="inline-flex h-8 items-center justify-center gap-1 rounded-md px-2 text-[11px] font-semibold text-slate-500 transition hover:bg-brand-50 hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
+            title="Nulstil filtre"
+          >
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="hidden xl:inline">Nulstil</span>
+          </button>
+          <button
+            type="button"
+            onClick={onCollapseSidebar}
+            className="hidden h-8 w-8 place-items-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-ink focus:outline-none focus:ring-2 focus:ring-brand-100 lg:grid"
+            aria-label="Skjul analysefiltre"
+            title="Skjul analysefiltre"
+          >
+            <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition lg:hidden ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+        </div>
+        <div className="mt-3 flex items-center justify-between border-y border-slate-100 py-2.5 text-[11px] text-slate-500">
           <span>
             Viser <strong className="font-semibold text-ink">{number(filteredRowCount)}</strong> af {number(rows.length)}
           </span>
@@ -1730,21 +1895,162 @@ function AnalysisFilterPanel({
             {activeFilters.length ? "Filtreret" : "Alle rækker"}
           </span>
         </div>
+      </div>
 
-        <div className="space-y-4 p-3.5">
-          {slicers.map((slicer) => (
-            <fieldset key={slicer.field} className="min-w-0">
-              <legend className="mb-2 flex w-full items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
-                <span>{slicer.label}</span>
-                {filters[slicer.field] ? <span className="normal-case tracking-normal text-brand-700">1 valgt</span> : null}
-              </legend>
-              <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto pr-1 [scrollbar-width:thin]">
+      <div id="analysis-filter-controls" className={`${isOpen ? "block" : "hidden"} lg:block`}>
+        <div className="flex flex-col px-3.5 pb-1">
+          {monthOptions.length ? (
+            <div className="order-1">
+              <FilterAccordion
+                label="Måned"
+                selectedCount={filters.month.length}
+                isOpen={isSectionOpen("month")}
+                onToggle={() => toggleSection("month")}
+              >
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-[11px] font-medium text-slate-500">År</span>
+                {years.length > 1 ? (
+                  <span className="relative block min-w-24">
+                    <select
+                      value={visibleYear}
+                      onChange={(event) => setSelectedYear(event.target.value)}
+                      className="h-8 w-full appearance-none rounded-md border border-slate-200 bg-slate-50 py-1 pl-2.5 pr-7 text-[11px] font-semibold text-ink outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                    >
+                      {years.map((year) => <option key={year} value={year}>{year}</option>)}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                  </span>
+                ) : (
+                  <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">{visibleYear}</span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
                 <button
                   type="button"
-                  onClick={() => onChange(slicer.field, "")}
-                  aria-pressed={!filters[slicer.field]}
+                  onClick={() => clearField("month")}
+                  aria-pressed={!filters.month.length}
                   className={`min-h-8 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition focus:outline-none focus:ring-2 focus:ring-brand-100 ${
-                    !filters[slicer.field]
+                    !filters.month.length
+                      ? "border-brand-600 bg-brand-600 text-white shadow-sm"
+                      : "border-slate-200 bg-slate-50 text-slate-600 hover:border-brand-200 hover:bg-brand-50/60 hover:text-brand-700"
+                  }`}
+                >
+                  Alle
+                </button>
+                {visibleMonths.map((month) => (
+                  <button
+                    key={month.value}
+                    type="button"
+                    onClick={() => toggleValue("month", month.value)}
+                    aria-pressed={filters.month.includes(month.value)}
+                    className={`min-h-8 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition focus:outline-none focus:ring-2 focus:ring-brand-100 ${
+                      filters.month.includes(month.value)
+                        ? "border-brand-600 bg-brand-600 text-white shadow-sm"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-brand-200 hover:bg-brand-50/60 hover:text-brand-700"
+                    }`}
+                    title={month.value}
+                  >
+                    {month.label}
+                  </button>
+                ))}
+              </div>
+              </FilterAccordion>
+            </div>
+          ) : null}
+
+          {productOptions.length ? (
+            <div className="order-3">
+              <FilterAccordion
+                label="Produkt"
+                selectedCount={filters.product.length}
+                isOpen={isSectionOpen("product")}
+                onToggle={() => toggleSection("product")}
+              >
+              <label className="relative block">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <input
+                  type="search"
+                  value={productSearch}
+                  onChange={(event) => setProductSearch(event.target.value)}
+                  placeholder="Søg efter produkt"
+                  className="h-9 w-full rounded-md border border-slate-200 bg-slate-50 pl-8 pr-3 text-xs font-medium text-ink outline-none transition focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100"
+                />
+              </label>
+              {filters.product.length ? (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {filters.product.map((product) => (
+                    <button
+                      key={product}
+                      type="button"
+                      onClick={() => toggleValue("product", product)}
+                      className="inline-flex max-w-full items-center gap-1 rounded-md border border-brand-200 bg-brand-50 px-2 py-1 text-[10px] font-semibold text-brand-700"
+                      title={`Fjern ${product}`}
+                    >
+                      <span className="truncate">{product}</span>
+                      <X className="h-3 w-3 shrink-0" aria-hidden="true" />
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              <div className="mt-2 grid gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => clearField("product")}
+                  className={`min-h-8 rounded-md border px-2.5 text-left text-[11px] font-semibold transition ${
+                    !filters.product.length
+                      ? "border-brand-600 bg-brand-600 text-white"
+                      : "border-slate-200 bg-slate-50 text-slate-600 hover:border-brand-200 hover:text-brand-700"
+                  }`}
+                >
+                  Alle produkter
+                </button>
+                {matchingProducts.map((product) => {
+                  const isActive = filters.product.includes(product);
+                  return (
+                    <button
+                      key={product}
+                      type="button"
+                      onClick={() => toggleValue("product", product)}
+                      aria-pressed={isActive}
+                      className={`min-h-8 truncate rounded-md border px-2.5 text-left text-[11px] font-semibold transition ${
+                        isActive
+                          ? "border-brand-600 bg-brand-600 text-white"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-brand-200 hover:bg-brand-50/60 hover:text-brand-700"
+                      }`}
+                      title={product}
+                    >
+                      {product}
+                    </button>
+                  );
+                })}
+              </div>
+              {productOptions.length > matchingProducts.length ? (
+                <p className="mt-2 text-[10px] leading-4 text-slate-500">
+                  Viser {matchingProducts.length} af {productOptions.length}. Søg for at finde flere.
+                </p>
+              ) : null}
+              </FilterAccordion>
+            </div>
+          ) : null}
+
+          {slicers.map((slicer) => (
+            <div
+              key={slicer.field}
+              className={slicer.field === "category" ? "order-2" : slicer.field === "channel" ? "order-4" : "order-5"}
+            >
+              <FilterAccordion
+                label={slicer.label}
+                selectedCount={filters[slicer.field].length}
+                isOpen={isSectionOpen(slicer.field)}
+                onToggle={() => toggleSection(slicer.field)}
+              >
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => clearField(slicer.field)}
+                  aria-pressed={!filters[slicer.field].length}
+                  className={`min-h-8 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition ${
+                    !filters[slicer.field].length
                       ? "border-brand-600 bg-brand-600 text-white shadow-sm"
                       : "border-slate-200 bg-slate-50 text-slate-600 hover:border-brand-200 hover:bg-brand-50/60 hover:text-brand-700"
                   }`}
@@ -1752,15 +2058,14 @@ function AnalysisFilterPanel({
                   Alle
                 </button>
                 {slicer.options.map((option) => {
-                  const isActive = filters[slicer.field] === option;
-
+                  const isActive = filters[slicer.field].includes(option);
                   return (
                     <button
                       key={option}
                       type="button"
-                      onClick={() => onChange(slicer.field, isActive ? "" : option)}
+                      onClick={() => toggleValue(slicer.field, option)}
                       aria-pressed={isActive}
-                      className={`min-h-8 max-w-full truncate rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition focus:outline-none focus:ring-2 focus:ring-brand-100 ${
+                      className={`min-h-8 max-w-full truncate rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition ${
                         isActive
                           ? "border-brand-600 bg-brand-600 text-white shadow-sm"
                           : "border-slate-200 bg-white text-slate-600 hover:border-brand-200 hover:bg-brand-50/60 hover:text-brand-700"
@@ -1772,41 +2077,9 @@ function AnalysisFilterPanel({
                   );
                 })}
               </div>
-            </fieldset>
+              </FilterAccordion>
+            </div>
           ))}
-
-          {productOptions.length ? (
-            <label className="block border-t border-slate-100 pt-4 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
-              Produkt
-              <span className="relative mt-2 block">
-                <select
-                  value={filters.product}
-                  onChange={(event) => onChange("product", event.target.value)}
-                  className={`h-10 w-full appearance-none rounded-md border py-2 pl-3 pr-8 text-xs font-semibold outline-none transition focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100 ${
-                    filters.product
-                      ? "border-brand-200 bg-brand-50/70 text-brand-800"
-                      : "border-slate-200 bg-slate-50 text-ink hover:border-brand-200 hover:bg-white"
-                  }`}
-                >
-                  <option value="">Alle produkter</option>
-                  {productOptions.map((product) => (
-                    <option key={product} value={product}>{product}</option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-              </span>
-            </label>
-          ) : null}
-
-          <button
-            type="button"
-            onClick={onReset}
-            disabled={!activeFilters.length}
-            className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:border-brand-200 hover:bg-brand-50/60 hover:text-brand-700 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 disabled:opacity-60"
-          >
-            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-            Nulstil filtre
-          </button>
         </div>
       </div>
     </section>
@@ -1831,7 +2104,7 @@ function MonthlyReportCard({
   const monthOptions = uniqueValues(rows, "month");
   const reportMonth = monthOptions.includes(selectedMonth)
     ? selectedMonth
-    : filters.month || (preferredMonth && monthOptions.includes(preferredMonth) ? preferredMonth : monthOptions.at(-1) ?? "");
+    : filters.month[0] || (preferredMonth && monthOptions.includes(preferredMonth) ? preferredMonth : monthOptions.at(-1) ?? "");
   const rowsWithoutMonthFilter = applyDashboardFilters(rows, filters, "month");
   const reportRows = rowsWithoutMonthFilter.filter((row) => row.month === reportMonth);
   const allRowsForMonth = rows.filter((row) => row.month === reportMonth);
@@ -2049,9 +2322,11 @@ export default function UploadDashboard() {
   const [reportMonth, setReportMonth] = useState("");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+  const [isAnalysisSidebarCollapsed, setIsAnalysisSidebarCollapsed] = useState(false);
 
   const allRows = useMemo(() => data?.rows ?? [], [data?.rows]);
-  const activeFilterLabels = useMemo(() => getActiveFilterLabels(filters), [filters]);
+  const activeFilters = useMemo(() => getActiveFilters(filters), [filters]);
+  const activeFilterLabels = useMemo(() => activeFilters.map((filter) => filter.value), [activeFilters]);
   const isFiltered = activeFilterLabels.length > 0;
   const filteredRows = useMemo(() => applyDashboardFilters(allRows, filters), [allRows, filters]);
   const budgetScale = allRows.length && isFiltered ? filteredRows.length / allRows.length : 1;
@@ -2115,10 +2390,38 @@ export default function UploadDashboard() {
       : []),
   ];
 
+  useEffect(() => {
+    setIsAnalysisSidebarCollapsed(window.localStorage.getItem("databrief-analysis-sidebar") === "collapsed");
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("databrief-analysis-sidebar", isAnalysisSidebarCollapsed ? "collapsed" : "open");
+  }, [isAnalysisSidebarCollapsed]);
+
   function resetDashboardView() {
     setFilters(emptyDashboardFilters);
     setReportMonth("");
     setIsFilterPanelOpen(false);
+  }
+
+  function toggleDashboardFilter(field: DashboardFilterKey, value: string) {
+    setFilters((current) => {
+      if (field === "month") {
+        return { ...current, month: current.month.includes(value) ? [] : [value] };
+      }
+
+      const isSelected = current[field].includes(value);
+      return {
+        ...current,
+        [field]: isSelected
+          ? current[field].filter((selected) => selected !== value)
+          : [...current[field], value],
+      };
+    });
+  }
+
+  function clearDashboardFilter(field: DashboardFilterKey) {
+    setFilters((current) => ({ ...current, [field]: [] }));
   }
 
   function selectSheet(sheetName: string, workbookAnalysis = analysis) {
@@ -2406,34 +2709,58 @@ export default function UploadDashboard() {
       <section
         className={`mx-auto grid max-w-[1600px] gap-6 px-4 py-6 transition-[grid-template-columns] duration-200 sm:px-6 lg:px-8 lg:py-8 ${
           showAnalysisFilters
-            ? "lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[248px_minmax(0,1fr)]"
+            ? isAnalysisSidebarCollapsed
+              ? "lg:grid-cols-[56px_minmax(0,1fr)]"
+              : "lg:grid-cols-[244px_minmax(0,1fr)] xl:grid-cols-[272px_minmax(0,1fr)]"
             : isSidebarCollapsed
               ? "lg:grid-cols-[56px_minmax(0,1fr)]"
               : "lg:grid-cols-[184px_minmax(0,1fr)]"
         }`}
       >
-        <aside className="self-start space-y-4 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto lg:pr-1 [scrollbar-width:thin]">
-          <WorkbookSidebar
-            isCollapsed={isSidebarCollapsed}
-            isLoading={isLoading}
-            error={shouldShowManualMapping ? "" : error}
-            onCollapse={() => setIsSidebarCollapsed(true)}
-            onExpand={() => setIsSidebarCollapsed(false)}
-            onFileChange={handleFileChange}
-            onDownloadSample={downloadSampleExcel}
-            onLoadDemo={loadDemoDataset}
-          />
-
-          {showAnalysisFilters ? (
-            <AnalysisFilterPanel
-              rows={allRows}
-              filteredRowCount={metrics.rowCount}
-              filters={filters}
-              isOpen={isFilterPanelOpen}
-              onToggle={() => setIsFilterPanelOpen((current) => !current)}
-              onChange={(field, value) => setFilters((current) => ({ ...current, [field]: value }))}
-              onReset={() => setFilters(emptyDashboardFilters)}
+        <aside className="self-start">
+          <div className={`space-y-4 ${showAnalysisFilters && isAnalysisSidebarCollapsed ? "lg:hidden" : ""}`}>
+            <WorkbookSidebar
+              isCollapsed={isSidebarCollapsed}
+              isLoading={isLoading}
+              error={shouldShowManualMapping ? "" : error}
+              onCollapse={() => setIsSidebarCollapsed(true)}
+              onExpand={() => setIsSidebarCollapsed(false)}
+              onFileChange={handleFileChange}
+              onDownloadSample={downloadSampleExcel}
+              onLoadDemo={loadDemoDataset}
             />
+
+            {showAnalysisFilters ? (
+              <div className="lg:sticky lg:top-6">
+                <AnalysisFilterPanel
+                  rows={allRows}
+                  filteredRowCount={metrics.rowCount}
+                  filters={filters}
+                  isOpen={isFilterPanelOpen}
+                  onToggle={() => setIsFilterPanelOpen((current) => !current)}
+                  onToggleValue={toggleDashboardFilter}
+                  onClearField={clearDashboardFilter}
+                  onReset={() => setFilters(emptyDashboardFilters)}
+                  onCollapseSidebar={() => setIsAnalysisSidebarCollapsed(true)}
+                />
+              </div>
+            ) : null}
+          </div>
+
+          {showAnalysisFilters && isAnalysisSidebarCollapsed ? (
+            <div className={`hidden w-14 flex-col items-center gap-2 p-2 lg:sticky lg:top-6 lg:flex ${dashboardUtilityCardClass}`}>
+              <button
+                type="button"
+                onClick={() => setIsAnalysisSidebarCollapsed(false)}
+                className="grid h-10 w-10 place-items-center rounded-md border border-brand-100 bg-brand-50 text-brand-700 transition hover:border-brand-300 hover:bg-brand-100 focus:outline-none focus:ring-2 focus:ring-brand-200"
+                aria-label="Vis analysefiltre"
+                title="Vis analysefiltre"
+              >
+                <Filter className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <span className="h-px w-7 bg-slate-200" aria-hidden="true" />
+              <span className="text-[10px] font-semibold text-slate-500">{activeFilters.length || "Alle"}</span>
+            </div>
           ) : null}
         </aside>
 
@@ -2542,6 +2869,25 @@ export default function UploadDashboard() {
           </section>
 
           <section className={dashboardSectionClass}>
+            {activeFilters.length ? (
+              <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center">
+                <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Aktiv visning</span>
+                <div className="flex min-w-0 flex-wrap gap-1.5">
+                  {activeFilters.map((filter) => (
+                    <button
+                      key={`${filter.field}-${filter.value}`}
+                      type="button"
+                      onClick={() => toggleDashboardFilter(filter.field, filter.value)}
+                      className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-brand-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-brand-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50"
+                      title={`Fjern ${filter.label}: ${filter.value}`}
+                    >
+                      <span className="truncate">{filter.value}</span>
+                      <X className="h-3 w-3 shrink-0" aria-hidden="true" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <div className={dashboardSectionHeaderClass}>
               <div>
                 <p className={`${dashboardEyebrowClass} text-brand-700`}>Ledelsesanalyse</p>
@@ -2670,17 +3016,26 @@ export default function UploadDashboard() {
                   </div>
                   <div className="p-4 sm:p-5">
                   {hasFilteredData ? (
-                    <div className="h-72">
+                    <>
+                    {metrics.productsByUnits.length === 1 ? (
+                      <p className="mb-2 text-[11px] font-semibold text-brand-700">1 resultat i den aktuelle visning</p>
+                    ) : null}
+                    <div className={metrics.productsByUnits.length === 1 ? "h-36" : "h-72"}>
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={metrics.productsByUnits} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 8 }}>
+                        <BarChart data={metrics.productsByUnits} layout="vertical" margin={{ top: 4, right: metrics.productsByUnits.length === 1 ? 78 : 24, bottom: 4, left: 8 }}>
                           <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" horizontal={false} />
                           <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} />
                           <YAxis type="category" dataKey="name" width={110} tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} />
                           <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: chartCursorFill }} formatter={(value: number) => `${number(value)} enheder`} />
-                          <Bar dataKey="units" fill="#0891b2" radius={[0, 5, 5, 0]} />
+                          <Bar dataKey="units" fill="#0891b2" radius={[0, 5, 5, 0]}>
+                            {metrics.productsByUnits.length === 1 ? (
+                              <LabelList dataKey="units" position="right" fill="#475569" fontSize={11} formatter={(value: unknown) => number(Number(value))} />
+                            ) : null}
+                          </Bar>
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
+                    </>
                   ) : (
                     <EmptyChart message="Ingen rækker matcher de aktuelle filtre for dette diagram." />
                   )}
@@ -2699,17 +3054,26 @@ export default function UploadDashboard() {
                   </div>
                   <div className="p-4 sm:p-5">
                   {hasFilteredData ? (
-                    <div className="h-72">
+                    <>
+                    {metrics.categories.length === 1 ? (
+                      <p className="mb-2 text-[11px] font-semibold text-brand-700">1 resultat i den aktuelle visning</p>
+                    ) : null}
+                    <div className={metrics.categories.length === 1 ? "h-36" : "h-72"}>
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={metrics.categories} layout="vertical" margin={{ top: 4, right: 20, bottom: 4, left: 4 }}>
+                        <BarChart data={metrics.categories} layout="vertical" margin={{ top: 4, right: metrics.categories.length === 1 ? 92 : 20, bottom: 4, left: 4 }}>
                           <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" horizontal={false} />
                           <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
                           <YAxis type="category" dataKey="name" width={90} tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} />
                           <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: chartCursorFill }} formatter={(value: number) => currency(value)} />
-                          <Bar dataKey="revenue" fill="#0891b2" radius={[0, 5, 5, 0]} />
+                          <Bar dataKey="revenue" fill="#0891b2" radius={[0, 5, 5, 0]}>
+                            {metrics.categories.length === 1 ? (
+                              <LabelList dataKey="revenue" position="right" fill="#475569" fontSize={11} formatter={(value: unknown) => currency(Number(value))} />
+                            ) : null}
+                          </Bar>
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
+                    </>
                   ) : (
                     <EmptyChart message="Ingen rækker matcher de aktuelle filtre for dette diagram." />
                   )}
@@ -2728,17 +3092,26 @@ export default function UploadDashboard() {
                   </div>
                   <div className="p-4 sm:p-5">
                   {showGrossProfit && metrics.grossProfitByCategory.length ? (
-                    <div className="h-64">
+                    <>
+                    {metrics.grossProfitByCategory.length === 1 ? (
+                      <p className="mb-2 text-[11px] font-semibold text-emerald-700">1 resultat i den aktuelle visning</p>
+                    ) : null}
+                    <div className={metrics.grossProfitByCategory.length === 1 ? "h-36" : "h-64"}>
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={metrics.grossProfitByCategory} layout="vertical" margin={{ top: 4, right: 20, bottom: 4, left: 4 }}>
+                        <BarChart data={metrics.grossProfitByCategory} layout="vertical" margin={{ top: 4, right: metrics.grossProfitByCategory.length === 1 ? 92 : 20, bottom: 4, left: 4 }}>
                           <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" horizontal={false} />
                           <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
                           <YAxis type="category" dataKey="name" width={96} tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} />
                           <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: chartCursorFill }} formatter={(value: number) => currency(value)} />
-                          <Bar dataKey="grossProfit" fill="#22c55e" radius={[0, 5, 5, 0]} />
+                          <Bar dataKey="grossProfit" fill="#22c55e" radius={[0, 5, 5, 0]}>
+                            {metrics.grossProfitByCategory.length === 1 ? (
+                              <LabelList dataKey="grossProfit" position="right" fill="#475569" fontSize={11} formatter={(value: unknown) => currency(Number(value))} />
+                            ) : null}
+                          </Bar>
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
+                    </>
                   ) : (
                     <EmptyChart message="Upload data med dækningsbidrag for at vise dette diagram." />
                   )}
@@ -2757,17 +3130,26 @@ export default function UploadDashboard() {
                   </div>
                   <div className="p-4 sm:p-5">
                   {showCosts && costsByCategory.length ? (
-                    <div className="h-64">
+                    <>
+                    {costsByCategory.length === 1 ? (
+                      <p className="mb-2 text-[11px] font-semibold text-orange-700">1 resultat i den aktuelle visning</p>
+                    ) : null}
+                    <div className={costsByCategory.length === 1 ? "h-36" : "h-64"}>
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={costsByCategory} layout="vertical" margin={{ top: 4, right: 20, bottom: 4, left: 4 }}>
+                        <BarChart data={costsByCategory} layout="vertical" margin={{ top: 4, right: costsByCategory.length === 1 ? 92 : 20, bottom: 4, left: 4 }}>
                           <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" horizontal={false} />
                           <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
                           <YAxis type="category" dataKey="name" width={96} tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} />
                           <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: chartCursorFill }} formatter={(value: number) => currency(value)} />
-                          <Bar dataKey="cost" fill="#f97316" radius={[0, 5, 5, 0]} />
+                          <Bar dataKey="cost" fill="#f97316" radius={[0, 5, 5, 0]}>
+                            {costsByCategory.length === 1 ? (
+                              <LabelList dataKey="cost" position="right" fill="#475569" fontSize={11} formatter={(value: unknown) => currency(Number(value))} />
+                            ) : null}
+                          </Bar>
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
+                    </>
                   ) : (
                     <EmptyChart message="Upload et regneark med omkostningsdata for at vise fordelingen." />
                   )}
