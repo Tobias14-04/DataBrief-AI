@@ -1668,100 +1668,146 @@ function ManualMappingPanel({
   );
 }
 
-function DashboardFilterBar({
+function AnalysisFilterPanel({
   rows,
   filteredRowCount,
   filters,
+  isOpen,
+  onToggle,
   onChange,
   onReset,
 }: {
   rows: SaleRow[];
   filteredRowCount: number;
   filters: DashboardFilters;
+  isOpen: boolean;
+  onToggle: () => void;
   onChange: (field: DashboardFilterKey, value: string) => void;
   onReset: () => void;
 }) {
-  const definitions: Array<{ field: DashboardFilterKey; label: string; allLabel: string }> = [
-    { field: "month", label: "Måned", allLabel: "Alle måneder" },
-    { field: "product", label: "Produkt", allLabel: "Alle produkter" },
-    { field: "category", label: "Kategori", allLabel: "Alle kategorier" },
-    { field: "channel", label: "Kanal", allLabel: "Alle kanaler" },
-    { field: "region", label: "Region", allLabel: "Alle regioner" },
+  const slicerDefinitions: Array<{ field: Exclude<DashboardFilterKey, "product">; label: string }> = [
+    { field: "month", label: "Måned" },
+    { field: "category", label: "Kategori" },
+    { field: "channel", label: "Kanal" },
+    { field: "region", label: "Region" },
   ];
-  const controls = definitions
+  const slicers = slicerDefinitions
     .map((definition) => ({ ...definition, options: uniqueValues(rows, definition.field) }))
     .filter((definition) => definition.options.length > 0);
+  const productOptions = uniqueValues(rows, "product");
   const activeFilters = getActiveFilterLabels(filters);
 
   return (
-    <section className={`relative ${dashboardCardClass} px-4 py-4 sm:px-5`}>
+    <section className={`relative ${dashboardUtilityCardClass}`}>
       <span className="absolute inset-x-0 top-0 h-0.5 bg-brand-500" aria-hidden="true" />
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
-        <div className="flex shrink-0 items-center gap-2 pb-0.5 xl:pr-2">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-3 px-3.5 pb-3 pt-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-200 lg:cursor-default"
+        aria-expanded={isOpen}
+        aria-controls="analysis-filter-controls"
+      >
+        <span className="flex min-w-0 items-center gap-2.5">
           <span className={dashboardIconClass}>
             <Filter className="h-4 w-4" aria-hidden="true" />
           </span>
-          <div>
-            <span className="block text-sm font-semibold text-ink">Filtrer visning</span>
-            <span className="block text-[11px] text-slate-500">Afgræns analysen</span>
-          </div>
-        </div>
-
-        <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
-          {controls.map((control) => {
-            const isActive = Boolean(filters[control.field]);
-
-            return (
-              <label key={control.field} className="block min-w-0 text-xs font-semibold text-slate-600">
-                {control.label}
-                <span className="relative mt-1 block">
-                  <select
-                    value={filters[control.field]}
-                    onChange={(event) => onChange(control.field, event.target.value)}
-                    className={`h-10 w-full appearance-none rounded-md border py-2 pl-3 pr-8 text-xs font-semibold outline-none transition focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100 ${
-                      isActive
-                        ? "border-brand-200 bg-brand-50/70 text-brand-800 hover:border-brand-300"
-                        : "border-slate-200 bg-slate-50 text-ink hover:border-brand-200 hover:bg-white"
-                    }`}
-                  >
-                    <option value="">{control.allLabel}</option>
-                    {control.options.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-                </span>
-              </label>
-            );
-          })}
-        </div>
-
-        <button
-          type="button"
-          onClick={onReset}
-          disabled={!activeFilters.length}
-          className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:border-brand-200 hover:bg-brand-50/60 hover:text-brand-700 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 disabled:opacity-60"
-        >
-          <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-          Nulstil filtre
-        </button>
-      </div>
-
-      <div className="mt-3 flex flex-col gap-1 border-t border-slate-100 pt-3 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-        <p className="font-medium">
-          Viser <span className="font-semibold text-ink">{number(filteredRowCount)}</span> af {number(rows.length)} rækker
-        </p>
-        <p className="min-w-0 truncate">
-          {activeFilters.length ? (
-            <span className="inline-flex max-w-full rounded-md border border-brand-100 bg-brand-50 px-2 py-1 font-semibold text-brand-700">
-              Filtreret efter: {activeFilters.join(", ")}
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-ink">Analysefiltre</span>
+            <span className="block text-[11px] text-slate-500">
+              {activeFilters.length ? `${activeFilters.length} aktive valg` : "Alle salgsdata"}
             </span>
-          ) : (
-            "Alle tilgængelige salgsdata er medtaget"
-          )}
-        </p>
+          </span>
+        </span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition lg:hidden ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+      </button>
+
+      <div id="analysis-filter-controls" className={`${isOpen ? "block" : "hidden"} lg:block`}>
+        <div className="mx-3.5 flex items-center justify-between border-y border-slate-100 py-2.5 text-[11px] text-slate-500">
+          <span>
+            Viser <strong className="font-semibold text-ink">{number(filteredRowCount)}</strong> af {number(rows.length)}
+          </span>
+          <span className={`rounded-md px-2 py-1 font-semibold ${activeFilters.length ? "bg-brand-50 text-brand-700" : "bg-slate-100 text-slate-500"}`}>
+            {activeFilters.length ? "Filtreret" : "Alle rækker"}
+          </span>
+        </div>
+
+        <div className="space-y-4 p-3.5">
+          {slicers.map((slicer) => (
+            <fieldset key={slicer.field} className="min-w-0">
+              <legend className="mb-2 flex w-full items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+                <span>{slicer.label}</span>
+                {filters[slicer.field] ? <span className="normal-case tracking-normal text-brand-700">1 valgt</span> : null}
+              </legend>
+              <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto pr-1 [scrollbar-width:thin]">
+                <button
+                  type="button"
+                  onClick={() => onChange(slicer.field, "")}
+                  aria-pressed={!filters[slicer.field]}
+                  className={`min-h-8 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition focus:outline-none focus:ring-2 focus:ring-brand-100 ${
+                    !filters[slicer.field]
+                      ? "border-brand-600 bg-brand-600 text-white shadow-sm"
+                      : "border-slate-200 bg-slate-50 text-slate-600 hover:border-brand-200 hover:bg-brand-50/60 hover:text-brand-700"
+                  }`}
+                >
+                  Alle
+                </button>
+                {slicer.options.map((option) => {
+                  const isActive = filters[slicer.field] === option;
+
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => onChange(slicer.field, isActive ? "" : option)}
+                      aria-pressed={isActive}
+                      className={`min-h-8 max-w-full truncate rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition focus:outline-none focus:ring-2 focus:ring-brand-100 ${
+                        isActive
+                          ? "border-brand-600 bg-brand-600 text-white shadow-sm"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-brand-200 hover:bg-brand-50/60 hover:text-brand-700"
+                      }`}
+                      title={option}
+                    >
+                      {option}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+          ))}
+
+          {productOptions.length ? (
+            <label className="block border-t border-slate-100 pt-4 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+              Produkt
+              <span className="relative mt-2 block">
+                <select
+                  value={filters.product}
+                  onChange={(event) => onChange("product", event.target.value)}
+                  className={`h-10 w-full appearance-none rounded-md border py-2 pl-3 pr-8 text-xs font-semibold outline-none transition focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100 ${
+                    filters.product
+                      ? "border-brand-200 bg-brand-50/70 text-brand-800"
+                      : "border-slate-200 bg-slate-50 text-ink hover:border-brand-200 hover:bg-white"
+                  }`}
+                >
+                  <option value="">Alle produkter</option>
+                  {productOptions.map((product) => (
+                    <option key={product} value={product}>{product}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+              </span>
+            </label>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={onReset}
+            disabled={!activeFilters.length}
+            className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:border-brand-200 hover:bg-brand-50/60 hover:text-brand-700 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 disabled:opacity-60"
+          >
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+            Nulstil filtre
+          </button>
+        </div>
       </div>
     </section>
   );
@@ -1897,9 +1943,9 @@ function WorkbookSidebar({
   onLoadDemo: () => void;
 }) {
   return (
-    <aside className="self-start lg:sticky lg:top-6">
+    <div>
       {isCollapsed ? (
-        <div className={`hidden flex-col items-center gap-2 p-2 lg:flex ${dashboardUtilityCardClass}`}>
+        <div className={`hidden w-14 flex-col items-center gap-2 p-2 lg:flex ${dashboardUtilityCardClass}`}>
           <button
             type="button"
             onClick={onExpand}
@@ -1987,7 +2033,7 @@ function WorkbookSidebar({
           </div>
         </div>
       </div>
-    </aside>
+    </div>
   );
 }
 
@@ -2002,6 +2048,7 @@ export default function UploadDashboard() {
   const [filters, setFilters] = useState<DashboardFilters>(emptyDashboardFilters);
   const [reportMonth, setReportMonth] = useState("");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
 
   const allRows = useMemo(() => data?.rows ?? [], [data?.rows]);
   const activeFilterLabels = useMemo(() => getActiveFilterLabels(filters), [filters]);
@@ -2032,6 +2079,7 @@ export default function UploadDashboard() {
   const manualMappingRequired = Boolean(analysis && !data);
   const shouldShowManualMapping = manualMappingRequired || showManualMapping;
   const hasWorkbook = Boolean(analysis || data);
+  const showAnalysisFilters = hasData && !shouldShowManualMapping;
   const primaryProfitLabel = showGrossProfit ? "Dækningsbidrag" : "Resultat";
   const primaryProfitValue = showGrossProfit
     ? currency(metrics.totalGrossProfit)
@@ -2070,6 +2118,7 @@ export default function UploadDashboard() {
   function resetDashboardView() {
     setFilters(emptyDashboardFilters);
     setReportMonth("");
+    setIsFilterPanelOpen(false);
   }
 
   function selectSheet(sheetName: string, workbookAnalysis = analysis) {
@@ -2355,22 +2404,38 @@ export default function UploadDashboard() {
       </header>
 
       <section
-        className={`mx-auto grid max-w-[1480px] gap-6 px-4 py-6 transition-[grid-template-columns] duration-200 sm:px-6 lg:px-8 lg:py-8 ${
-          isSidebarCollapsed
-            ? "lg:grid-cols-[56px_minmax(0,1fr)]"
-            : "lg:grid-cols-[184px_minmax(0,1fr)]"
+        className={`mx-auto grid max-w-[1600px] gap-6 px-4 py-6 transition-[grid-template-columns] duration-200 sm:px-6 lg:px-8 lg:py-8 ${
+          showAnalysisFilters
+            ? "lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[248px_minmax(0,1fr)]"
+            : isSidebarCollapsed
+              ? "lg:grid-cols-[56px_minmax(0,1fr)]"
+              : "lg:grid-cols-[184px_minmax(0,1fr)]"
         }`}
       >
-        <WorkbookSidebar
-          isCollapsed={isSidebarCollapsed}
-          isLoading={isLoading}
-          error={shouldShowManualMapping ? "" : error}
-          onCollapse={() => setIsSidebarCollapsed(true)}
-          onExpand={() => setIsSidebarCollapsed(false)}
-          onFileChange={handleFileChange}
-          onDownloadSample={downloadSampleExcel}
-          onLoadDemo={loadDemoDataset}
-        />
+        <aside className="self-start space-y-4 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto lg:pr-1 [scrollbar-width:thin]">
+          <WorkbookSidebar
+            isCollapsed={isSidebarCollapsed}
+            isLoading={isLoading}
+            error={shouldShowManualMapping ? "" : error}
+            onCollapse={() => setIsSidebarCollapsed(true)}
+            onExpand={() => setIsSidebarCollapsed(false)}
+            onFileChange={handleFileChange}
+            onDownloadSample={downloadSampleExcel}
+            onLoadDemo={loadDemoDataset}
+          />
+
+          {showAnalysisFilters ? (
+            <AnalysisFilterPanel
+              rows={allRows}
+              filteredRowCount={metrics.rowCount}
+              filters={filters}
+              isOpen={isFilterPanelOpen}
+              onToggle={() => setIsFilterPanelOpen((current) => !current)}
+              onChange={(field, value) => setFilters((current) => ({ ...current, [field]: value }))}
+              onReset={() => setFilters(emptyDashboardFilters)}
+            />
+          ) : null}
+        </aside>
 
         <section className="min-w-0 space-y-9">
           <section className="space-y-4 border-b border-brand-100 pb-1">
@@ -2383,7 +2448,9 @@ export default function UploadDashboard() {
                   {shouldShowManualMapping
                     ? "Kontrollér datakilden og de foreslåede kolonner, før dashboardet vises."
                     : hasData
-                      ? `${number(allRows.length)} rækker er klar til analyse.`
+                      ? isFiltered
+                        ? `${number(metrics.rowCount)} af ${number(allRows.length)} rækker vises med de aktuelle filtre.`
+                        : `${number(allRows.length)} rækker er klar til analyse.`
                       : "Upload en Excel-fil for at udfylde dashboardet."}
                 </p>
               </div>
@@ -2421,15 +2488,6 @@ export default function UploadDashboard() {
             />
           ) : null}
 
-          {hasData && !shouldShowManualMapping ? (
-            <DashboardFilterBar
-              rows={allRows}
-              filteredRowCount={metrics.rowCount}
-              filters={filters}
-              onChange={(field, value) => setFilters((current) => ({ ...current, [field]: value }))}
-              onReset={() => setFilters(emptyDashboardFilters)}
-            />
-          ) : null}
           </section>
 
           {!shouldShowManualMapping ? (
