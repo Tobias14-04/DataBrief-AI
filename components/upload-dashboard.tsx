@@ -40,6 +40,12 @@ import {
   YAxis,
 } from "recharts";
 import { ChangeEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  AUTO_MAPPING_CONFIDENCE_THRESHOLD,
+  assessAutoMapping,
+  mappingStatusForSource,
+  shouldShowColumnReview,
+} from "@/lib/auto-mapping-flow";
 
 type SaleRow = {
   date: Date | null;
@@ -137,7 +143,10 @@ type SheetCandidate = {
   rows: unknown[][];
   headers: string[];
   headerIndex: number;
+  headerScore: number;
+  headerScoreGap: number;
   mappings: FieldMappings;
+  fieldMatches: Partial<Record<FieldKey, string[]>>;
   score: number;
   confidence: number;
   missingFields: string[];
@@ -473,8 +482,12 @@ function getCell(row: Record<string, unknown>, mappings: FieldMappings, field: F
 }
 
 function findMatchingHeader(headers: string[], field: FieldKey) {
+  return findMatchingHeaders(headers, field)[0];
+}
+
+function findMatchingHeaders(headers: string[], field: FieldKey) {
   const normalizedAliases = aliases[field].map(normalizeHeader);
-  return headers.find((header) => normalizedAliases.includes(normalizeHeader(header)));
+  return headers.filter((header) => normalizedAliases.includes(normalizeHeader(header)));
 }
 
 function buildMappings(headers: string[]) {
@@ -519,24 +532,27 @@ function rowToHeaders(row: unknown[]) {
 }
 
 function detectHeaderRow(rows: unknown[][]) {
-  let bestIndex = 0;
-  let bestScore = -1;
-
-  rows.slice(0, 40).forEach((row, index) => {
+  const candidates = rows.slice(0, 40).map((row, index) => {
     const headers = rowToHeaders(row);
     const mappings = buildMappings(headers);
     const uniqueHeaders = new Set(headers.map(normalizeHeader)).size;
     const textCells = headers.filter((header) => Number.isNaN(Number(header))).length;
     const tableShapeBonus = uniqueHeaders >= 4 && textCells >= 3 ? 2 : 0;
-    const score = scoreMappings(mappings) + tableShapeBonus;
 
-    if (score > bestScore) {
-      bestScore = score;
-      bestIndex = index;
-    }
-  });
+    return {
+      index,
+      score: scoreMappings(mappings) + tableShapeBonus,
+    };
+  }).sort((a, b) => b.score - a.score || a.index - b.index);
 
-  return bestIndex;
+  const best = candidates[0] ?? { index: 0, score: -1 };
+  const runnerUpScore = candidates[1]?.score ?? -1;
+
+  return {
+    index: best.index,
+    score: best.score,
+    scoreGap: best.score - runnerUpScore,
+  };
 }
 
 function rowsToRecords(rows: unknown[][], headerIndex: number, headers: string[]) {
@@ -565,25 +581,91 @@ function getMissingFields(mappings: FieldMappings) {
 function buildCandidates(workbook: XLSX.WorkBook) {
   return workbook.SheetNames.map((name) => {
     const rows = sheetToRows(workbook.Sheets[name]);
-    const headerIndex = detectHeaderRow(rows);
+    const headerDetection = detectHeaderRow(rows);
+    const headerIndex = headerDetection.index;
     const headers = rowToHeaders(rows[headerIndex] ?? []);
     const mappings = buildMappings(headers);
+    const fieldMatches = (Object.keys(aliases) as FieldKey[]).reduce<Partial<Record<FieldKey, string[]>>>((matches, field) => {
+      const matchingHeaders = findMatchingHeaders(headers, field);
+      if (matchingHeaders.length) {
+        matches[field] = matchingHeaders;
+      }
+      return matches;
+    }, {});
     const nameBonus = normalizeHeader(name).includes("salg") || normalizeHeader(name).includes("sales") ? 3 : 0;
     const score = scoreMappings(mappings) + nameBonus;
     const missingFields = getMissingFields(mappings);
-    const confidence = Math.min(100, Math.round((score / 27) * 100));
+    const requiredMatches = [
+      Boolean(mappings.date || mappings.month),
+      Boolean(mappings.product),
+      Boolean(mappings.category),
+      Boolean(mappings.units),
+      Boolean(mappings.netRevenue || mappings.grossRevenue || mappings.revenue || (mappings.units && mappings.unitPrice)),
+    ];
+    const confidence = Math.round((requiredMatches.filter(Boolean).length / requiredMatches.length) * 100);
 
     return {
       name,
       rows,
       headers,
       headerIndex,
+      headerScore: headerDetection.score,
+      headerScoreGap: headerDetection.scoreGap,
       mappings,
+      fieldMatches,
       score,
       confidence,
       missingFields,
     };
   }).sort((a, b) => b.score - a.score);
+}
+
+function getEffectiveRevenueField(mappings: FieldMappings): FieldKey | undefined {
+  if (mappings.netRevenue) return "netRevenue";
+  if (mappings.grossRevenue) return "grossRevenue";
+  if (mappings.revenue) return "revenue";
+  if (mappings.unitPrice) return "unitPrice";
+  return undefined;
+}
+
+function getRequiredMappingAmbiguities(candidate: SheetCandidate) {
+  const requiredFields: Array<{ field: FieldKey | undefined; label: string }> = [
+    { field: candidate.mappings.date ? "date" : "month", label: "Dato eller måned" },
+    { field: "product", label: "Produkt" },
+    { field: "category", label: "Kategori" },
+    { field: "units", label: "Antal" },
+    { field: getEffectiveRevenueField(candidate.mappings), label: "Omsætning" },
+  ];
+
+  return requiredFields.flatMap(({ field, label }) => {
+    const matches = field ? candidate.fieldMatches[field] ?? [] : [];
+    return matches.length > 1 ? [{ field: label, columns: matches }] : [];
+  });
+}
+
+function getDuplicateMappedColumns(mappings: FieldMappings) {
+  const assignments = Object.values(mappings).reduce<Record<string, number>>((counts, column) => {
+    if (column) {
+      counts[column] = (counts[column] ?? 0) + 1;
+    }
+    return counts;
+  }, {});
+
+  return Object.entries(assignments)
+    .filter(([, count]) => count > 1)
+    .map(([column]) => column);
+}
+
+function getCompetingSalesSheets(candidates: SheetCandidate[], best: SheetCandidate) {
+  const competing = candidates.filter(
+    (candidate) =>
+      candidate.name !== best.name &&
+      !candidate.missingFields.length &&
+      candidate.confidence >= AUTO_MAPPING_CONFIDENCE_THRESHOLD &&
+      best.score - candidate.score <= 3,
+  );
+
+  return competing.length ? [best.name, ...competing.map((candidate) => candidate.name)] : [];
 }
 
 function getRevenue(row: Record<string, unknown>, mappings: FieldMappings) {
@@ -772,9 +854,8 @@ function buildParseResult({
     throw new Error(`Der blev ikke fundet gyldige salgsrækker i "${candidate.name}". Vælg eventuelt ark og kolonner manuelt.`);
   }
 
-  const status = manual ? "warning" : getStatus(candidate, parsed.rows);
+  const status = manual ? mappingStatusForSource(true) : getStatus(candidate, parsed.rows);
   const warnings = [
-    ...(manual ? ["Manuel kolonnetilknytning anvendes."] : []),
     ...(status === "warning" && !manual ? ["Den automatiske kolonnetilknytning kan bruges, men sikkerheden er lavere end normalt."] : []),
     ...(parsed.skippedRows.length ? [`${parsed.skippedRows.length} ufuldstændige rækker eller opsummeringsrækker blev ignoreret.`] : []),
   ];
@@ -867,7 +948,7 @@ function parseCostSheet(workbook: XLSX.WorkBook) {
   }
 
   const rows = sheetToRows(workbook.Sheets[costSheetName]);
-  const headerIndex = detectHeaderRow(rows);
+  const headerIndex = detectHeaderRow(rows).index;
   const headers = rowToHeaders(rows[headerIndex] ?? []);
   const categoryHeader =
     findMatchingHeader(headers, "category") ??
@@ -908,7 +989,7 @@ function parseBudgetSheet(workbook: XLSX.WorkBook) {
   }
 
   const rows = sheetToRows(workbook.Sheets[budgetSheetName]);
-  const headerIndex = detectHeaderRow(rows);
+  const headerIndex = detectHeaderRow(rows).index;
   const headers = rowToHeaders(rows[headerIndex] ?? []);
   const mappings = buildMappings(headers);
   const records = rowsToRecords(rows, headerIndex, headers);
@@ -939,7 +1020,11 @@ function parseBudgetSheet(workbook: XLSX.WorkBook) {
   };
 }
 
-function analyzeWorkbook(file: File): Promise<{ analysis: WorkbookAnalysis; autoResult: ParseResult | null }> {
+function analyzeWorkbook(file: File): Promise<{
+  analysis: WorkbookAnalysis;
+  autoResult: ParseResult | null;
+  reviewReasons: string[];
+}> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
@@ -963,9 +1048,26 @@ function analyzeWorkbook(file: File): Promise<{ analysis: WorkbookAnalysis; auto
         };
 
         const best = candidates[0];
+        const parsedRows = parseSalesRows(best);
+        const autoMappingDecision = assessAutoMapping({
+          confidence: best.confidence,
+          headerIsSecure: best.headerScore >= 17 && best.headerScoreGap >= 3,
+          validRowCount: parsedRows.rows.length,
+          skippedRowCount: parsedRows.skippedRows.length,
+          missingFields: best.missingFields,
+          duplicateColumns: getDuplicateMappedColumns(best.mappings),
+          ambiguities: getRequiredMappingAmbiguities(best),
+          competingSheets: getCompetingSalesSheets(candidates, best),
+          hasRevenueSource: Boolean(
+            best.mappings.netRevenue ||
+            best.mappings.grossRevenue ||
+            best.mappings.revenue ||
+            (best.mappings.units && best.mappings.unitPrice),
+          ),
+        });
         let autoResult: ParseResult | null = null;
 
-        if (!best.missingFields.length) {
+        if (autoMappingDecision.canOpenDashboard) {
           autoResult = buildParseResult({
             fileName: file.name,
             analysis,
@@ -975,7 +1077,11 @@ function analyzeWorkbook(file: File): Promise<{ analysis: WorkbookAnalysis; auto
           });
         }
 
-        resolve({ analysis, autoResult });
+        resolve({
+          analysis,
+          autoResult,
+          reviewReasons: autoMappingDecision.reasons,
+        });
       } catch (error) {
         reject(error);
       }
@@ -1196,28 +1302,35 @@ function StatusBox({ feedback, analysis }: { feedback?: MappingFeedback; analysi
     return null;
   }
 
+  const manualReviewRequired = status === "manual" && !feedback;
   const label =
-    status === "success" ? "Kolonner blev registreret automatisk" : status === "warning" ? "Kolonner blev registreret med forbehold" : "Kolonnerne skal kontrolleres";
+    status === "success"
+      ? "Kolonner blev registreret automatisk"
+      : status === "warning"
+        ? "Kolonner blev registreret med forbehold"
+        : manualReviewRequired
+          ? "Kolonnerne skal kontrolleres"
+          : "Kolonner blev manuelt kontrolleret";
   const styles =
     status === "success"
       ? {
           panel: "border-emerald-300/25 bg-emerald-300/10 text-emerald-100",
           icon: "border-emerald-300/20 bg-emerald-300/15 text-emerald-200",
         }
-      : status === "warning"
+      : status === "warning" || manualReviewRequired
         ? {
             panel: "border-amber-300/30 bg-amber-300/10 text-amber-100",
             icon: "border-amber-300/25 bg-amber-300/15 text-amber-200",
           }
         : {
-            panel: "border-rose-300/30 bg-rose-300/10 text-rose-100",
-            icon: "border-rose-300/25 bg-rose-300/15 text-rose-200",
+            panel: "border-cyan-300/25 bg-cyan-300/10 text-cyan-100",
+            icon: "border-cyan-300/20 bg-cyan-300/15 text-cyan-200",
           };
 
   return (
     <div className={`inline-flex max-w-full items-start gap-2.5 rounded-md border px-3 py-2.5 text-xs shadow-[0_8px_24px_rgba(0,0,0,0.08)] ${styles.panel}`}>
       <span className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border ${styles.icon}`}>
-        {status === "success" ? (
+        {status === "success" || (status === "manual" && feedback) ? (
           <Check className="h-3 w-3" strokeWidth={2.75} aria-hidden="true" />
         ) : (
           <Info className="h-3 w-3" aria-hidden="true" />
@@ -1243,7 +1356,7 @@ function FeedbackPanel({ feedback, rowCount }: { feedback?: MappingFeedback; row
       ? "Registreret automatisk"
       : feedback.status === "warning"
         ? "Registreret med forbehold"
-        : "Manuel kolonnetilknytning anvendt";
+        : "Manuelt kontrolleret";
 
   return (
     <details className={`${dashboardUtilityCardClass} px-4 py-3`}>
@@ -2199,6 +2312,7 @@ function MonthlyReportCard({
 function WorkbookSidebar({
   isCollapsed,
   isLoading,
+  loadingMessage,
   error,
   onCollapse,
   onExpand,
@@ -2208,6 +2322,7 @@ function WorkbookSidebar({
 }: {
   isCollapsed: boolean;
   isLoading: boolean;
+  loadingMessage: string;
   error: string;
   onCollapse: () => void;
   onExpand: () => void;
@@ -2261,7 +2376,7 @@ function WorkbookSidebar({
             <label className="group flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-slate-50 px-2.5 py-2.5 text-center transition hover:border-brand-400 hover:bg-brand-50/70 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100">
               <Upload className="h-4 w-4 text-brand-700" aria-hidden="true" />
               <span className="text-xs font-semibold text-ink">
-                {isLoading ? "Læser regnearket..." : "Vælg en Excel-fil"}
+                {isLoading ? loadingMessage : "Vælg en Excel-fil"}
               </span>
               <input
                 type="file"
@@ -2317,7 +2432,9 @@ export default function UploadDashboard() {
   const [manualMappings, setManualMappings] = useState<ManualMappings>(emptyManualMappings);
   const [showManualMapping, setShowManualMapping] = useState(false);
   const [error, setError] = useState("");
+  const [mappingReviewReason, setMappingReviewReason] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("Analyserer regnearket");
   const [filters, setFilters] = useState<DashboardFilters>(emptyDashboardFilters);
   const [reportMonth, setReportMonth] = useState("");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -2351,8 +2468,11 @@ export default function UploadDashboard() {
   const costsByCategory = isFiltered
     ? metrics.costsByCategory
     : (data?.feedback.costs?.byCategory ?? metrics.costsByCategory);
-  const manualMappingRequired = Boolean(analysis && !data);
-  const shouldShowManualMapping = manualMappingRequired || showManualMapping;
+  const shouldShowManualMapping = shouldShowColumnReview({
+    hasWorkbookAnalysis: Boolean(analysis),
+    hasDashboardData: Boolean(data),
+    reviewRequested: showManualMapping,
+  });
   const hasWorkbook = Boolean(analysis || data);
   const showAnalysisFilters = hasData && !shouldShowManualMapping;
   const primaryProfitLabel = showGrossProfit ? "Dækningsbidrag" : "Resultat";
@@ -2434,6 +2554,13 @@ export default function UploadDashboard() {
     setManualMappings(initialManualMappings(candidate));
   }
 
+  function showNextLoadingStep(message: string) {
+    setLoadingMessage(message);
+    return new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => resolve());
+    });
+  }
+
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) {
@@ -2441,64 +2568,72 @@ export default function UploadDashboard() {
     }
 
     setIsLoading(true);
+    setLoadingMessage("Analyserer regnearket");
     setError("");
+    setMappingReviewReason("");
 
     try {
+      await showNextLoadingStep("Analyserer regnearket");
+      await showNextLoadingStep("Finder relevante kolonner");
       const parsed = await analyzeWorkbook(file);
+      await showNextLoadingStep("Opretter dashboard");
       const best = parsed.analysis.candidates[0];
       setAnalysis(parsed.analysis);
       selectSheet(best.name, parsed.analysis);
       setData(parsed.autoResult);
       setShowManualMapping(!parsed.autoResult);
+      setMappingReviewReason(parsed.autoResult ? "" : parsed.reviewReasons.join(" "));
       resetDashboardView();
-
-      if (!parsed.autoResult) {
-        setError("Vi kunne ikke finde alle nødvendige kolonner automatisk. Kontrollér de markerede felter.");
-      }
     } catch (error) {
       setData(null);
       setAnalysis(null);
       setSelectedSheet("");
       setManualMappings(emptyManualMappings);
       setShowManualMapping(false);
+      setMappingReviewReason("");
       setError(error instanceof Error ? error.message : "Regnearket kunne ikke behandles.");
     } finally {
       setIsLoading(false);
+      setLoadingMessage("Analyserer regnearket");
       event.target.value = "";
     }
   }
 
   async function loadDemoDataset() {
     setIsLoading(true);
+    setLoadingMessage("Analyserer regnearket");
     setError("");
+    setMappingReviewReason("");
 
     try {
+      await showNextLoadingStep("Analyserer regnearket");
+      await showNextLoadingStep("Finder relevante kolonner");
       const workbook = createSampleWorkbook();
       const workbookData = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
       const file = new File([workbookData], "DataBrief AI demodata.xlsx", {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
       const parsed = await analyzeWorkbook(file);
+      await showNextLoadingStep("Opretter dashboard");
       const best = parsed.analysis.candidates[0];
 
       setAnalysis(parsed.analysis);
       selectSheet(best.name, parsed.analysis);
       setData(parsed.autoResult);
       setShowManualMapping(!parsed.autoResult);
+      setMappingReviewReason(parsed.autoResult ? "" : parsed.reviewReasons.join(" "));
       resetDashboardView();
-
-      if (!parsed.autoResult) {
-        setError("Vi kunne ikke finde alle nødvendige kolonner automatisk. Kontrollér de markerede felter.");
-      }
     } catch (error) {
       setData(null);
       setAnalysis(null);
       setSelectedSheet("");
       setManualMappings(emptyManualMappings);
       setShowManualMapping(false);
+      setMappingReviewReason("");
       setError(error instanceof Error ? error.message : "Demodata kunne ikke indlæses.");
     } finally {
       setIsLoading(false);
+      setLoadingMessage("Analyserer regnearket");
     }
   }
 
@@ -2521,6 +2656,7 @@ export default function UploadDashboard() {
       setData(result);
       setShowManualMapping(false);
       setError("");
+      setMappingReviewReason("");
       resetDashboardView();
     } catch (error) {
       setData(null);
@@ -2530,9 +2666,9 @@ export default function UploadDashboard() {
 
   function cancelManualMapping() {
     if (data) {
-      selectSheet(data.feedback.salesSheetName);
       setShowManualMapping(false);
       setError("");
+      setMappingReviewReason("");
       return;
     }
 
@@ -2541,6 +2677,7 @@ export default function UploadDashboard() {
     setManualMappings(emptyManualMappings);
     setShowManualMapping(false);
     setError("");
+    setMappingReviewReason("");
   }
 
   if (!hasWorkbook) {
@@ -2611,7 +2748,7 @@ export default function UploadDashboard() {
                     <Upload className="h-6 w-6" aria-hidden="true" />
                   </span>
                   <span className="mt-4 text-base font-semibold text-ink">
-                    {isLoading ? "Læser regnearket..." : "Vælg en Excel-fil"}
+                    {isLoading ? loadingMessage : "Vælg en Excel-fil"}
                   </span>
                   <span className="mt-1.5 text-sm text-slate-500">Vælg en .xlsx-fil fra din enhed</span>
                   <span className="mt-3 rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">
@@ -2722,6 +2859,7 @@ export default function UploadDashboard() {
             <WorkbookSidebar
               isCollapsed={isSidebarCollapsed}
               isLoading={isLoading}
+              loadingMessage={loadingMessage}
               error={shouldShowManualMapping ? "" : error}
               onCollapse={() => setIsSidebarCollapsed(true)}
               onExpand={() => setIsSidebarCollapsed(false)}
@@ -2789,7 +2927,7 @@ export default function UploadDashboard() {
                     onClick={() => setShowManualMapping(true)}
                     className="inline-flex min-h-9 items-center justify-center rounded-md border border-white/15 bg-white/10 px-3 text-xs font-semibold text-white transition hover:border-brand-400 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-cyan-300/40"
                   >
-                    Tilpas kolonner
+                    Rediger kolonnetilknytning
                   </button>
                 ) : null}
               </div>
@@ -2801,14 +2939,16 @@ export default function UploadDashboard() {
               analysis={analysis}
               selectedSheet={selectedSheet}
               mappings={manualMappings}
-              error={error}
+              error={error || mappingReviewReason}
               onSheetChange={(sheetName) => {
                 selectSheet(sheetName);
                 setError("");
+                setMappingReviewReason("");
               }}
               onMappingChange={(field, column) => {
                 setManualMappings((current) => ({ ...current, [field]: column }));
                 setError("");
+                setMappingReviewReason("");
               }}
               onApply={applyManualMappings}
               onCancel={cancelManualMapping}
