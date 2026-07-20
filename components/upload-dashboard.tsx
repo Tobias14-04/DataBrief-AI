@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   BarChart3,
   CalendarRange,
+  Calculator,
   ChartNoAxesCombined,
   Check,
   ChevronDown,
@@ -19,6 +20,7 @@ import {
   PanelLeftOpen,
   RotateCcw,
   Search,
+  SlidersHorizontal,
   Sparkles,
   Target,
   TrendingUp,
@@ -40,12 +42,28 @@ import {
   YAxis,
 } from "recharts";
 import { ChangeEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { KpiCustomizer } from "@/components/kpi-customizer";
 import {
   AUTO_MAPPING_CONFIDENCE_THRESHOLD,
   assessAutoMapping,
   mappingStatusForSource,
   shouldShowColumnReview,
 } from "@/lib/auto-mapping-flow";
+import {
+  defaultKpiConfiguration,
+  evaluateFormula,
+  evaluateStandardKpi,
+  formatNumber,
+  getNumericColumns,
+  normalizeKpiConfiguration,
+  parseStoredKpiConfiguration,
+  standardKpiDefinitions,
+  type KpiColor,
+  type KpiConfiguration,
+  type KpiDefinition,
+  type KpiEvaluation,
+  type KpiIcon,
+} from "@/lib/kpi-customization";
 
 type SaleRow = {
   date: Date | null;
@@ -59,6 +77,7 @@ type SaleRow = {
   grossProfit: number | null;
   grossMargin: number | null;
   cost: number | null;
+  sourceValues: Record<string, unknown>;
 };
 
 type GroupedValue = {
@@ -181,6 +200,14 @@ const emptyDashboardFilters: DashboardFilters = {
   channel: [],
   region: [],
 };
+
+const KPI_STORAGE_KEY = "databrief-kpi-configuration";
+const initialKpiConfiguration = defaultKpiConfiguration({
+  hasBudget: false,
+  hasGrossProfit: false,
+  hasGrossMargin: false,
+  hasCosts: false,
+});
 
 const dashboardFilterLabels: Record<DashboardFilterKey, string> = {
   month: "Måned",
@@ -800,6 +827,7 @@ function parseSalesRows(candidate: SheetCandidate, mappings = candidate.mappings
         grossProfit,
         grossMargin,
         cost,
+        sourceValues: row,
       };
     })
     .filter((row): row is SaleRow => Boolean(row));
@@ -1221,6 +1249,22 @@ function downloadSampleExcel() {
   XLSX.writeFile(workbook, "databrief-ai-eksempelregneark.xlsx");
 }
 
+const kpiIconMap: Record<KpiIcon, LucideIcon> = {
+  revenue: CircleDollarSign,
+  profit: TrendingUp,
+  target: Target,
+  units: PackageCheck,
+  calculator: Calculator,
+};
+
+function kpiTone(color: KpiColor): "brand" | "positive" | "warning" | "neutral" | "purple" {
+  if (color === "green") return "positive";
+  if (color === "orange") return "warning";
+  if (color === "purple") return "purple";
+  if (color === "navy") return "neutral";
+  return "brand";
+}
+
 function KpiCard({
   label,
   value,
@@ -1234,7 +1278,7 @@ function KpiCard({
   detail: string;
   emphasis?: boolean;
   icon?: LucideIcon;
-  tone?: "brand" | "positive" | "warning" | "neutral";
+  tone?: "brand" | "positive" | "warning" | "neutral" | "purple";
 }) {
   const styles = {
     brand: {
@@ -1256,6 +1300,11 @@ function KpiCard({
       icon: "border-slate-200 bg-slate-100 text-ink",
       accent: "bg-slate-400",
       detail: "text-slate-500",
+    },
+    purple: {
+      icon: "border-violet-200 bg-violet-50 text-violet-700",
+      accent: "bg-violet-500",
+      detail: "text-violet-700",
     },
   }[tone];
 
@@ -2440,6 +2489,10 @@ export default function UploadDashboard() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [isAnalysisSidebarCollapsed, setIsAnalysisSidebarCollapsed] = useState(false);
+  const [isKpiCustomizerOpen, setIsKpiCustomizerOpen] = useState(false);
+  const [kpiConfiguration, setKpiConfiguration] = useState<KpiConfiguration>(initialKpiConfiguration);
+  const [kpiConfigurationHydrated, setKpiConfigurationHydrated] = useState(false);
+  const [hasCustomizedKpis, setHasCustomizedKpis] = useState(false);
 
   const allRows = useMemo(() => data?.rows ?? [], [data?.rows]);
   const activeFilters = useMemo(() => getActiveFilters(filters), [filters]);
@@ -2475,40 +2528,101 @@ export default function UploadDashboard() {
   });
   const hasWorkbook = Boolean(analysis || data);
   const showAnalysisFilters = hasData && !shouldShowManualMapping;
-  const primaryProfitLabel = showGrossProfit ? "Dækningsbidrag" : "Resultat";
-  const primaryProfitValue = showGrossProfit
-    ? currency(metrics.totalGrossProfit)
-    : showCosts
-      ? currency(metrics.actualResult)
-      : "Ikke tilgængeligt";
-  const primaryProfitDetail = showGrossProfit
-    ? `Dækningsgrad: ${percent(metrics.grossMargin)}`
-    : showCosts
-      ? "Omsætning minus omkostninger"
-      : "Kræver omkostnings- eller dækningsdata";
-  const secondaryMetrics = [
-    {
-      label: "Bedste produkt",
-      value: metrics.bestProduct?.name ?? "Ingen data",
-      detail: metrics.bestProduct ? `${currency(metrics.bestProduct.revenue)} i omsætning` : undefined,
-    },
-    {
-      label: "Bedste kategori",
-      value: metrics.bestCategory?.name ?? "Ingen data",
-      detail: metrics.bestCategory ? `${currency(metrics.bestCategory.revenue)} i omsætning` : undefined,
-    },
-    {
-      label: "Bedste måned",
-      value: metrics.bestMonth?.name ?? "Ingen data",
-      detail: metrics.bestMonth ? `${currency(metrics.bestMonth.revenue)} i omsætning` : undefined,
-    },
-    ...(hasData && baseMetrics.hasGrossMargin
-      ? [{ label: "Dækningsgrad", value: percent(metrics.grossMargin), detail: "Beregnet ud fra dækningsgraden" }]
-      : []),
-    ...(showCosts
-      ? [{ label: "Samlede omkostninger", value: currency(metrics.totalCosts), detail: "Aktuelle omkostninger" }]
-      : []),
-  ];
+  const currentKpiContext = useMemo(() => ({
+    ...metrics,
+    hasBudget: showBudget,
+  }), [metrics, showBudget]);
+  const baseKpiContext = useMemo(() => ({
+    ...baseMetrics,
+    hasBudget: showBudget,
+  }), [baseMetrics, showBudget]);
+  const defaultKpis = useMemo(
+    () => defaultKpiConfiguration(baseKpiContext),
+    [baseKpiContext],
+  );
+  const standardKpiEvaluations = useMemo(
+    () => Object.fromEntries(standardKpiDefinitions.map((definition) => [definition.id, evaluateStandardKpi(definition.id, currentKpiContext)])) as Record<string, KpiEvaluation>,
+    [currentKpiContext],
+  );
+  const baseStandardKpiEvaluations = useMemo(
+    () => Object.fromEntries(standardKpiDefinitions.map((definition) => [definition.id, evaluateStandardKpi(definition.id, baseKpiContext)])) as Record<string, KpiEvaluation>,
+    [baseKpiContext],
+  );
+  const numericColumns = useMemo(() => {
+    const mappedTypes = new Map(
+      Object.entries({ ...(data?.feedback.mappedColumns ?? {}), ...(data?.feedback.optionalColumns ?? {}) })
+        .map(([label, column]) => [column, label]),
+    );
+    return getNumericColumns(allRows).map((name) => ({ name, typeLabel: mappedTypes.get(name) }));
+  }, [allRows, data?.feedback.mappedColumns, data?.feedback.optionalColumns]);
+  const allKpiDefinitions = useMemo(
+    () => [...standardKpiDefinitions, ...kpiConfiguration.customKpis],
+    [kpiConfiguration.customKpis],
+  );
+  const kpiEvaluations = useMemo(() => {
+    const evaluations: Record<string, KpiEvaluation> = { ...standardKpiEvaluations };
+    kpiConfiguration.customKpis.forEach((definition) => {
+      try {
+        if (!filteredRows.length) throw new Error("Ingen rækker matcher de aktuelle filtre.");
+        const value = definition.formula ? evaluateFormula(definition.formula, filteredRows) : null;
+        evaluations[definition.id] = value === null
+          ? { available: false, value: null, detail: "Formlen mangler", reason: "Formlen mangler" }
+          : { available: true, value, detail: `Beregnet ud fra ${number(filteredRows.length)} filtrerede rækker` };
+      } catch (evaluationError) {
+        const reason = evaluationError instanceof Error ? evaluationError.message : "Beregningen kunne ikke udføres.";
+        evaluations[definition.id] = { available: false, value: null, detail: reason, reason };
+      }
+    });
+    return evaluations;
+  }, [filteredRows, kpiConfiguration.customKpis, standardKpiEvaluations]);
+  const availableKpiIds = useMemo(() => {
+    const ids = new Set(
+      Object.entries(baseStandardKpiEvaluations)
+        .filter(([, evaluation]) => evaluation.available)
+        .map(([id]) => id),
+    );
+    kpiConfiguration.customKpis.forEach((definition) => {
+      try {
+        if (definition.formula) {
+          evaluateFormula(definition.formula, allRows);
+          ids.add(definition.id);
+        }
+      } catch {
+        // Gemte KPI'er med manglende kolonner skjules, men bevares i opsætningen.
+      }
+    });
+    return ids;
+  }, [allRows, baseStandardKpiEvaluations, kpiConfiguration.customKpis]);
+  const effectiveKpiConfiguration = useMemo(
+    () => normalizeKpiConfiguration(kpiConfiguration, availableKpiIds, defaultKpis),
+    [availableKpiIds, defaultKpis, kpiConfiguration],
+  );
+  const kpiDefinitionMap = useMemo(
+    () => new Map(allKpiDefinitions.map((definition) => [definition.id, definition])),
+    [allKpiDefinitions],
+  );
+  const primaryKpis = effectiveKpiConfiguration.primaryKpis
+    .map((id) => kpiDefinitionMap.get(id))
+    .filter((definition): definition is KpiDefinition => Boolean(definition));
+  const secondaryKpis = effectiveKpiConfiguration.secondaryKpis
+    .map((id) => kpiDefinitionMap.get(id))
+    .filter((definition): definition is KpiDefinition => Boolean(definition));
+
+  useEffect(() => {
+    // Første version bruger én global browseropsætning; versionsfeltet gør senere migrering mulig.
+    const stored = parseStoredKpiConfiguration(window.localStorage.getItem(KPI_STORAGE_KEY));
+    if (stored) {
+      setKpiConfiguration(stored);
+      setHasCustomizedKpis(true);
+    }
+    setKpiConfigurationHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (kpiConfigurationHydrated && !hasCustomizedKpis) {
+      setKpiConfiguration(defaultKpis);
+    }
+  }, [defaultKpis, hasCustomizedKpis, kpiConfigurationHydrated]);
 
   useEffect(() => {
     setIsAnalysisSidebarCollapsed(window.localStorage.getItem("databrief-analysis-sidebar") === "collapsed");
@@ -2542,6 +2656,13 @@ export default function UploadDashboard() {
 
   function clearDashboardFilter(field: DashboardFilterKey) {
     setFilters((current) => ({ ...current, [field]: [] }));
+  }
+
+  function saveKpiConfiguration(configuration: KpiConfiguration) {
+    setKpiConfiguration(configuration);
+    setHasCustomizedKpis(true);
+    window.localStorage.setItem(KPI_STORAGE_KEY, JSON.stringify(configuration));
+    setIsKpiCustomizerOpen(false);
   }
 
   function selectSheet(sheetName: string, workbookAnalysis = analysis) {
@@ -2965,46 +3086,55 @@ export default function UploadDashboard() {
                 <p className={`${dashboardEyebrowClass} text-brand-700`}>Resultatoverblik</p>
                 <h2 className="mt-1.5 text-2xl font-semibold text-ink">Centrale nøgletal</h2>
               </div>
-              <p className="text-xs text-slate-500">Beregnet ud fra de registrerede data</p>
+              <div className="flex flex-col items-start gap-2 sm:items-end">
+                <button
+                  type="button"
+                  onClick={() => setIsKpiCustomizerOpen(true)}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-200"
+                >
+                  <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+                  Tilpas nøgletal
+                </button>
+                <p className="text-[11px] text-slate-500">
+                  {hasCustomizedKpis
+                    ? `${primaryKpis.length} primære · ${secondaryKpis.length} sekundære`
+                    : "Beregnet ud fra de registrerede data"}
+                </p>
+              </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <KpiCard
-                label="Samlet omsætning"
-                value={hasData ? currency(metrics.totalRevenue) : "Ingen data"}
-                detail={hasData ? `Kilde: ${data?.feedback.revenueSource}` : "Upload et regneark"}
-                emphasis
-                icon={CircleDollarSign}
-                tone="brand"
-              />
-              <KpiCard
-                label={primaryProfitLabel}
-                value={primaryProfitValue}
-                detail={primaryProfitDetail}
-                emphasis
-                icon={TrendingUp}
-                tone="positive"
-              />
-              <KpiCard
-                label="Omsætning mod budget"
-                value={showBudget ? currency(metrics.revenueVsBudget) : "Ikke tilgængeligt"}
-                detail={showBudget ? `Budgetteret omsætning: ${currency(metrics.budgetRevenue)}` : "Kræver budgetdata"}
-                emphasis
-                icon={Target}
-                tone="warning"
-              />
-              <KpiCard
-                label="Samlet antal solgte enheder"
-                value={hasData ? number(metrics.totalUnits) : "Ingen data"}
-                detail={hasData ? "Beregnet ud fra antalskolonnen" : "Upload et regneark"}
-                emphasis
-                icon={PackageCheck}
-                tone="neutral"
-              />
+              {primaryKpis.map((definition) => {
+                const evaluation = kpiEvaluations[definition.id];
+                return (
+                  <KpiCard
+                    key={definition.id}
+                    label={definition.name}
+                    value={evaluation?.available && evaluation.value !== null
+                      ? formatNumber(evaluation.value, definition.format, definition.decimals)
+                      : "Kan ikke beregnes"}
+                    detail={evaluation?.available ? evaluation.detail : (evaluation?.reason ?? "Mangler data")}
+                    emphasis
+                    icon={kpiIconMap[definition.icon]}
+                    tone={kpiTone(definition.color)}
+                  />
+                );
+              })}
             </div>
-            <div className={`${dashboardUtilityCardClass} divide-y divide-slate-100 sm:grid sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-5`}>
-              {secondaryMetrics.map((metric) => (
-                <SecondaryMetric key={metric.label} label={metric.label} value={metric.value} detail={metric.detail} />
-              ))}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+              {secondaryKpis.map((definition) => {
+                const evaluation = kpiEvaluations[definition.id];
+                return (
+                  <div key={definition.id} className={dashboardUtilityCardClass}>
+                    <SecondaryMetric
+                      label={definition.name}
+                      value={evaluation?.available && evaluation.value !== null
+                        ? formatNumber(evaluation.value, definition.format, definition.decimals)
+                        : "Kan ikke beregnes"}
+                      detail={evaluation?.available ? evaluation.detail : (evaluation?.reason ?? "Mangler data")}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </section>
 
@@ -3341,6 +3471,16 @@ export default function UploadDashboard() {
           ) : null}
         </section>
       </section>
+      <KpiCustomizer
+        open={isKpiCustomizerOpen}
+        configuration={kpiConfiguration}
+        defaults={defaultKpis}
+        evaluations={kpiEvaluations}
+        rows={filteredRows}
+        numericColumns={numericColumns}
+        onClose={() => setIsKpiCustomizerOpen(false)}
+        onSave={saveKpiConfiguration}
+      />
     </main>
   );
 }

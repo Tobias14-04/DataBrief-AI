@@ -12,6 +12,7 @@ build/
 # local files
 .env*.local
 *.log
+*.tsbuildinfo
 
 # Codex workspace scratch
 work/
