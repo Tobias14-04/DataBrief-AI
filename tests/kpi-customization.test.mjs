@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildKpiDataProfile,
   defaultKpiConfiguration,
   evaluateFormula,
   evaluateStandardKpi,
@@ -9,6 +10,8 @@ import {
   formulaToDanishText,
   getNumericColumns,
   parseStoredKpiConfiguration,
+  relevantKpiCategories,
+  standardKpiDefinitions,
 } from "../lib/kpi-customization.ts";
 
 const context = {
@@ -30,16 +33,71 @@ const context = {
   bestProduct: { name: "Café latte", revenue: 700 },
   bestCategory: { name: "Drikke", revenue: 700 },
   bestMonth: { name: "maj 2026", revenue: 1000 },
+  monthlyRevenue: [400, 600],
 };
 
 const rows = [
   { sourceValues: { Nettoomsætning: 600, Antal: 12, Produkt: "Café latte" } },
   { sourceValues: { Nettoomsætning: 400, Antal: 8, Produkt: "Croissant" } },
 ];
+const salesProfile = buildKpiDataProfile(rows, {
+  grossProfit: [600],
+  budgetRevenue: [900],
+  budgetCosts: [350],
+});
 
 test("standard-KPI beregnes fra den givne kontekst", () => {
-  assert.deepEqual(evaluateStandardKpi("total-revenue", context).value, 1000);
-  assert.deepEqual(evaluateStandardKpi("gross-margin", context).value, 0.6);
+  assert.deepEqual(evaluateStandardKpi("total-revenue", context, salesProfile).value, 1000);
+  assert.deepEqual(evaluateStandardKpi("gross-margin", context, salesProfile).value, 0.6);
+});
+
+test("KPI-registeret genkender danske og engelske kolonnesynonymer", () => {
+  const profile = buildKpiDataProfile([
+    { sourceValues: { Sales: 1200, Quantity: 24, "Equity Value": 400, "Total Assets": 1000 } },
+  ]);
+  assert.deepEqual(profile.matchedColumns.revenue, ["Sales"]);
+  assert.deepEqual(profile.matchedColumns.units, ["Quantity"]);
+  assert.deepEqual(profile.matchedColumns.equity, ["Equity Value"]);
+  assert.deepEqual(profile.matchedColumns.assets, ["Total Assets"]);
+});
+
+test("finansielle KPI'er beregnes direkte fra det centrale register", () => {
+  const profile = buildKpiDataProfile([
+    {
+      sourceValues: {
+        Egenkapital: 400,
+        Aktiver: 1000,
+        Omsætningsaktiver: 300,
+        "Kortfristet gæld": 150,
+        Lager: 60,
+      },
+    },
+  ]);
+  assert.equal(evaluateStandardKpi("equity-ratio", context, profile).value, 0.4);
+  assert.equal(evaluateStandardKpi("current-ratio", context, profile).value, 2);
+  assert.equal(evaluateStandardKpi("quick-ratio", context, profile).value, 1.6);
+});
+
+test("manglende KPI-data viser de præcise kolonner", () => {
+  const profile = buildKpiDataProfile([{ sourceValues: { Egenkapital: 400 } }]);
+  const evaluation = evaluateStandardKpi("equity-ratio", context, profile);
+  assert.equal(evaluation.available, false);
+  assert.deepEqual(evaluation.missingFields, ["Aktiver"]);
+  assert.match(evaluation.reason, /Aktiver/);
+});
+
+test("KPI-kategorier følger filens faktiske datagrundlag", () => {
+  const salesOnly = Object.fromEntries(
+    standardKpiDefinitions.map((definition) => [
+      definition.id,
+      evaluateStandardKpi(definition.id, context, salesProfile),
+    ]),
+  );
+  const categories = relevantKpiCategories(standardKpiDefinitions, salesOnly);
+  assert.equal(categories.includes("Salg"), true);
+  assert.equal(categories.includes("Finansielle nøgletal"), false);
+  assert.equal(categories.includes("Likviditet"), false);
+  assert.equal(categories.includes("Lager"), false);
 });
 
 test("formelbuilderen kan vise en laesbar dansk forklaring", () => {

@@ -232,6 +232,7 @@ export function CustomKpiBuilder({
       decimals: draft.decimals,
       icon: "calculator",
       color: draft.color,
+      category: "Brugerdefinerede",
       formula,
       isCustom: true,
     });

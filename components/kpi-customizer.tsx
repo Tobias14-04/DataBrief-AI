@@ -36,6 +36,7 @@ export function KpiCustomizer({
   configuration,
   defaults,
   evaluations,
+  libraryEvaluations,
   rows,
   numericColumns,
   onClose,
@@ -45,6 +46,7 @@ export function KpiCustomizer({
   configuration: KpiConfiguration;
   defaults: KpiConfiguration;
   evaluations: Record<string, KpiEvaluation>;
+  libraryEvaluations: Record<string, KpiEvaluation>;
   rows: KpiSourceRow[];
   numericColumns: Array<{ name: string; typeLabel?: string }>;
   onClose: () => void;
@@ -384,7 +386,7 @@ export function KpiCustomizer({
                   <KpiLibrary
                     definitions={definitions}
                     selectedPlacements={selectedPlacements}
-                    evaluations={evaluations}
+                    evaluations={libraryEvaluations}
                     primaryCount={selectedPrimary.length}
                     secondaryCount={selectedSecondary.length}
                     evaluationFor={evaluationFor}

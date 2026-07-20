@@ -1,3 +1,22 @@
+import {
+  evaluateRegisteredKpi,
+  type KpiCategory,
+  type KpiDataProfile,
+} from "./kpi-registry.ts";
+
+export {
+  buildKpiDataProfile,
+  kpiFieldRegistry,
+  matchKpiField,
+  relevantKpiCategories,
+  scoreKpiHeaders,
+  standardKpiDefinitions,
+  type KpiCategory,
+  type KpiDataField,
+  type KpiDataProfile,
+  type RegisteredKpiDefinition,
+} from "./kpi-registry.ts";
+
 export const KPI_CONFIG_VERSION = 1;
 export const MAX_PRIMARY_KPIS = 4;
 export const MIN_PRIMARY_KPIS = 2;
@@ -24,6 +43,7 @@ export type KpiDefinition = {
   decimals: 0 | 1 | 2;
   icon: KpiIcon;
   color: KpiColor;
+  category?: KpiCategory;
   requiredFields?: string[];
   formula?: KpiFormula;
   isCustom: boolean;
@@ -60,6 +80,7 @@ export type StandardKpiContext = {
   bestCategory?: { name: string; revenue: number };
   bestMonth?: { name: string; revenue: number };
   orderCount?: number;
+  monthlyRevenue?: number[];
 };
 
 export type KpiEvaluation = {
@@ -67,28 +88,9 @@ export type KpiEvaluation = {
   value: number | string | null;
   detail: string;
   reason?: string;
+  missingFields?: string[];
+  matchedFields?: string[];
 };
-
-export const standardKpiDefinitions: KpiDefinition[] = [
-  { id: "total-revenue", name: "Samlet omsætning", description: "Summen af den registrerede omsætning", placement: "primary", format: "currency", decimals: 0, icon: "revenue", color: "cyan", isCustom: false },
-  { id: "total-units", name: "Samlet antal solgte enheder", description: "Summen af den registrerede antalskolonne", placement: "primary", format: "integer", decimals: 0, icon: "units", color: "navy", isCustom: false },
-  { id: "gross-profit", name: "Dækningsbidrag", description: "Omsætning efter variable omkostninger", placement: "primary", format: "currency", decimals: 0, icon: "profit", color: "green", requiredFields: ["Dækningsbidrag"], isCustom: false },
-  { id: "gross-margin", name: "Dækningsgrad", description: "Dækningsbidrag som andel af omsætningen", placement: "secondary", format: "percent", decimals: 1, icon: "profit", color: "green", requiredFields: ["Dækningsbidrag eller dækningsgrad"], isCustom: false },
-  { id: "total-costs", name: "Samlede omkostninger", description: "Registrerede omkostninger i den aktuelle visning", placement: "secondary", format: "currency", decimals: 0, icon: "target", color: "orange", requiredFields: ["Omkostningsdata"], isCustom: false },
-  { id: "result", name: "Resultat", description: "Omsætning minus registrerede omkostninger", placement: "secondary", format: "currency", decimals: 0, icon: "profit", color: "green", requiredFields: ["Omkostningsdata"], isCustom: false },
-  { id: "revenue-vs-budget", name: "Omsætning mod budget", description: "Forskel mellem faktisk og budgetteret omsætning", placement: "primary", format: "currency", decimals: 0, icon: "target", color: "orange", requiredFields: ["Budgetark eller budgetkolonne"], isCustom: false },
-  { id: "best-product", name: "Bedste produkt", description: "Produktet med den højeste omsætning", placement: "secondary", format: "text", decimals: 0, icon: "units", color: "navy", isCustom: false },
-  { id: "best-category", name: "Bedste kategori", description: "Kategorien med den højeste omsætning", placement: "secondary", format: "text", decimals: 0, icon: "target", color: "cyan", isCustom: false },
-  { id: "best-month", name: "Bedste måned", description: "Måneden med den højeste omsætning", placement: "secondary", format: "text", decimals: 0, icon: "target", color: "cyan", isCustom: false },
-  { id: "avg-revenue-row", name: "Gennemsnitlig omsætning pr. række", description: "Omsætning divideret med registrerede salgsrækker", placement: "secondary", format: "currency", decimals: 2, icon: "calculator", color: "cyan", isCustom: false },
-  { id: "avg-revenue-unit", name: "Gennemsnitlig omsætning pr. solgt enhed", description: "Omsætning divideret med solgte enheder", placement: "secondary", format: "currency", decimals: 2, icon: "calculator", color: "cyan", isCustom: false },
-  { id: "gross-profit-unit", name: "Dækningsbidrag pr. solgt enhed", description: "Dækningsbidrag divideret med solgte enheder", placement: "secondary", format: "currency", decimals: 2, icon: "calculator", color: "green", requiredFields: ["Dækningsbidrag"], isCustom: false },
-  { id: "row-count", name: "Antal registrerede salgsrækker", description: "Antallet af rækker i den aktuelle visning", placement: "secondary", format: "count", decimals: 0, icon: "units", color: "navy", isCustom: false },
-  { id: "average-order-value", name: "Gennemsnitlig ordreværdi", description: "Omsætning divideret med unikke ordrer", placement: "secondary", format: "currency", decimals: 2, icon: "calculator", color: "purple", requiredFields: ["Ordre-id"], isCustom: false },
-  { id: "budget-revenue", name: "Budgetteret omsætning", description: "Budgetteret omsætning for den aktuelle visning", placement: "secondary", format: "currency", decimals: 0, icon: "target", color: "orange", requiredFields: ["Budgetdata"], isCustom: false },
-  { id: "budget-costs", name: "Budgetterede omkostninger", description: "Budgetterede omkostninger for den aktuelle visning", placement: "secondary", format: "currency", decimals: 0, icon: "target", color: "orange", requiredFields: ["Budgetdata"], isCustom: false },
-  { id: "budget-result", name: "Budgetteret resultat", description: "Budgetteret omsætning minus omkostninger", placement: "secondary", format: "currency", decimals: 0, icon: "profit", color: "green", requiredFields: ["Budgetdata"], isCustom: false },
-];
 
 export function defaultKpiConfiguration(context: Pick<StandardKpiContext, "hasBudget" | "hasGrossProfit" | "hasGrossMargin" | "hasCosts">): KpiConfiguration {
   const profitKpi = context.hasGrossProfit ? "gross-profit" : context.hasCosts ? "result" : context.hasGrossMargin ? "gross-margin" : "avg-revenue-row";
@@ -105,31 +107,12 @@ export function defaultKpiConfiguration(context: Pick<StandardKpiContext, "hasBu
   };
 }
 
-export function evaluateStandardKpi(id: string, context: StandardKpiContext): KpiEvaluation {
-  const unavailable = (reason: string): KpiEvaluation => ({ available: false, value: null, detail: reason, reason });
-  const available = (value: number | string, detail: string): KpiEvaluation => ({ available: true, value, detail });
-
-  switch (id) {
-    case "total-revenue": return available(context.totalRevenue, "Beregnet ud fra omsætningskolonnen");
-    case "total-units": return available(context.totalUnits, "Beregnet ud fra antalskolonnen");
-    case "gross-profit": return context.hasGrossProfit ? available(context.totalGrossProfit, `Dækningsgrad: ${formatNumber(context.grossMargin, "percent", 1)}`) : unavailable("Mangler dækningsbidrag");
-    case "gross-margin": return context.hasGrossProfit || context.hasGrossMargin ? available(context.grossMargin, "Beregnet ud fra dækningsdata") : unavailable("Mangler dækningsbidrag eller dækningsgrad");
-    case "total-costs": return context.hasCosts ? available(context.totalCosts, "Beregnet ud fra omkostningsdata") : unavailable("Mangler omkostningsdata");
-    case "result": return context.hasCosts ? available(context.actualResult, "Omsætning minus omkostninger") : unavailable("Mangler omkostningsdata");
-    case "revenue-vs-budget": return context.hasBudget ? available(context.revenueVsBudget, `Budget: ${formatNumber(context.budgetRevenue, "currency", 0)}`) : unavailable("Mangler budgetdata");
-    case "best-product": return context.bestProduct ? available(context.bestProduct.name, `${formatNumber(context.bestProduct.revenue, "currency", 0)} i omsætning`) : unavailable("Ingen produkter i den aktuelle visning");
-    case "best-category": return context.bestCategory ? available(context.bestCategory.name, `${formatNumber(context.bestCategory.revenue, "currency", 0)} i omsætning`) : unavailable("Ingen kategorier i den aktuelle visning");
-    case "best-month": return context.bestMonth ? available(context.bestMonth.name, `${formatNumber(context.bestMonth.revenue, "currency", 0)} i omsætning`) : unavailable("Ingen måneder i den aktuelle visning");
-    case "avg-revenue-row": return context.rowCount ? available(context.totalRevenue / context.rowCount, `Beregnet ud fra ${formatNumber(context.rowCount, "integer", 0)} rækker`) : unavailable("Ingen salgsrækker i den aktuelle visning");
-    case "avg-revenue-unit": return context.totalUnits ? available(context.totalRevenue / context.totalUnits, "Omsætning pr. solgt enhed") : unavailable("Antallet af solgte enheder er 0");
-    case "gross-profit-unit": return context.hasGrossProfit && context.totalUnits ? available(context.totalGrossProfit / context.totalUnits, "Dækningsbidrag pr. enhed") : unavailable("Mangler dækningsbidrag eller solgte enheder");
-    case "row-count": return available(context.rowCount, "Filtrerede salgsrækker");
-    case "average-order-value": return context.orderCount ? available(context.totalRevenue / context.orderCount, `Beregnet ud fra ${context.orderCount} ordrer`) : unavailable("Mangler en kolonne med ordre-id");
-    case "budget-revenue": return context.hasBudget ? available(context.budgetRevenue, "Budgetteret omsætning") : unavailable("Mangler budgetdata");
-    case "budget-costs": return context.hasBudget ? available(context.budgetCosts, "Budgetterede omkostninger") : unavailable("Mangler budgetdata");
-    case "budget-result": return context.hasBudget ? available(context.budgetResult, "Budgetteret omsætning minus omkostninger") : unavailable("Mangler budgetdata");
-    default: return unavailable("Ukendt nøgletal");
-  }
+export function evaluateStandardKpi(
+  id: string,
+  context: StandardKpiContext,
+  profile: KpiDataProfile,
+): KpiEvaluation {
+  return evaluateRegisteredKpi(id, context, profile);
 }
 
 function toNumericValue(value: unknown) {

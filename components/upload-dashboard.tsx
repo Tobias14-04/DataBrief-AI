@@ -50,6 +50,7 @@ import {
   shouldShowColumnReview,
 } from "@/lib/auto-mapping-flow";
 import {
+  buildKpiDataProfile,
   defaultKpiConfiguration,
   evaluateFormula,
   evaluateStandardKpi,
@@ -57,12 +58,14 @@ import {
   getNumericColumns,
   normalizeKpiConfiguration,
   parseStoredKpiConfiguration,
+  scoreKpiHeaders,
   standardKpiDefinitions,
   type KpiColor,
   type KpiConfiguration,
   type KpiDefinition,
   type KpiEvaluation,
   type KpiIcon,
+  type KpiSourceRow,
 } from "@/lib/kpi-customization";
 
 type SaleRow = {
@@ -175,6 +178,7 @@ type WorkbookAnalysis = {
   fileName: string;
   detectedSheets: string[];
   candidates: SheetCandidate[];
+  kpiSourceRows: KpiSourceRow[];
   costs?: OptionalSheetSummary;
   budget?: BudgetSummary;
 };
@@ -591,6 +595,25 @@ function rowsToRecords(rows: unknown[][], headerIndex: number, headers: string[]
       return record;
     }, {}),
   );
+}
+
+function collectWorkbookKpiRows(workbook: XLSX.WorkBook): KpiSourceRow[] {
+  return workbook.SheetNames.flatMap((sheetName) => {
+    const rows = sheetToRows(workbook.Sheets[sheetName]);
+    const headerCandidate = rows
+      .slice(0, 40)
+      .map((row, index) => {
+        const headers = rowToHeaders(row);
+        return { index, score: scoreKpiHeaders(headers), headerCount: headers.length };
+      })
+      .sort((a, b) => b.score - a.score || b.headerCount - a.headerCount || a.index - b.index)[0];
+
+    if (!headerCandidate?.score) return [];
+    const headers = rowToHeaders(rows[headerCandidate.index] ?? []);
+    return rowsToRecords(rows, headerCandidate.index, headers)
+      .filter((record) => Object.values(record).some((value) => value !== "" && value !== null && value !== undefined))
+      .map((record) => ({ sourceValues: { ...record, __sheet: sheetName } }));
+  });
 }
 
 function getMissingFields(mappings: FieldMappings) {
@@ -1071,6 +1094,7 @@ function analyzeWorkbook(file: File): Promise<{
           fileName: file.name,
           detectedSheets: workbook.SheetNames,
           candidates,
+          kpiSourceRows: collectWorkbookKpiRows(workbook),
           costs: parseCostSheet(workbook),
           budget: parseBudgetSheet(workbook),
         };
@@ -2532,22 +2556,34 @@ export default function UploadDashboard() {
   const currentKpiContext = useMemo(() => ({
     ...metrics,
     hasBudget: showBudget,
+    monthlyRevenue: metrics.monthly.map((month) => month.revenue),
   }), [metrics, showBudget]);
   const baseKpiContext = useMemo(() => ({
     ...baseMetrics,
     hasBudget: showBudget,
+    monthlyRevenue: baseMetrics.monthly.map((month) => month.revenue),
   }), [baseMetrics, showBudget]);
+  const kpiDataProfile = useMemo(
+    () => buildKpiDataProfile(
+      analysis?.kpiSourceRows ?? allRows,
+      {
+        budgetRevenue: showBudget ? [baseMetrics.budgetRevenue] : [],
+        budgetCosts: showBudget ? [baseMetrics.budgetCosts] : [],
+      },
+    ),
+    [allRows, analysis?.kpiSourceRows, baseMetrics.budgetCosts, baseMetrics.budgetRevenue, showBudget],
+  );
   const defaultKpis = useMemo(
     () => defaultKpiConfiguration(baseKpiContext),
     [baseKpiContext],
   );
   const standardKpiEvaluations = useMemo(
-    () => Object.fromEntries(standardKpiDefinitions.map((definition) => [definition.id, evaluateStandardKpi(definition.id, currentKpiContext)])) as Record<string, KpiEvaluation>,
-    [currentKpiContext],
+    () => Object.fromEntries(standardKpiDefinitions.map((definition) => [definition.id, evaluateStandardKpi(definition.id, currentKpiContext, kpiDataProfile)])) as Record<string, KpiEvaluation>,
+    [currentKpiContext, kpiDataProfile],
   );
   const baseStandardKpiEvaluations = useMemo(
-    () => Object.fromEntries(standardKpiDefinitions.map((definition) => [definition.id, evaluateStandardKpi(definition.id, baseKpiContext)])) as Record<string, KpiEvaluation>,
-    [baseKpiContext],
+    () => Object.fromEntries(standardKpiDefinitions.map((definition) => [definition.id, evaluateStandardKpi(definition.id, baseKpiContext, kpiDataProfile)])) as Record<string, KpiEvaluation>,
+    [baseKpiContext, kpiDataProfile],
   );
   const numericColumns = useMemo(() => {
     const mappedTypes = new Map(
@@ -3492,6 +3528,7 @@ export default function UploadDashboard() {
         configuration={kpiConfiguration}
         defaults={defaultKpis}
         evaluations={kpiEvaluations}
+        libraryEvaluations={baseStandardKpiEvaluations}
         rows={filteredRows}
         numericColumns={numericColumns}
         onClose={() => setIsKpiCustomizerOpen(false)}

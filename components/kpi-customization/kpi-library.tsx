@@ -1,46 +1,26 @@
 "use client";
 
 import { Check, Plus, Search, Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   MAX_PRIMARY_KPIS,
   MAX_SECONDARY_KPIS,
+  relevantKpiCategories,
+  type KpiCategory,
   type KpiDefinition,
   type KpiEvaluation,
   type KpiPlacement,
 } from "@/lib/kpi-customization";
 import { KpiIconBadge } from "@/components/kpi-customization/kpi-ui";
 
-type KpiCategory = "Alle" | "Salg" | "Indtjening" | "Budget" | "Produkter og perioder";
+type StatusFilter = "Alle" | "Tilgængelige" | "Mangler data" | "Brugerdefinerede";
 
-const categories: KpiCategory[] = [
+const statusFilters: StatusFilter[] = [
   "Alle",
-  "Salg",
-  "Indtjening",
-  "Budget",
-  "Produkter og perioder",
+  "Tilgængelige",
+  "Mangler data",
+  "Brugerdefinerede",
 ];
-
-const categoryById: Record<string, Exclude<KpiCategory, "Alle">> = {
-  "total-revenue": "Salg",
-  "total-units": "Salg",
-  "avg-revenue-row": "Salg",
-  "avg-revenue-unit": "Salg",
-  "row-count": "Salg",
-  "gross-profit": "Indtjening",
-  "gross-margin": "Indtjening",
-  "total-costs": "Indtjening",
-  result: "Indtjening",
-  "gross-profit-unit": "Indtjening",
-  "revenue-vs-budget": "Budget",
-  "budget-revenue": "Budget",
-  "budget-costs": "Budget",
-  "budget-result": "Budget",
-  "best-product": "Produkter og perioder",
-  "best-category": "Produkter og perioder",
-  "best-month": "Produkter og perioder",
-  "average-order-value": "Produkter og perioder",
-};
 
 function selectedLabel(placement: KpiPlacement) {
   return placement === "primary"
@@ -101,14 +81,29 @@ function LibraryCard({
               {evaluation.available ? "Klar" : "Mangler data"}
             </span>
           </div>
+
           {!evaluation.available ? (
-            <p className="mt-2 text-xs font-medium leading-5 text-amber-800">
-              {evaluation.reason ?? definition.requiredFields?.join(", ") ?? "Kan ikke beregnes med de aktuelle data"}
-            </p>
+            <div className="mt-2 rounded-md border border-amber-100 bg-amber-50/70 px-3 py-2.5 text-xs text-amber-900">
+              {evaluation.missingFields?.length ? (
+                <>
+                  <p className="font-semibold">Mangler:</p>
+                  <ul className="mt-1 space-y-0.5">
+                    {evaluation.missingFields.map((field) => (
+                      <li key={field}>- {field}</li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <p className="font-medium leading-5">
+                  {evaluation.reason ?? "Kan ikke beregnes med de aktuelle data"}
+                </p>
+              )}
+            </div>
           ) : null}
+
           <div className="mt-3 flex items-center justify-between gap-3">
             <p className="text-[11px] text-slate-400">
-              {definition.isCustom ? "Eget nøgletal" : categoryById[definition.id] ?? "Nøgletal"}
+              {definition.category ?? (definition.isCustom ? "Brugerdefinerede" : "Nøgletal")}
             </p>
             <div
               className="relative"
@@ -180,22 +175,46 @@ export function KpiLibrary({
   onCreateCustom: () => void;
 }) {
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<KpiCategory>("Alle");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("Alle");
+  const [category, setCategory] = useState<"Alle" | KpiCategory>("Alle");
   const normalizedQuery = query.trim().toLocaleLowerCase("da-DK");
-  const visible = useMemo(
-    () =>
-      definitions.filter((definition) => {
-        const matchesSearch =
-          !normalizedQuery ||
-          `${definition.name} ${definition.description}`.toLocaleLowerCase("da-DK").includes(normalizedQuery);
-        const matchesCategory =
-          category === "Alle" ||
-          (!definition.isCustom && categoryById[definition.id] === category);
-        const selected = selectedPlacements.has(definition.id);
-        return matchesSearch && matchesCategory && (!selected || Boolean(normalizedQuery));
-      }),
-    [category, definitions, normalizedQuery, selectedPlacements],
+
+  const libraryItems = definitions.map((definition) => ({
+    definition,
+    evaluation: definition.isCustom
+      ? evaluationFor(definition)
+      : evaluations[definition.id] ?? {
+          available: false,
+          value: null,
+          detail: "Kan ikke beregnes",
+          reason: "Kan ikke beregnes med de aktuelle data",
+        },
+  }));
+  const combinedEvaluations = Object.fromEntries(
+    libraryItems.map((item) => [item.definition.id, item.evaluation]),
   );
+  const categories = relevantKpiCategories(definitions, combinedEvaluations);
+  const effectiveCategory = category === "Alle" || categories.includes(category) ? category : "Alle";
+
+  const visible = libraryItems.filter(({ definition, evaluation }) => {
+    const matchesSearch =
+      !normalizedQuery ||
+      `${definition.name} ${definition.description}`.toLocaleLowerCase("da-DK").includes(normalizedQuery);
+    const matchesCategory =
+      effectiveCategory === "Alle" || definition.category === effectiveCategory;
+    const matchesStatus =
+      statusFilter === "Alle" ||
+      (statusFilter === "Tilgængelige" && evaluation.available && !definition.isCustom) ||
+      (statusFilter === "Mangler data" && !evaluation.available && !definition.isCustom) ||
+      (statusFilter === "Brugerdefinerede" && definition.isCustom);
+    const isRelevant =
+      definition.isCustom ||
+      (Boolean(definition.category && categories.includes(definition.category)) &&
+        (evaluation.available || Boolean(evaluation.matchedFields?.length))) ||
+      selectedPlacements.has(definition.id);
+    const selected = selectedPlacements.has(definition.id);
+    return isRelevant && matchesSearch && matchesCategory && matchesStatus && (!selected || Boolean(normalizedQuery));
+  });
 
   return (
     <section className="mx-auto w-full max-w-3xl">
@@ -221,26 +240,45 @@ export function KpiLibrary({
         </button>
       </div>
 
-      <div className="mt-4 flex gap-2 overflow-x-auto pb-1" aria-label="Filtrer nøgletal efter kategori">
-        {categories.map((item) => (
-          <button
-            key={item}
-            type="button"
-            onClick={() => setCategory(item)}
-            className={`min-h-9 shrink-0 rounded-full border px-3 text-xs font-semibold transition ${
-              category === item
-                ? "border-brand-300 bg-brand-50 text-brand-800"
-                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-            }`}
-            aria-pressed={category === item}
-          >
-            {item}
-          </button>
-        ))}
+      <div className="mt-4 rounded-lg border border-slate-200 bg-white p-2.5">
+        <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Filtrer nøgletal efter status">
+          {statusFilters.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setStatusFilter(item)}
+              className={`min-h-9 shrink-0 rounded-md px-3 text-xs font-semibold transition ${
+                statusFilter === item
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+              }`}
+              aria-pressed={statusFilter === item}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+        <div className="mt-2 flex gap-2 overflow-x-auto border-t border-slate-100 pt-2" aria-label="Filtrer nøgletal efter kategori">
+          {(["Alle", ...categories] as Array<"Alle" | KpiCategory>).map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setCategory(item)}
+              className={`min-h-8 shrink-0 rounded-full border px-3 text-[11px] font-semibold transition ${
+                effectiveCategory === item
+                  ? "border-brand-300 bg-brand-50 text-brand-800"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+              }`}
+              aria-pressed={effectiveCategory === item}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
-        {visible.map((definition) => {
+        {visible.map(({ definition, evaluation }) => {
           const placement = selectedPlacements.get(definition.id);
           if (placement) {
             return (
@@ -262,16 +300,7 @@ export function KpiLibrary({
             <LibraryCard
               key={definition.id}
               definition={definition}
-              evaluation={
-                definition.isCustom
-                  ? evaluationFor(definition)
-                  : evaluations[definition.id] ?? {
-                      available: false,
-                      value: null,
-                      detail: "Kan ikke beregnes",
-                      reason: "Kan ikke beregnes med de aktuelle data",
-                    }
-              }
+              evaluation={evaluation}
               primaryCount={primaryCount}
               secondaryCount={secondaryCount}
               onAdd={(nextPlacement) => onAdd(definition.id, nextPlacement)}
@@ -281,8 +310,8 @@ export function KpiLibrary({
       </div>
       {!visible.length ? (
         <div className="mt-5 rounded-lg border border-dashed border-slate-300 bg-white px-5 py-8 text-center">
-          <p className="text-sm font-semibold text-slate-800">Ingen nøgletal matcher din søgning</p>
-          <p className="mt-1 text-xs text-slate-500">Prøv et andet ord eller vælg kategorien Alle.</p>
+          <p className="text-sm font-semibold text-slate-800">Ingen relevante nøgletal matcher visningen</p>
+          <p className="mt-1 text-xs text-slate-500">Prøv et andet søgeord eller vælg Alle.</p>
         </div>
       ) : null}
     </section>
