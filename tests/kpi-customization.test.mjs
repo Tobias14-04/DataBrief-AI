@@ -61,6 +61,66 @@ test("KPI-registeret genkender danske og engelske kolonnesynonymer", () => {
   assert.deepEqual(profile.matchedColumns.assets, ["Total Assets"]);
 });
 
+test("KPI-registeret er omfattende, unikt og fuldt konfigurationsbaseret", () => {
+  assert.ok(standardKpiDefinitions.length >= 70);
+  assert.ok(standardKpiDefinitions.length <= 100);
+  assert.equal(new Set(standardKpiDefinitions.map((definition) => definition.id)).size, standardKpiDefinitions.length);
+  assert.equal(standardKpiDefinitions.every((definition) => definition.category), true);
+  assert.equal(standardKpiDefinitions.every((definition) => ["recommended", "standard", "advanced"].includes(definition.level)), true);
+  assert.equal(standardKpiDefinitions.every((definition) => typeof definition.calculate === "function"), true);
+});
+
+test("udvidede BI-synonymer genkendes på dansk og engelsk", () => {
+  const profile = buildKpiDataProfile([
+    {
+      sourceValues: {
+        "Price per unit": 42,
+        "Cost per unit": 18,
+        EBITDA: 500,
+        "Inventory quantity": 75,
+        Kundenavn: "Nord ApS",
+        Quarter: "Q1 2026",
+      },
+    },
+  ]);
+  assert.deepEqual(profile.matchedColumns.unitPrice, ["Price per unit"]);
+  assert.deepEqual(profile.matchedColumns.unitCost, ["Cost per unit"]);
+  assert.deepEqual(profile.matchedColumns.ebitda, ["EBITDA"]);
+  assert.deepEqual(profile.matchedColumns.inventoryQuantity, ["Inventory quantity"]);
+  assert.deepEqual(profile.matchedColumns.customerName, ["Kundenavn"]);
+  assert.deepEqual(profile.matchedColumns.quarter, ["Quarter"]);
+});
+
+test("periode-, produkt- og kunde-KPI'er bruger de samme filtrerede rækker", () => {
+  const profile = buildKpiDataProfile([
+    { sourceValues: { Dato: "2026-01-10", Produkt: "Latte", Kundenummer: "K1", Nettoomsætning: 100, Antal: 2, Dækningsbidrag: 60 } },
+    { sourceValues: { Dato: "2026-02-10", Produkt: "Latte", Kundenummer: "K1", Nettoomsætning: 150, Antal: 3, Dækningsbidrag: 90 } },
+    { sourceValues: { Dato: "2026-02-12", Produkt: "Croissant", Kundenummer: "K2", Nettoomsætning: 50, Antal: 6, Dækningsbidrag: 20 } },
+  ]);
+  const filteredContext = {
+    ...context,
+    totalRevenue: 300,
+    totalUnits: 11,
+    totalGrossProfit: 170,
+    rowCount: 3,
+  };
+  assert.equal(evaluateStandardKpi("revenue-per-month", filteredContext, profile).value, 150);
+  assert.equal(evaluateStandardKpi("most-sold-product", filteredContext, profile).value, "Croissant");
+  assert.equal(evaluateStandardKpi("returning-customers", filteredContext, profile).value, 1);
+  assert.equal(evaluateStandardKpi("month-over-month-growth", filteredContext, profile).value, 1);
+});
+
+test("lager- og budget-KPI'er beregnes gennem det centrale register", () => {
+  const profile = buildKpiDataProfile([
+    { sourceValues: { Lagerværdi: 200, Lagerantal: 12 } },
+    { sourceValues: { Lagerværdi: 300, Lagerantal: 20 } },
+  ], { budgetRevenue: [900], budgetCosts: [350], revenue: [1000] });
+  assert.equal(evaluateStandardKpi("inventory-binding", context, profile).value, 500);
+  assert.equal(evaluateStandardKpi("average-inventory-value", context, profile).value, 250);
+  assert.equal(evaluateStandardKpi("highest-inventory", context, profile).value, 20);
+  assert.equal(evaluateStandardKpi("budget-attainment", context, profile).value, 1000 / 900);
+});
+
 test("finansielle KPI'er beregnes direkte fra det centrale register", () => {
   const profile = buildKpiDataProfile([
     {
@@ -95,9 +155,28 @@ test("KPI-kategorier følger filens faktiske datagrundlag", () => {
   );
   const categories = relevantKpiCategories(standardKpiDefinitions, salesOnly);
   assert.equal(categories.includes("Salg"), true);
+  assert.equal(categories.includes("Produkter"), true);
+  assert.equal(categories.includes("Tid og perioder"), false);
   assert.equal(categories.includes("Finansielle nøgletal"), false);
   assert.equal(categories.includes("Likviditet"), false);
   assert.equal(categories.includes("Lager"), false);
+});
+
+test("regnskabsdata åbner kun de relevante specialkategorier", () => {
+  const profile = buildKpiDataProfile([
+    { sourceValues: { Equity: 400, Assets: 1000, "Current Assets": 300, "Current Liabilities": 150, Cash: 80 } },
+  ]);
+  const evaluations = Object.fromEntries(
+    standardKpiDefinitions.map((definition) => [
+      definition.id,
+      evaluateStandardKpi(definition.id, context, profile),
+    ]),
+  );
+  const categories = relevantKpiCategories(standardKpiDefinitions, evaluations);
+  assert.equal(categories.includes("Finansielle nøgletal"), true);
+  assert.equal(categories.includes("Likviditet"), true);
+  assert.equal(categories.includes("Lager"), false);
+  assert.equal(categories.includes("Kunder"), false);
 });
 
 test("formelbuilderen kan vise en laesbar dansk forklaring", () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Plus, Search, Sparkles } from "lucide-react";
+import { Check, Plus, Search, Sparkles, Star } from "lucide-react";
 import { useState } from "react";
 import {
   MAX_PRIMARY_KPIS,
@@ -9,6 +9,7 @@ import {
   type KpiCategory,
   type KpiDefinition,
   type KpiEvaluation,
+  type KpiLevel,
   type KpiPlacement,
 } from "@/lib/kpi-customization";
 import { KpiIconBadge } from "@/components/kpi-customization/kpi-ui";
@@ -21,6 +22,19 @@ const statusFilters: StatusFilter[] = [
   "Mangler data",
   "Brugerdefinerede",
 ];
+
+const levelFilters: Array<{ value: "all" | KpiLevel; label: string }> = [
+  { value: "all", label: "Alle niveauer" },
+  { value: "recommended", label: "Anbefalede" },
+  { value: "standard", label: "Standard" },
+  { value: "advanced", label: "Avancerede" },
+];
+
+const levelLabels: Record<KpiLevel, string> = {
+  recommended: "Anbefalet",
+  standard: "Standard",
+  advanced: "Avanceret",
+};
 
 function selectedLabel(placement: KpiPlacement) {
   return placement === "primary"
@@ -102,9 +116,23 @@ function LibraryCard({
           ) : null}
 
           <div className="mt-3 flex items-center justify-between gap-3">
-            <p className="text-[11px] text-slate-400">
-              {definition.category ?? (definition.isCustom ? "Brugerdefinerede" : "Nøgletal")}
-            </p>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <p className="text-[11px] text-slate-400">
+                {definition.category ?? (definition.isCustom ? "Brugerdefinerede" : "Nøgletal")}
+              </p>
+              {definition.level ? (
+                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                  definition.level === "recommended"
+                    ? "bg-brand-50 text-brand-700"
+                    : definition.level === "advanced"
+                      ? "bg-slate-100 text-slate-600"
+                      : "text-slate-400"
+                }`}>
+                  {definition.level === "recommended" ? <Star className="h-3 w-3 fill-current" aria-hidden="true" /> : null}
+                  {levelLabels[definition.level]}
+                </span>
+              ) : null}
+            </div>
             <div
               className="relative"
               onBlur={(event) => {
@@ -175,7 +203,8 @@ export function KpiLibrary({
   onCreateCustom: () => void;
 }) {
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("Alle");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("Tilgængelige");
+  const [levelFilter, setLevelFilter] = useState<"all" | KpiLevel>("all");
   const [category, setCategory] = useState<"Alle" | KpiCategory>("Alle");
   const normalizedQuery = query.trim().toLocaleLowerCase("da-DK");
 
@@ -207,13 +236,13 @@ export function KpiLibrary({
       (statusFilter === "Tilgængelige" && evaluation.available && !definition.isCustom) ||
       (statusFilter === "Mangler data" && !evaluation.available && !definition.isCustom) ||
       (statusFilter === "Brugerdefinerede" && definition.isCustom);
+    const matchesLevel = levelFilter === "all" || definition.level === levelFilter;
     const isRelevant =
       definition.isCustom ||
-      (Boolean(definition.category && categories.includes(definition.category)) &&
-        (evaluation.available || Boolean(evaluation.matchedFields?.length))) ||
+      Boolean(definition.category && categories.includes(definition.category)) ||
       selectedPlacements.has(definition.id);
     const selected = selectedPlacements.has(definition.id);
-    return isRelevant && matchesSearch && matchesCategory && matchesStatus && (!selected || Boolean(normalizedQuery));
+    return isRelevant && matchesSearch && matchesCategory && matchesStatus && matchesLevel && (!selected || Boolean(normalizedQuery));
   });
 
   return (
@@ -255,6 +284,23 @@ export function KpiLibrary({
               aria-pressed={statusFilter === item}
             >
               {item}
+            </button>
+          ))}
+        </div>
+        <div className="mt-2 flex gap-2 overflow-x-auto border-t border-slate-100 pt-2" aria-label="Filtrer nøgletal efter niveau">
+          {levelFilters.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              onClick={() => setLevelFilter(item.value)}
+              className={`min-h-8 shrink-0 rounded-md px-3 text-[11px] font-semibold transition ${
+                levelFilter === item.value
+                  ? "bg-brand-50 text-brand-800"
+                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+              }`}
+              aria-pressed={levelFilter === item.value}
+            >
+              {item.label}
             </button>
           ))}
         </div>

@@ -2563,27 +2563,43 @@ export default function UploadDashboard() {
     hasBudget: showBudget,
     monthlyRevenue: baseMetrics.monthly.map((month) => month.revenue),
   }), [baseMetrics, showBudget]);
-  const kpiDataProfile = useMemo(
+  const supplementalKpiRows = useMemo(
+    () => (analysis?.kpiSourceRows ?? []).filter(
+      (row) => row.sourceValues.__sheet !== data?.feedback.salesSheetName,
+    ),
+    [analysis?.kpiSourceRows, data?.feedback.salesSheetName],
+  );
+  const currentKpiDataProfile = useMemo(
     () => buildKpiDataProfile(
-      analysis?.kpiSourceRows ?? allRows,
+      [...filteredRows, ...supplementalKpiRows],
+      {
+        budgetRevenue: showBudget ? [metrics.budgetRevenue] : [],
+        budgetCosts: showBudget ? [metrics.budgetCosts] : [],
+      },
+    ),
+    [filteredRows, metrics.budgetCosts, metrics.budgetRevenue, showBudget, supplementalKpiRows],
+  );
+  const baseKpiDataProfile = useMemo(
+    () => buildKpiDataProfile(
+      [...allRows, ...supplementalKpiRows],
       {
         budgetRevenue: showBudget ? [baseMetrics.budgetRevenue] : [],
         budgetCosts: showBudget ? [baseMetrics.budgetCosts] : [],
       },
     ),
-    [allRows, analysis?.kpiSourceRows, baseMetrics.budgetCosts, baseMetrics.budgetRevenue, showBudget],
+    [allRows, baseMetrics.budgetCosts, baseMetrics.budgetRevenue, showBudget, supplementalKpiRows],
   );
   const defaultKpis = useMemo(
     () => defaultKpiConfiguration(baseKpiContext),
     [baseKpiContext],
   );
   const standardKpiEvaluations = useMemo(
-    () => Object.fromEntries(standardKpiDefinitions.map((definition) => [definition.id, evaluateStandardKpi(definition.id, currentKpiContext, kpiDataProfile)])) as Record<string, KpiEvaluation>,
-    [currentKpiContext, kpiDataProfile],
+    () => Object.fromEntries(standardKpiDefinitions.map((definition) => [definition.id, evaluateStandardKpi(definition.id, currentKpiContext, currentKpiDataProfile)])) as Record<string, KpiEvaluation>,
+    [currentKpiContext, currentKpiDataProfile],
   );
   const baseStandardKpiEvaluations = useMemo(
-    () => Object.fromEntries(standardKpiDefinitions.map((definition) => [definition.id, evaluateStandardKpi(definition.id, baseKpiContext, kpiDataProfile)])) as Record<string, KpiEvaluation>,
-    [baseKpiContext, kpiDataProfile],
+    () => Object.fromEntries(standardKpiDefinitions.map((definition) => [definition.id, evaluateStandardKpi(definition.id, baseKpiContext, baseKpiDataProfile)])) as Record<string, KpiEvaluation>,
+    [baseKpiContext, baseKpiDataProfile],
   );
   const numericColumns = useMemo(() => {
     const mappedTypes = new Map(

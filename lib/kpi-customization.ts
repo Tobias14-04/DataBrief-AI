@@ -23,6 +23,7 @@ export const MIN_PRIMARY_KPIS = 2;
 export const MAX_SECONDARY_KPIS = 6;
 
 export type KpiPlacement = "primary" | "secondary";
+export type KpiLevel = "recommended" | "standard" | "advanced";
 export type KpiFormat = "currency" | "percent" | "integer" | "decimal" | "count" | "text";
 export type KpiColor = "cyan" | "green" | "orange" | "navy" | "purple";
 export type KpiIcon = "revenue" | "profit" | "target" | "units" | "calculator";
@@ -44,6 +45,7 @@ export type KpiDefinition = {
   icon: KpiIcon;
   color: KpiColor;
   category?: KpiCategory;
+  level?: KpiLevel;
   requiredFields?: string[];
   formula?: KpiFormula;
   isCustom: boolean;

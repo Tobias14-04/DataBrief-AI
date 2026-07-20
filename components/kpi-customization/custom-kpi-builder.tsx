@@ -233,6 +233,7 @@ export function CustomKpiBuilder({
       icon: "calculator",
       color: draft.color,
       category: "Brugerdefinerede",
+      level: "standard",
       formula,
       isCustom: true,
     });
