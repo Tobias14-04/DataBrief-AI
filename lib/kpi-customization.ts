@@ -209,6 +209,27 @@ export function formulaToText(formula: KpiFormula): string {
   return `(${formulaToText(formula.left)} ${formula.operator} ${formulaToText(formula.right)})`;
 }
 
+export function formulaToDanishText(formula: KpiFormula): string {
+  const aggregateNames: Record<AggregateFunction, string> = {
+    SUM: "summen af",
+    AVG: "gennemsnittet af",
+    COUNT: "antallet af værdier i",
+    COUNT_UNIQUE: "antallet af unikke værdier i",
+    MIN: "den laveste værdi i",
+    MAX: "den højeste værdi i",
+  };
+  const operatorNames: Record<FormulaOperator, string> = {
+    "+": "plus",
+    "-": "minus",
+    "*": "ganget med",
+    "/": "divideret med",
+  };
+
+  if (formula.type === "number") return new Intl.NumberFormat("da-DK").format(formula.value);
+  if (formula.type === "aggregate") return `${aggregateNames[formula.function]} ${formula.column}`;
+  return `${formulaToDanishText(formula.left)} ${operatorNames[formula.operator]} ${formulaToDanishText(formula.right)}`;
+}
+
 export function formatNumber(value: number | string, format: KpiFormat, decimals: number) {
   if (typeof value === "string" || format === "text") return String(value);
   if (format === "currency") {

@@ -6,6 +6,7 @@ import {
   evaluateFormula,
   evaluateStandardKpi,
   formatNumber,
+  formulaToDanishText,
   getNumericColumns,
   parseStoredKpiConfiguration,
 } from "../lib/kpi-customization.ts";
@@ -39,6 +40,19 @@ const rows = [
 test("standard-KPI beregnes fra den givne kontekst", () => {
   assert.deepEqual(evaluateStandardKpi("total-revenue", context).value, 1000);
   assert.deepEqual(evaluateStandardKpi("gross-margin", context).value, 0.6);
+});
+
+test("formelbuilderen kan vise en laesbar dansk forklaring", () => {
+  const formula = {
+    type: "binary",
+    operator: "/",
+    left: { type: "aggregate", function: "SUM", column: "Net revenue" },
+    right: { type: "aggregate", function: "SUM", column: "Units" },
+  };
+  assert.equal(
+    formulaToDanishText(formula),
+    "summen af Net revenue divideret med summen af Units",
+  );
 });
 
 test("standardlayout skifter sikkert mellem filer med og uden budget", () => {

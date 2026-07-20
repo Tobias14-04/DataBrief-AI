@@ -2493,6 +2493,7 @@ export default function UploadDashboard() {
   const [kpiConfiguration, setKpiConfiguration] = useState<KpiConfiguration>(initialKpiConfiguration);
   const [kpiConfigurationHydrated, setKpiConfigurationHydrated] = useState(false);
   const [hasCustomizedKpis, setHasCustomizedKpis] = useState(false);
+  const [kpiSaveMessage, setKpiSaveMessage] = useState("");
 
   const allRows = useMemo(() => data?.rows ?? [], [data?.rows]);
   const activeFilters = useMemo(() => getActiveFilters(filters), [filters]);
@@ -2632,6 +2633,12 @@ export default function UploadDashboard() {
     window.localStorage.setItem("databrief-analysis-sidebar", isAnalysisSidebarCollapsed ? "collapsed" : "open");
   }, [isAnalysisSidebarCollapsed]);
 
+  useEffect(() => {
+    if (!kpiSaveMessage) return;
+    const timeout = window.setTimeout(() => setKpiSaveMessage(""), 4000);
+    return () => window.clearTimeout(timeout);
+  }, [kpiSaveMessage]);
+
   function resetDashboardView() {
     setFilters(emptyDashboardFilters);
     setReportMonth("");
@@ -2663,6 +2670,7 @@ export default function UploadDashboard() {
     setHasCustomizedKpis(true);
     window.localStorage.setItem(KPI_STORAGE_KEY, JSON.stringify(configuration));
     setIsKpiCustomizerOpen(false);
+    setKpiSaveMessage("Dashboardets nøgletal er opdateret.");
   }
 
   function selectSheet(sheetName: string, workbookAnalysis = analysis) {
@@ -3102,6 +3110,14 @@ export default function UploadDashboard() {
                 </p>
               </div>
             </div>
+            {kpiSaveMessage ? (
+              <div
+                role="status"
+                className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 shadow-[0_8px_22px_rgba(16,32,51,0.04)]"
+              >
+                {kpiSaveMessage}
+              </div>
+            ) : null}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {primaryKpis.map((definition) => {
                 const evaluation = kpiEvaluations[definition.id];
