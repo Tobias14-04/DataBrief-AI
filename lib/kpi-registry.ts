@@ -8,6 +8,7 @@ import type {
   KpiSourceRow,
   StandardKpiContext,
 } from "./kpi-customization";
+import { normalizeColumnHeader, salesColumnAliases } from "./spreadsheet-fields.ts";
 
 export type KpiCategory =
   | "Salg"
@@ -67,23 +68,23 @@ type KpiFieldDefinition = {
 export const kpiFieldRegistry: Record<KpiDataField, KpiFieldDefinition> = {
   revenue: {
     label: "Omsætning",
-    aliases: ["omsætning", "omsætning i alt", "nettoomsætning", "revenue", "sales", "net sales", "total sales", "sales amount", "salg", "salg i alt"],
+    aliases: [...salesColumnAliases.netRevenue, ...salesColumnAliases.grossRevenue, ...salesColumnAliases.revenue, "omsætning i alt", "net sales", "salg i alt"],
   },
   units: {
     label: "Antal",
-    aliases: ["antal", "units", "quantity", "qty", "solgt antal", "quantity sold", "stk", "pieces"],
+    aliases: [...salesColumnAliases.units],
   },
   grossProfit: {
     label: "Dækningsbidrag eller bruttofortjeneste",
-    aliases: ["dækningsbidrag", "gross profit", "contribution margin", "bruttofortjeneste", "bruttoresultat"],
+    aliases: [...salesColumnAliases.grossProfit, "bruttoresultat"],
   },
   grossMargin: {
     label: "Dækningsgrad",
-    aliases: ["dækningsgrad", "gross margin", "gross margin %", "margin %", "db %"],
+    aliases: [...salesColumnAliases.grossMargin, "gross margin %"],
   },
   cost: {
     label: "Omkostninger",
-    aliases: ["omkostning", "omkostninger", "cost", "costs", "cogs", "cost of goods sold", "vareforbrug", "kostpris", "produktomkostning", "produktomkostninger", "total cost"],
+    aliases: [...salesColumnAliases.cost, "produktomkostning", "produktomkostninger"],
   },
   variableCost: {
     label: "Variable omkostninger",
@@ -103,19 +104,19 @@ export const kpiFieldRegistry: Record<KpiDataField, KpiFieldDefinition> = {
   },
   product: {
     label: "Produkt",
-    aliases: ["produkt", "product", "varenavn", "vare", "item", "item name", "product name", "sku"],
+    aliases: [...salesColumnAliases.product],
   },
   category: {
     label: "Kategori",
-    aliases: ["kategori", "category", "produktkategori", "product category", "varegruppe", "segment"],
+    aliases: [...salesColumnAliases.category],
   },
   date: {
     label: "Dato",
-    aliases: ["dato", "date", "salgsdato", "order date", "transaction date", "fakturadato"],
+    aliases: [...salesColumnAliases.date],
   },
   month: {
     label: "Måned",
-    aliases: ["måned", "month", "periode", "period"],
+    aliases: [...salesColumnAliases.month],
   },
   week: {
     label: "Uge",
@@ -143,7 +144,7 @@ export const kpiFieldRegistry: Record<KpiDataField, KpiFieldDefinition> = {
   },
   unitPrice: {
     label: "Salgspris pr. enhed",
-    aliases: ["pris pr. stk.", "pris pr stk", "enhedspris", "salgspris", "unit price", "sales price", "price per unit"],
+    aliases: [...salesColumnAliases.unitPrice, "enhedspris", "salgspris", "price per unit"],
   },
   unitCost: {
     label: "Kostpris pr. enhed",
@@ -234,17 +235,7 @@ export type RegisteredKpiDefinition = KpiDefinition & {
   calculate: (input: { context: StandardKpiContext; profile: KpiDataProfile }) => KpiCalculationResult;
 };
 
-function normalizeColumnName(value: unknown) {
-  return String(value ?? "")
-    .trim()
-    .toLocaleLowerCase("da-DK")
-    .replace(/æ/g, "ae")
-    .replace(/ø/g, "o")
-    .replace(/å/g, "a")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]/g, "");
-}
+const normalizeColumnName = normalizeColumnHeader;
 
 const normalizedFieldAliases = Object.fromEntries(
   Object.entries(kpiFieldRegistry).map(([field, definition]) => [

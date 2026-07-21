@@ -67,6 +67,27 @@ import {
   type KpiIcon,
   type KpiSourceRow,
 } from "@/lib/kpi-customization";
+import {
+  buildMonthlyReport,
+  formatDanishCurrency as currency,
+  formatDanishMonth,
+  formatDanishNumber as number,
+  formatDanishPercent as percent,
+  formatMetricTooltip,
+  getAdaptiveMarginChartMode,
+  monthSortKey,
+} from "@/lib/dashboard-insights";
+import {
+  analyzeSalesSheetStructure,
+  buildSalesColumnMappings,
+  detectSalesHeaderRow,
+  findSalesColumnMatches,
+  getMissingRequiredSalesFields,
+  normalizeColumnHeader as normalizeHeader,
+  salesColumnAliases,
+  type SalesFieldKey,
+  type SalesFieldMappings,
+} from "@/lib/spreadsheet-fields";
 
 type SaleRow = {
   date: Date | null;
@@ -89,6 +110,7 @@ type GroupedValue = {
   units: number;
   grossProfit: number;
   cost: number;
+  grossMargin?: number;
 };
 
 type MonthValue = GroupedValue & {
@@ -138,26 +160,12 @@ type ParseResult = {
   feedback: MappingFeedback;
 };
 
-type FieldKey =
-  | "date"
-  | "month"
-  | "product"
-  | "category"
-  | "channel"
-  | "region"
-  | "units"
-  | "netRevenue"
-  | "grossRevenue"
-  | "revenue"
-  | "grossProfit"
-  | "grossMargin"
-  | "cost"
-  | "unitPrice";
+type FieldKey = SalesFieldKey;
 
 type RequiredManualField = "dateOrMonth" | "product" | "category" | "units" | "revenue";
 type OptionalManualField = "channel" | "region" | "cost" | "grossProfit" | "grossMargin" | "unitPrice";
 type ManualField = RequiredManualField | OptionalManualField;
-type FieldMappings = Partial<Record<FieldKey, string>>;
+type FieldMappings = SalesFieldMappings;
 type ManualMappings = Record<ManualField, string>;
 
 type SheetCandidate = {
@@ -267,60 +275,7 @@ const fieldLabels: Record<FieldKey, string> = {
   unitPrice: "Pris pr. enhed",
 };
 
-const aliases: Record<FieldKey, string[]> = {
-  date: ["date", "dato", "salgsdato", "order date", "transaction date", "fakturadato"],
-  month: ["month", "maaned", "m\u00e5ned", "periode", "period"],
-  product: ["product", "produkt", "varenavn", "item", "item name", "product name", "sku", "vare"],
-  category: ["category", "kategori", "produktkategori", "product category", "varegruppe", "segment"],
-  channel: ["channel", "kanal", "sales channel", "salgskanal", "order channel"],
-  region: ["region", "omraade", "omr\u00e5de", "district", "territory", "sales region", "salgsregion"],
-  units: ["units", "antal", "quantity", "qty", "solgt antal", "quantity sold", "stk", "pieces"],
-  netRevenue: ["nettoomsaetning", "nettooms\u00e6tning", "net revenue"],
-  grossRevenue: ["bruttoomsaetning", "bruttooms\u00e6tning", "gross revenue"],
-  revenue: [
-    "omsaetning",
-    "oms\u00e6tning",
-    "revenue",
-    "sales",
-    "salg",
-    "total sales",
-    "amount",
-    "beloeb",
-    "bel\u00f8b",
-    "sales amount",
-    "salg ekskl moms",
-    "salg inkl moms",
-    "budget revenue",
-    "budget omsaetning",
-    "budget oms\u00e6tning",
-  ],
-  grossProfit: [
-    "daekningsbidrag",
-    "d\u00e6kningsbidrag",
-    "gross profit",
-    "contribution margin",
-    "profit",
-    "bruttofortjeneste",
-  ],
-  grossMargin: ["daekningsgrad", "d\u00e6kningsgrad", "gross margin", "margin", "margin %", "db %"],
-  cost: [
-    "omkostninger",
-    "omkostning",
-    "cost",
-    "costs",
-    "vareforbrug",
-    "cogs",
-    "cost of goods sold",
-    "kostpris",
-    "kostpris pr stk",
-    "kostpris pr. stk.",
-    "total cost",
-    "budget costs",
-    "budget cost",
-    "budget omkostninger",
-  ],
-  unitPrice: ["price", "unit price", "pris", "pris pr stk", "pris pr. stk.", "sales price"],
-};
+const aliases = salesColumnAliases;
 
 const demoProducts = [
   { product: "Morgenmenu", category: "Menu", price: 96, unitCost: 39, baseUnits: 42 },
@@ -372,18 +327,6 @@ const sampleRows = demoMonths.flatMap((month, monthOffset) =>
     }),
   ),
 );
-
-function normalizeHeader(value: unknown) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/æ/g, "ae")
-    .replace(/ø/g, "o")
-    .replace(/å/g, "a")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]/g, "");
-}
 
 function toNumber(value: unknown) {
   if (typeof value === "number") {
@@ -453,31 +396,12 @@ function toDate(value: unknown) {
 }
 
 function monthLabel(date: Date) {
-  return new Intl.DateTimeFormat("da-DK", { month: "short", year: "numeric" }).format(date);
+  return formatDanishMonth(date);
 }
 
 function cleanMonth(value: unknown) {
   const text = String(value ?? "").trim();
-  return text || "Ukendt måned";
-}
-
-function currency(value: number) {
-  return new Intl.NumberFormat("da-DK", {
-    style: "currency",
-    currency: "DKK",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function percent(value: number) {
-  return new Intl.NumberFormat("da-DK", {
-    style: "percent",
-    maximumFractionDigits: 1,
-  }).format(value);
-}
-
-function number(value: number) {
-  return new Intl.NumberFormat("da-DK").format(value);
+  return text ? formatDanishMonth(text) : "Ukendt måned";
 }
 
 function paddedChartDomain(values: number[]): [number, number] {
@@ -517,37 +441,11 @@ function findMatchingHeader(headers: string[], field: FieldKey) {
 }
 
 function findMatchingHeaders(headers: string[], field: FieldKey) {
-  const normalizedAliases = aliases[field].map(normalizeHeader);
-  return headers.filter((header) => normalizedAliases.includes(normalizeHeader(header)));
+  return findSalesColumnMatches(headers, field);
 }
 
 function buildMappings(headers: string[]) {
-  return (Object.keys(aliases) as FieldKey[]).reduce<FieldMappings>((result, field) => {
-    const match = findMatchingHeader(headers, field);
-    if (match) {
-      result[field] = match;
-    }
-    return result;
-  }, {});
-}
-
-function scoreMappings(mappings: FieldMappings) {
-  let score = 0;
-  if (mappings.date) score += 3;
-  if (mappings.month) score += 2;
-  if (mappings.product) score += 4;
-  if (mappings.category) score += 3;
-  if (mappings.channel) score += 1;
-  if (mappings.region) score += 1;
-  if (mappings.units) score += 4;
-  if (mappings.netRevenue) score += 5;
-  if (mappings.grossRevenue) score += 4;
-  if (mappings.revenue) score += 4;
-  if (mappings.unitPrice) score += 2;
-  if (mappings.grossProfit) score += 1;
-  if (mappings.grossMargin) score += 1;
-  if (mappings.cost) score += 1;
-  return score;
+  return buildSalesColumnMappings(headers);
 }
 
 function sheetToRows(sheet: XLSX.WorkSheet) {
@@ -563,27 +461,7 @@ function rowToHeaders(row: unknown[]) {
 }
 
 function detectHeaderRow(rows: unknown[][]) {
-  const candidates = rows.slice(0, 40).map((row, index) => {
-    const headers = rowToHeaders(row);
-    const mappings = buildMappings(headers);
-    const uniqueHeaders = new Set(headers.map(normalizeHeader)).size;
-    const textCells = headers.filter((header) => Number.isNaN(Number(header))).length;
-    const tableShapeBonus = uniqueHeaders >= 4 && textCells >= 3 ? 2 : 0;
-
-    return {
-      index,
-      score: scoreMappings(mappings) + tableShapeBonus,
-    };
-  }).sort((a, b) => b.score - a.score || a.index - b.index);
-
-  const best = candidates[0] ?? { index: 0, score: -1 };
-  const runnerUpScore = candidates[1]?.score ?? -1;
-
-  return {
-    index: best.index,
-    score: best.score,
-    scoreGap: best.score - runnerUpScore,
-  };
+  return detectSalesHeaderRow(rows);
 }
 
 function rowsToRecords(rows: unknown[][], headerIndex: number, headers: string[]) {
@@ -617,24 +495,14 @@ function collectWorkbookKpiRows(workbook: XLSX.WorkBook): KpiSourceRow[] {
 }
 
 function getMissingFields(mappings: FieldMappings) {
-  const missing: string[] = [];
-  if (!mappings.product) missing.push("Produkt / Product");
-  if (!mappings.category) missing.push("Kategori / Category");
-  if (!mappings.units) missing.push("Antal / Units");
-  if (!mappings.date && !mappings.month) missing.push("Dato / Date eller Måned / Month");
-  if (!mappings.netRevenue && !mappings.grossRevenue && !mappings.revenue && !mappings.unitPrice) {
-    missing.push("Omsætning / Revenue eller Antal × Pris");
-  }
-  return missing;
+  return getMissingRequiredSalesFields(mappings);
 }
 
 function buildCandidates(workbook: XLSX.WorkBook) {
   return workbook.SheetNames.map((name) => {
     const rows = sheetToRows(workbook.Sheets[name]);
-    const headerDetection = detectHeaderRow(rows);
-    const headerIndex = headerDetection.index;
-    const headers = rowToHeaders(rows[headerIndex] ?? []);
-    const mappings = buildMappings(headers);
+    const structure = analyzeSalesSheetStructure(name, rows);
+    const { headers, headerIndex, mappings } = structure;
     const fieldMatches = (Object.keys(aliases) as FieldKey[]).reduce<Partial<Record<FieldKey, string[]>>>((matches, field) => {
       const matchingHeaders = findMatchingHeaders(headers, field);
       if (matchingHeaders.length) {
@@ -642,30 +510,19 @@ function buildCandidates(workbook: XLSX.WorkBook) {
       }
       return matches;
     }, {});
-    const nameBonus = normalizeHeader(name).includes("salg") || normalizeHeader(name).includes("sales") ? 3 : 0;
-    const score = scoreMappings(mappings) + nameBonus;
-    const missingFields = getMissingFields(mappings);
-    const requiredMatches = [
-      Boolean(mappings.date || mappings.month),
-      Boolean(mappings.product),
-      Boolean(mappings.category),
-      Boolean(mappings.units),
-      Boolean(mappings.netRevenue || mappings.grossRevenue || mappings.revenue || (mappings.units && mappings.unitPrice)),
-    ];
-    const confidence = Math.round((requiredMatches.filter(Boolean).length / requiredMatches.length) * 100);
 
     return {
       name,
       rows,
       headers,
       headerIndex,
-      headerScore: headerDetection.score,
-      headerScoreGap: headerDetection.scoreGap,
+      headerScore: structure.headerScore,
+      headerScoreGap: structure.headerScoreGap,
       mappings,
       fieldMatches,
-      score,
-      confidence,
-      missingFields,
+      score: structure.score,
+      confidence: structure.confidence,
+      missingFields: structure.missingFields,
     };
   }).sort((a, b) => b.score - a.score);
 }
@@ -930,19 +787,34 @@ function buildParseResult({
 }
 
 function groupRows(rows: SaleRow[], keyGetter: (row: SaleRow) => string) {
-  const groups = new Map<string, GroupedValue>();
+  const groups = new Map<string, GroupedValue & { grossMarginTotal: number; grossMarginCount: number }>();
 
   rows.forEach((row) => {
     const key = keyGetter(row) || "Ukategoriseret";
-    const current = groups.get(key) ?? { name: key, revenue: 0, units: 0, grossProfit: 0, cost: 0 };
+    const current = groups.get(key) ?? {
+      name: key,
+      revenue: 0,
+      units: 0,
+      grossProfit: 0,
+      cost: 0,
+      grossMarginTotal: 0,
+      grossMarginCount: 0,
+    };
     current.revenue += row.revenue;
     current.units += row.units;
     current.grossProfit += row.grossProfit ?? 0;
     current.cost += row.grossProfit !== null ? row.revenue - row.grossProfit : (row.cost ?? 0);
+    if (row.grossMargin !== null) {
+      current.grossMarginTotal += row.grossMargin;
+      current.grossMarginCount += 1;
+    }
     groups.set(key, current);
   });
 
-  return Array.from(groups.values());
+  return Array.from(groups.values()).map(({ grossMarginTotal, grossMarginCount, ...group }) => ({
+    ...group,
+    grossMargin: grossMarginCount ? grossMarginTotal / grossMarginCount : undefined,
+  }));
 }
 
 function uniqueValues(rows: SaleRow[], field: DashboardFilterKey) {
@@ -971,9 +843,12 @@ function groupRowsByMonth(rows: SaleRow[]) {
   const groups = new Map<string, MonthValue>();
 
   rows.forEach((row, index) => {
-    const sortKey = row.date ? new Date(row.date.getFullYear(), row.date.getMonth(), 1).getTime() : index;
-    const key = row.date ? String(sortKey) : row.month;
-    const displayMonth = row.month || (row.date ? monthLabel(row.date) : "Ukendt måned");
+    const parsedMonthSortKey = row.date
+      ? new Date(row.date.getFullYear(), row.date.getMonth(), 1).getTime()
+      : monthSortKey(row.month);
+    const sortKey = parsedMonthSortKey ?? index;
+    const displayMonth = row.month ? formatDanishMonth(row.month) : row.date ? monthLabel(row.date) : "Ukendt måned";
+    const key = parsedMonthSortKey !== null ? String(parsedMonthSortKey) : displayMonth;
     const current = groups.get(key) ?? {
       name: displayMonth,
       revenue: 0,
@@ -1168,6 +1043,9 @@ function calculateMetrics(
   const productsByUnits = groupRows(rows, (row) => row.product).sort((a, b) => b.units - a.units);
   const categories = groupRows(rows, (row) => row.category).sort((a, b) => b.revenue - a.revenue);
   const grossProfitByCategory = categories.filter((category) => category.grossProfit !== 0).sort((a, b) => b.grossProfit - a.grossProfit);
+  const grossMarginByCategory = categories
+    .filter((category) => category.grossMargin !== undefined)
+    .sort((a, b) => (b.grossMargin ?? 0) - (a.grossMargin ?? 0));
   const costsByCategory = categories.filter((category) => category.cost !== 0).sort((a, b) => b.cost - a.cost);
   const monthly = groupRowsByMonth(rows);
   const monthsByRevenue = [...monthly].sort((a, b) => b.revenue - a.revenue);
@@ -1196,6 +1074,7 @@ function calculateMetrics(
     productsByUnits: productsByUnits.slice(0, 8),
     categories: categories.slice(0, 8),
     grossProfitByCategory: grossProfitByCategory.slice(0, 8),
+    grossMarginByCategory: grossMarginByCategory.slice(0, 8),
     costsByCategory: costsByCategory.slice(0, 8),
     rowCount: rows.length,
   };
@@ -1223,10 +1102,10 @@ function buildExecutiveSummary(
     ? `Dækningsbidraget er ${currency(metrics.totalGrossProfit)} med en dækningsgrad på ${percent(metrics.grossMargin)}.`
     : metrics.hasCosts
       ? `Det aktuelle resultat er ${currency(metrics.actualResult)} efter omkostninger på ${currency(metrics.totalCosts)}.`
-      : `${metrics.bestMonth.name} er den stærkeste måned med en omsætning på ${currency(metrics.bestMonth.revenue)}.`;
+      : `${formatDanishMonth(metrics.bestMonth.name)} er den stærkeste måned med en omsætning på ${currency(metrics.bestMonth.revenue)}.`;
   const conclusion = feedback?.budget
     ? `Omsætningen ligger ${currency(Math.abs(metrics.revenueVsBudget))} ${metrics.revenueVsBudget >= 0 ? "over" : "under"} budgettet i denne visning.`
-    : `${metrics.bestMonth.name} er den stærkeste periode med ${metrics.bestCategory.name} som førende kategori.`;
+    : `${formatDanishMonth(metrics.bestMonth.name)} er den stærkeste periode med ${metrics.bestCategory.name} som førende kategori.`;
 
   return {
     insights: [
@@ -2308,24 +2187,22 @@ function MonthlyReportCard({
       : budgetStatus === "Over budgettet"
         ? "bg-emerald-50 text-emerald-700"
         : "bg-orange-50 text-orange-700";
-  const resultLabel = reportMetrics.hasGrossProfit ? "Dækningsbidrag" : reportMetrics.hasCosts ? "Resultat" : "Solgte enheder";
-  const resultValue = reportMetrics.hasGrossProfit
-    ? currency(reportMetrics.totalGrossProfit)
-    : reportMetrics.hasCosts
-      ? currency(reportMetrics.actualResult)
-      : number(reportMetrics.totalUnits);
-  const profitSentence = reportMetrics.hasGrossProfit
-    ? `, dækningsbidraget var ${currency(reportMetrics.totalGrossProfit)}`
-    : reportMetrics.hasCosts
-      ? `, resultatet var ${currency(reportMetrics.actualResult)}`
-      : "";
-  const budgetSentence = hasBudget
-    ? `, og omsætningen lå ${currency(Math.abs(deviation))} ${deviation >= 0 ? "over" : "under"} det fordelte månedsbudget`
-    : "";
+  const report = buildMonthlyReport({
+    month: reportMonth,
+    revenue: reportMetrics.totalRevenue,
+    rowCount: reportMetrics.rowCount,
+    units: reportMetrics.totalUnits,
+    grossProfit: reportMetrics.hasGrossProfit ? reportMetrics.totalGrossProfit : null,
+    grossMargin: !reportMetrics.hasGrossProfit && reportMetrics.hasGrossMargin ? reportMetrics.grossMargin : null,
+    result: !reportMetrics.hasGrossProfit && !reportMetrics.hasGrossMargin && reportMetrics.hasCosts
+      ? reportMetrics.actualResult
+      : null,
+    budget: hasBudget ? { deviation, status: budgetStatus } : null,
+  });
 
   return (
     <section className={dashboardCardClass}>
-      <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <div className="flex flex-col items-start gap-3 border-b border-slate-100 bg-slate-50/70 px-5 py-4 sm:px-6">
         <div className="flex items-center gap-3">
           <span className={dashboardIconClass}>
             <CalendarRange className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -2345,7 +2222,7 @@ function MonthlyReportCard({
             >
               {monthOptions.map((month) => (
                 <option key={month} value={month}>
-                  {month}
+                  {formatDanishMonth(month)}
                 </option>
               ))}
             </select>
@@ -2354,18 +2231,16 @@ function MonthlyReportCard({
         </label>
       </div>
 
-      <div className="grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(130px,1.2fr)]">
-        {[
-          ["Omsætning", currency(reportMetrics.totalRevenue)],
-          [resultLabel, resultValue],
-          [hasBudget ? "Budgetstatus" : "Medtagne rækker", hasBudget ? budgetStatus : number(reportMetrics.rowCount)],
-        ].map(([label, value], index) => (
-          <div key={label} className={`px-4 py-4 sm:px-5 ${index ? "border-t border-slate-100 sm:border-l sm:border-t-0" : ""}`}>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">{label}</p>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-px border-y border-slate-100 bg-slate-100">
+        {report.metrics.map((metric) => (
+          <div key={metric.key} className="flex min-h-[112px] min-w-0 flex-col bg-white px-4 py-4 sm:px-5">
+            <p className="min-h-8 text-[10px] font-semibold uppercase leading-4 tracking-[0.1em] text-slate-400">
+              {metric.label}
+            </p>
             <p
-              className={`mt-2 text-xl font-semibold text-ink ${hasBudget && label === "Budgetstatus" ? `inline-flex whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs ${budgetStatusClasses}` : ""}`}
+              className={`mt-2 min-w-0 text-xl font-semibold leading-7 text-ink ${metric.key === "budgetStatus" ? `inline-flex w-fit whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs ${budgetStatusClasses}` : ""}`}
             >
-              {value}
+              {metric.value}
             </p>
           </div>
         ))}
@@ -2374,8 +2249,8 @@ function MonthlyReportCard({
       <div className="border-t border-slate-100 bg-slate-50/50 px-5 py-4 sm:px-6">
         <p className="border-l-2 border-brand-500 pl-3 text-xs font-semibold leading-5 text-slate-700">
           {reportRows.length
-            ? `I ${reportMonth} var omsætningen ${currency(reportMetrics.totalRevenue)}${profitSentence}${budgetSentence}.`
-            : `Ingen rækker matcher de aktuelle filtre for ${reportMonth}.`}
+            ? report.summary
+            : `Ingen rækker matcher de aktuelle filtre for ${formatDanishMonth(reportMonth)}.`}
         </p>
       </div>
     </section>
@@ -2540,7 +2415,14 @@ export default function UploadDashboard() {
   );
   const hasData = allRows.length > 0;
   const hasFilteredData = metrics.rowCount > 0;
-  const showGrossProfit = hasData && baseMetrics.hasGrossProfit;
+  const marginChartMode = hasData
+    ? getAdaptiveMarginChartMode(baseMetrics.hasGrossProfit, baseMetrics.hasGrossMargin)
+    : "empty";
+  const marginChartData = marginChartMode === "grossProfit"
+    ? metrics.grossProfitByCategory
+    : marginChartMode === "grossMargin"
+      ? metrics.grossMarginByCategory
+      : [];
   const showCosts = hasData && (Boolean(data?.feedback.costs) || baseMetrics.hasCosts);
   const showBudget = hasData && Boolean(data?.feedback.budget);
   const costsByCategory = isFiltered
@@ -3258,7 +3140,15 @@ export default function UploadDashboard() {
                           </linearGradient>
                         </defs>
                         <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" vertical={false} />
-                        <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tick={chartAxisTick} dy={8} />
+                        <XAxis
+                          dataKey="name"
+                          tickLine={false}
+                          axisLine={false}
+                          fontSize={12}
+                          tick={chartAxisTick}
+                          dy={8}
+                          tickFormatter={(value) => formatDanishMonth(String(value), "short")}
+                        />
                         <YAxis
                           domain={revenueChartDomain}
                           tickCount={5}
@@ -3269,7 +3159,11 @@ export default function UploadDashboard() {
                           width={56}
                           tickFormatter={(value) => `${number(value / 1000)} t.kr.`}
                         />
-                        <Tooltip contentStyle={chartTooltipStyle} formatter={(value: number) => currency(value)} />
+                        <Tooltip
+                          contentStyle={chartTooltipStyle}
+                          formatter={formatMetricTooltip}
+                          labelFormatter={(label) => formatDanishMonth(String(label))}
+                        />
                         <Area
                           type="monotone"
                           dataKey="revenue"
@@ -3364,7 +3258,7 @@ export default function UploadDashboard() {
                           <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" horizontal={false} />
                           <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} />
                           <YAxis type="category" dataKey="name" width={110} tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} />
-                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: chartCursorFill }} formatter={(value: number) => `${number(value)} enheder`} />
+                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: chartCursorFill }} formatter={formatMetricTooltip} />
                           <Bar dataKey="units" fill="#0891b2" radius={[0, 5, 5, 0]}>
                             {metrics.productsByUnits.length === 1 ? (
                               <LabelList dataKey="units" position="right" fill="#475569" fontSize={11} formatter={(value: unknown) => number(Number(value))} />
@@ -3402,7 +3296,7 @@ export default function UploadDashboard() {
                           <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" horizontal={false} />
                           <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
                           <YAxis type="category" dataKey="name" width={90} tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} />
-                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: chartCursorFill }} formatter={(value: number) => currency(value)} />
+                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: chartCursorFill }} formatter={formatMetricTooltip} />
                           <Bar dataKey="revenue" fill="#0891b2" radius={[0, 5, 5, 0]}>
                             {metrics.categories.length === 1 ? (
                               <LabelList dataKey="revenue" position="right" fill="#475569" fontSize={11} formatter={(value: unknown) => currency(Number(value))} />
@@ -3421,29 +3315,48 @@ export default function UploadDashboard() {
                 <div className={`${chartCardClass} lg:col-span-6`}>
                   <div className={dashboardCardHeaderClass}>
                     <div>
-                      <h3 className="font-semibold text-ink">Dækningsbidrag pr. kategori</h3>
-                      <p className="text-xs leading-5 text-slate-500">Vises, når dækningsbidrag er fundet</p>
+                      <h3 className="font-semibold text-ink">
+                        {marginChartMode === "grossMargin" ? "Dækningsgrad pr. kategori" : "Dækningsbidrag pr. kategori"}
+                      </h3>
+                      <p className="text-xs leading-5 text-slate-500">
+                        {marginChartMode === "grossMargin"
+                          ? "Kategorier rangeret efter gennemsnitlig dækningsgrad"
+                          : "Kategorier rangeret efter dækningsbidrag"}
+                      </p>
                     </div>
                     <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700">
                       <TrendingUp className="h-4 w-4" aria-hidden="true" />
                     </span>
                   </div>
                   <div className="p-4 sm:p-5">
-                  {showGrossProfit && metrics.grossProfitByCategory.length ? (
+                  {marginChartMode !== "empty" && marginChartData.length ? (
                     <>
-                    {metrics.grossProfitByCategory.length === 1 ? (
+                    {marginChartData.length === 1 ? (
                       <p className="mb-2 text-[11px] font-semibold text-emerald-700">1 resultat i den aktuelle visning</p>
                     ) : null}
-                    <div className={metrics.grossProfitByCategory.length === 1 ? "h-36" : "h-64"}>
+                    <div className={marginChartData.length === 1 ? "h-36" : "h-64"}>
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={metrics.grossProfitByCategory} layout="vertical" margin={{ top: 4, right: metrics.grossProfitByCategory.length === 1 ? 92 : 20, bottom: 4, left: 4 }}>
+                        <BarChart data={marginChartData} layout="vertical" margin={{ top: 4, right: marginChartData.length === 1 ? 92 : 20, bottom: 4, left: 4 }}>
                           <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" horizontal={false} />
-                          <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
+                          <XAxis
+                            type="number"
+                            tickLine={false}
+                            axisLine={false}
+                            fontSize={11}
+                            tick={chartAxisTick}
+                            tickFormatter={(value) => marginChartMode === "grossMargin" ? percent(Number(value)) : `${number(Number(value) / 1000)} t.kr.`}
+                          />
                           <YAxis type="category" dataKey="name" width={96} tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} />
-                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: chartCursorFill }} formatter={(value: number) => currency(value)} />
-                          <Bar dataKey="grossProfit" fill="#22c55e" radius={[0, 5, 5, 0]}>
-                            {metrics.grossProfitByCategory.length === 1 ? (
-                              <LabelList dataKey="grossProfit" position="right" fill="#475569" fontSize={11} formatter={(value: unknown) => currency(Number(value))} />
+                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: chartCursorFill }} formatter={formatMetricTooltip} />
+                          <Bar dataKey={marginChartMode} fill="#22c55e" radius={[0, 5, 5, 0]}>
+                            {marginChartData.length === 1 ? (
+                              <LabelList
+                                dataKey={marginChartMode}
+                                position="right"
+                                fill="#475569"
+                                fontSize={11}
+                                formatter={(value: unknown) => marginChartMode === "grossMargin" ? percent(Number(value)) : currency(Number(value))}
+                              />
                             ) : null}
                           </Bar>
                         </BarChart>
@@ -3451,7 +3364,7 @@ export default function UploadDashboard() {
                     </div>
                     </>
                   ) : (
-                    <EmptyChart message="Upload data med dækningsbidrag for at vise dette diagram." />
+                    <EmptyChart message="Upload data med dækningsbidrag eller dækningsgrad for at vise dette diagram." />
                   )}
                   </div>
                 </div>
@@ -3478,7 +3391,7 @@ export default function UploadDashboard() {
                           <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" horizontal={false} />
                           <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
                           <YAxis type="category" dataKey="name" width={96} tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} />
-                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: chartCursorFill }} formatter={(value: number) => currency(value)} />
+                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: chartCursorFill }} formatter={formatMetricTooltip} />
                           <Bar dataKey="cost" fill="#f97316" radius={[0, 5, 5, 0]}>
                             {costsByCategory.length === 1 ? (
                               <LabelList dataKey="cost" position="right" fill="#475569" fontSize={11} formatter={(value: unknown) => currency(Number(value))} />
