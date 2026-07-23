@@ -41,7 +41,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ChangeEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, type ReactNode, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { ExcelProcessingView } from "@/components/excel-processing-view";
 import { KpiCustomizer } from "@/components/kpi-customizer";
 import {
   chartCardClass,
@@ -103,6 +104,18 @@ import {
   type SalesFieldKey,
   type SalesFieldMappings,
 } from "@/lib/spreadsheet-fields";
+import type {
+  ExcelWorkerRequest,
+  ExcelWorkerResponse,
+  ParsedWorkbookRows,
+} from "@/lib/excel-worker-types";
+import {
+  importProcessingReducer,
+  importStatusLabel,
+  initialImportProcessingState,
+  isImportProcessing,
+  type ImportProcessingStep,
+} from "@/lib/import-processing";
 
 type SaleRow = {
   date: Date | null;
@@ -446,14 +459,6 @@ function buildMappings(headers: string[]) {
   return buildSalesColumnMappings(headers);
 }
 
-function sheetToRows(sheet: XLSX.WorkSheet) {
-  return XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-    header: 1,
-    defval: "",
-    raw: true,
-  });
-}
-
 function rowToHeaders(row: unknown[]) {
   return row.map((cell) => String(cell ?? "").trim()).filter(Boolean);
 }
@@ -473,9 +478,9 @@ function rowsToRecords(rows: unknown[][], headerIndex: number, headers: string[]
   );
 }
 
-function collectWorkbookKpiRows(workbook: XLSX.WorkBook): KpiSourceRow[] {
-  return workbook.SheetNames.flatMap((sheetName) => {
-    const rows = sheetToRows(workbook.Sheets[sheetName]);
+function collectWorkbookKpiRows(workbook: ParsedWorkbookRows): KpiSourceRow[] {
+  return workbook.sheetNames.flatMap((sheetName) => {
+    const rows = workbook.sheets[sheetName] ?? [];
     const headerCandidate = rows
       .slice(0, 40)
       .map((row, index) => {
@@ -496,9 +501,9 @@ function getMissingFields(mappings: FieldMappings) {
   return getMissingRequiredSalesFields(mappings);
 }
 
-function buildCandidates(workbook: XLSX.WorkBook) {
-  return workbook.SheetNames.map((name) => {
-    const rows = sheetToRows(workbook.Sheets[name]);
+function buildCandidates(workbook: ParsedWorkbookRows) {
+  return workbook.sheetNames.map((name) => {
+    const rows = workbook.sheets[name] ?? [];
     const structure = analyzeSalesSheetStructure(name, rows);
     const { headers, headerIndex, mappings } = structure;
     const fieldMatches = (Object.keys(aliases) as FieldKey[]).reduce<Partial<Record<FieldKey, string[]>>>((matches, field) => {
@@ -741,12 +746,14 @@ function buildParseResult({
   candidate,
   mappings,
   manual,
+  parsedRows,
 }: {
   fileName: string;
   analysis: WorkbookAnalysis;
   candidate: SheetCandidate;
   mappings: FieldMappings;
   manual: boolean;
+  parsedRows?: ReturnType<typeof parseSalesRows>;
 }) {
   const missingFields = manual ? getMissingFields(mappings) : candidate.missingFields;
 
@@ -754,7 +761,7 @@ function buildParseResult({
     throw new Error(`Følgende obligatoriske kolonner mangler: ${missingFields.join(", ")}.`);
   }
 
-  const parsed = parseSalesRows(candidate, mappings);
+  const parsed = parsedRows ?? parseSalesRows(candidate, mappings);
 
   if (!parsed.rows.length) {
     throw new Error(`Der blev ikke fundet gyldige salgsrækker i "${candidate.name}". Vælg eventuelt ark og kolonner manuelt.`);
@@ -865,13 +872,13 @@ function groupRowsByMonth(rows: SaleRow[]) {
   return Array.from(groups.values()).sort((a, b) => a.sortKey - b.sortKey);
 }
 
-function parseCostSheet(workbook: XLSX.WorkBook) {
-  const costSheetName = workbook.SheetNames.find((name) => normalizeHeader(name).includes("omkost") || normalizeHeader(name).includes("cost"));
+function parseCostSheet(workbook: ParsedWorkbookRows) {
+  const costSheetName = workbook.sheetNames.find((name) => normalizeHeader(name).includes("omkost") || normalizeHeader(name).includes("cost"));
   if (!costSheetName) {
     return undefined;
   }
 
-  const rows = sheetToRows(workbook.Sheets[costSheetName]);
+  const rows = workbook.sheets[costSheetName] ?? [];
   const headerIndex = detectHeaderRow(rows).index;
   const headers = rowToHeaders(rows[headerIndex] ?? []);
   const categoryHeader =
@@ -906,13 +913,13 @@ function parseCostSheet(workbook: XLSX.WorkBook) {
   };
 }
 
-function parseBudgetSheet(workbook: XLSX.WorkBook) {
-  const budgetSheetName = workbook.SheetNames.find((name) => normalizeHeader(name).includes("budget"));
+function parseBudgetSheet(workbook: ParsedWorkbookRows) {
+  const budgetSheetName = workbook.sheetNames.find((name) => normalizeHeader(name).includes("budget"));
   if (!budgetSheetName) {
     return undefined;
   }
 
-  const rows = sheetToRows(workbook.Sheets[budgetSheetName]);
+  const rows = workbook.sheets[budgetSheetName] ?? [];
   const headerIndex = detectHeaderRow(rows).index;
   const headers = rowToHeaders(rows[headerIndex] ?? []);
   const mappings = buildMappings(headers);
@@ -944,77 +951,146 @@ function parseBudgetSheet(workbook: XLSX.WorkBook) {
   };
 }
 
-function analyzeWorkbook(file: File): Promise<{
+function waitForBrowserPaint() {
+  return new Promise<void>((resolve) => {
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      window.clearTimeout(fallback);
+      resolve();
+    };
+    const fallback = window.setTimeout(finish, 120);
+
+    window.requestAnimationFrame(() => {
+      window.setTimeout(finish, 0);
+    });
+  });
+}
+
+function parseWorkbookInWorker(
+  buffer: ArrayBuffer,
+  requestId: number,
+  workerRef: { current: Worker | null },
+) {
+  return new Promise<ParsedWorkbookRows>((resolve, reject) => {
+    const worker = new Worker(new URL("../workers/excel-parser.worker.ts", import.meta.url), {
+      type: "module",
+    });
+    workerRef.current = worker;
+
+    const closeWorker = () => {
+      worker.terminate();
+      if (workerRef.current === worker) {
+        workerRef.current = null;
+      }
+    };
+
+    worker.onmessage = (event: MessageEvent<ExcelWorkerResponse>) => {
+      if (event.data.requestId !== requestId) {
+        return;
+      }
+
+      closeWorker();
+      if (event.data.type === "error") {
+        reject(new Error(event.data.message || "Excel-filen kunne ikke læses."));
+        return;
+      }
+      resolve(event.data.workbook);
+    };
+
+    worker.onerror = () => {
+      closeWorker();
+      reject(new Error("Excel-filen kunne ikke behandles i browseren."));
+    };
+
+    const request: ExcelWorkerRequest = {
+      type: "parse",
+      requestId,
+      buffer,
+    };
+    worker.postMessage(request, [buffer]);
+  });
+}
+
+async function analyzeWorkbook(
+  file: File,
+  options: {
+    requestId: number;
+    workerRef: { current: Worker | null };
+    onPhase: (status: ImportProcessingStep) => void;
+  },
+): Promise<{
   analysis: WorkbookAnalysis;
   autoResult: ParseResult | null;
   reviewReasons: string[];
 }> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+  const moveToPhase = async (status: ImportProcessingStep) => {
+    options.onPhase(status);
+    await waitForBrowserPaint();
+  };
 
-    reader.onload = (event) => {
-      try {
-        const buffer = event.target?.result;
-        const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
-        const candidates = buildCandidates(workbook);
+  const buffer = await file.arrayBuffer();
+  await moveToPhase("detectingSheets");
+  const workbook = await parseWorkbookInWorker(buffer, options.requestId, options.workerRef);
 
-        if (!candidates.length) {
-          reject(new Error("Excel-filen indeholder ingen regneark."));
-          return;
-        }
+  if (!workbook.sheetNames.length) {
+    throw new Error("Excel-filen indeholder ingen regneark.");
+  }
 
-        const analysis = {
-          fileName: file.name,
-          detectedSheets: workbook.SheetNames,
-          candidates,
-          kpiSourceRows: collectWorkbookKpiRows(workbook),
-          costs: parseCostSheet(workbook),
-          budget: parseBudgetSheet(workbook),
-        };
+  await moveToPhase("detectingHeaders");
+  const candidates = buildCandidates(workbook);
+  if (!candidates.length) {
+    throw new Error("Excel-filen indeholder ingen regneark.");
+  }
 
-        const best = candidates[0];
-        const parsedRows = parseSalesRows(best);
-        const autoMappingDecision = assessAutoMapping({
-          confidence: best.confidence,
-          headerIsSecure: best.headerScore >= 17 && best.headerScoreGap >= 3,
-          validRowCount: parsedRows.rows.length,
-          skippedRowCount: parsedRows.skippedRows.length,
-          missingFields: best.missingFields,
-          duplicateColumns: getDuplicateMappedColumns(best.mappings),
-          ambiguities: getRequiredMappingAmbiguities(best),
-          competingSheets: getCompetingSalesSheets(candidates, best),
-          hasRevenueSource: Boolean(
-            best.mappings.netRevenue ||
-            best.mappings.grossRevenue ||
-            best.mappings.revenue ||
-            (best.mappings.units && best.mappings.unitPrice),
-          ),
-        });
-        let autoResult: ParseResult | null = null;
+  await moveToPhase("matchingColumns");
+  const best = candidates[0];
+  const parsedRows = parseSalesRows(best);
 
-        if (autoMappingDecision.canOpenDashboard) {
-          autoResult = buildParseResult({
-            fileName: file.name,
-            analysis,
-            candidate: best,
-            mappings: best.mappings,
-            manual: false,
-          });
-        }
-
-        resolve({
-          analysis,
-          autoResult,
-          reviewReasons: autoMappingDecision.reasons,
-        });
-      } catch (error) {
-        reject(error);
-      }
-    };
-
-    reader.onerror = () => reject(new Error("Den uploadede fil kunne ikke læses."));
-    reader.readAsArrayBuffer(file);
+  await moveToPhase("validating");
+  const analysis = {
+    fileName: file.name,
+    detectedSheets: workbook.sheetNames,
+    candidates,
+    kpiSourceRows: collectWorkbookKpiRows(workbook),
+    costs: parseCostSheet(workbook),
+    budget: parseBudgetSheet(workbook),
+  };
+  const autoMappingDecision = assessAutoMapping({
+    confidence: best.confidence,
+    headerIsSecure: best.headerScore >= 17 && best.headerScoreGap >= 3,
+    validRowCount: parsedRows.rows.length,
+    skippedRowCount: parsedRows.skippedRows.length,
+    missingFields: best.missingFields,
+    duplicateColumns: getDuplicateMappedColumns(best.mappings),
+    ambiguities: getRequiredMappingAmbiguities(best),
+    competingSheets: getCompetingSalesSheets(candidates, best),
+    hasRevenueSource: Boolean(
+      best.mappings.netRevenue ||
+      best.mappings.grossRevenue ||
+      best.mappings.revenue ||
+      (best.mappings.units && best.mappings.unitPrice),
+    ),
   });
+
+  await moveToPhase("calculating");
+  const autoResult = autoMappingDecision.canOpenDashboard
+    ? buildParseResult({
+        fileName: file.name,
+        analysis,
+        candidate: best,
+        mappings: best.mappings,
+        manual: false,
+        parsedRows,
+      })
+    : null;
+
+  return {
+    analysis,
+    autoResult,
+    reviewReasons: autoMappingDecision.reasons,
+  };
 }
 
 function calculateMetrics(
@@ -2306,8 +2382,9 @@ export default function UploadDashboard() {
   const [showManualMapping, setShowManualMapping] = useState(false);
   const [error, setError] = useState("");
   const [mappingReviewReason, setMappingReviewReason] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState("Analyserer regnearket");
+  const [importState, dispatchImport] = useReducer(importProcessingReducer, initialImportProcessingState);
+  const importRequestIdRef = useRef(0);
+  const excelWorkerRef = useRef<Worker | null>(null);
   const [filters, setFilters] = useState<DashboardFilters>(emptyDashboardFilters);
   const [reportMonth, setReportMonth] = useState("");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -2318,6 +2395,8 @@ export default function UploadDashboard() {
   const [kpiConfigurationHydrated, setKpiConfigurationHydrated] = useState(false);
   const [hasCustomizedKpis, setHasCustomizedKpis] = useState(false);
   const [kpiSaveMessage, setKpiSaveMessage] = useState("");
+  const isLoading = isImportProcessing(importState.status);
+  const loadingMessage = importStatusLabel(importState.status) || "Analyserer regnearket";
 
   const allRows = useMemo(() => data?.rows ?? [], [data?.rows]);
   const activeFilters = useMemo(() => getActiveFilters(filters), [filters]);
@@ -2475,6 +2554,13 @@ export default function UploadDashboard() {
         : "xl:grid-cols-4";
 
   useEffect(() => {
+    return () => {
+      excelWorkerRef.current?.terminate();
+      excelWorkerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     // Første version bruger én global browseropsætning; versionsfeltet gør senere migrering mulig.
     const stored = parseStoredKpiConfiguration(window.localStorage.getItem(KPI_STORAGE_KEY));
     if (stored) {
@@ -2548,87 +2634,76 @@ export default function UploadDashboard() {
     setManualMappings(initialManualMappings(candidate));
   }
 
-  function showNextLoadingStep(message: string) {
-    setLoadingMessage(message);
-    return new Promise<void>((resolve) => {
-      window.requestAnimationFrame(() => resolve());
-    });
+  function clearImportedWorkbook() {
+    setData(null);
+    setAnalysis(null);
+    setSelectedSheet("");
+    setManualMappings(emptyManualMappings);
+    setShowManualMapping(false);
+    setMappingReviewReason("");
+  }
+
+  async function processWorkbook(file: File, fallbackMessage: string) {
+    const requestId = importRequestIdRef.current + 1;
+    importRequestIdRef.current = requestId;
+    excelWorkerRef.current?.terminate();
+    excelWorkerRef.current = null;
+    dispatchImport({ type: "start", requestId, fileName: file.name });
+    setError("");
+    setMappingReviewReason("");
+
+    try {
+      await waitForBrowserPaint();
+      const parsed = await analyzeWorkbook(file, {
+        requestId,
+        workerRef: excelWorkerRef,
+        onPhase: (status) => dispatchImport({ type: "progress", requestId, status }),
+      });
+      if (requestId !== importRequestIdRef.current) {
+        return;
+      }
+
+      dispatchImport({ type: "progress", requestId, status: "buildingDashboard" });
+      await waitForBrowserPaint();
+      const best = parsed.analysis.candidates[0];
+      setAnalysis(parsed.analysis);
+      selectSheet(best.name, parsed.analysis);
+      setData(parsed.autoResult);
+      setShowManualMapping(!parsed.autoResult);
+      setMappingReviewReason(parsed.autoResult ? "" : parsed.reviewReasons.join(" "));
+      resetDashboardView();
+      dispatchImport({ type: "complete", requestId, needsReview: !parsed.autoResult });
+    } catch (error) {
+      if (requestId !== importRequestIdRef.current) {
+        return;
+      }
+
+      const message = error instanceof Error ? error.message : fallbackMessage;
+      clearImportedWorkbook();
+      setError(message);
+      dispatchImport({ type: "fail", requestId, message });
+    }
   }
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file || isLoading) {
       return;
     }
 
-    setIsLoading(true);
-    setLoadingMessage("Analyserer regnearket");
-    setError("");
-    setMappingReviewReason("");
-
-    try {
-      await showNextLoadingStep("Analyserer regnearket");
-      await showNextLoadingStep("Finder relevante kolonner");
-      const parsed = await analyzeWorkbook(file);
-      await showNextLoadingStep("Opretter dashboard");
-      const best = parsed.analysis.candidates[0];
-      setAnalysis(parsed.analysis);
-      selectSheet(best.name, parsed.analysis);
-      setData(parsed.autoResult);
-      setShowManualMapping(!parsed.autoResult);
-      setMappingReviewReason(parsed.autoResult ? "" : parsed.reviewReasons.join(" "));
-      resetDashboardView();
-    } catch (error) {
-      setData(null);
-      setAnalysis(null);
-      setSelectedSheet("");
-      setManualMappings(emptyManualMappings);
-      setShowManualMapping(false);
-      setMappingReviewReason("");
-      setError(error instanceof Error ? error.message : "Regnearket kunne ikke behandles.");
-    } finally {
-      setIsLoading(false);
-      setLoadingMessage("Analyserer regnearket");
-      event.target.value = "";
-    }
+    await processWorkbook(file, "Regnearket kunne ikke behandles.");
+    input.value = "";
   }
 
   async function loadDemoDataset() {
-    setIsLoading(true);
-    setLoadingMessage("Analyserer regnearket");
-    setError("");
-    setMappingReviewReason("");
-
-    try {
-      await showNextLoadingStep("Analyserer regnearket");
-      await showNextLoadingStep("Finder relevante kolonner");
-      const workbook = createSampleWorkbook();
-      const workbookData = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-      const file = new File([workbookData], "DataBrief AI demodata.xlsx", {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-      const parsed = await analyzeWorkbook(file);
-      await showNextLoadingStep("Opretter dashboard");
-      const best = parsed.analysis.candidates[0];
-
-      setAnalysis(parsed.analysis);
-      selectSheet(best.name, parsed.analysis);
-      setData(parsed.autoResult);
-      setShowManualMapping(!parsed.autoResult);
-      setMappingReviewReason(parsed.autoResult ? "" : parsed.reviewReasons.join(" "));
-      resetDashboardView();
-    } catch (error) {
-      setData(null);
-      setAnalysis(null);
-      setSelectedSheet("");
-      setManualMappings(emptyManualMappings);
-      setShowManualMapping(false);
-      setMappingReviewReason("");
-      setError(error instanceof Error ? error.message : "Demodata kunne ikke indlæses.");
-    } finally {
-      setIsLoading(false);
-      setLoadingMessage("Analyserer regnearket");
-    }
+    if (isLoading) return;
+    const workbook = createSampleWorkbook();
+    const workbookData = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    const file = new File([workbookData], "DataBrief AI demodata.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    await processWorkbook(file, "Demodata kunne ikke indlæses.");
   }
 
   function applyManualMappings() {
@@ -2652,6 +2727,11 @@ export default function UploadDashboard() {
       setError("");
       setMappingReviewReason("");
       resetDashboardView();
+      dispatchImport({
+        type: "complete",
+        requestId: importState.requestId,
+        needsReview: false,
+      });
     } catch (error) {
       setData(null);
       setError(error instanceof Error ? error.message : "Den manuelle kolonnetilknytning mislykkedes. Kontrollér de valgte kolonner.");
@@ -2672,6 +2752,16 @@ export default function UploadDashboard() {
     setShowManualMapping(false);
     setError("");
     setMappingReviewReason("");
+    dispatchImport({ type: "reset" });
+  }
+
+  if (isLoading) {
+    return (
+      <ExcelProcessingView
+        fileName={importState.fileName}
+        status={importState.status}
+      />
+    );
   }
 
   if (!hasWorkbook) {
