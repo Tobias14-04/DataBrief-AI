@@ -44,6 +44,21 @@ import {
 import { ChangeEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { KpiCustomizer } from "@/components/kpi-customizer";
 import {
+  chartCardClass,
+  dashboardCardClass,
+  dashboardCardHeaderClass,
+  dashboardEyebrowClass,
+  dashboardIconClass,
+  dashboardSectionClass,
+  dashboardSectionHeaderClass,
+  dashboardUtilityCardClass,
+  DashboardKpiCard as KpiCard,
+  DashboardSecondaryMetric as SecondaryMetric,
+  DatasetHeader,
+  EmptyAnalysisState as EmptyChart,
+  ExecutiveSummaryCard,
+} from "@/components/dashboard-ui";
+import {
   AUTO_MAPPING_CONFIDENCE_THRESHOLD,
   assessAutoMapping,
   mappingStatusForSource,
@@ -229,31 +244,14 @@ const dashboardFilterLabels: Record<DashboardFilterKey, string> = {
   region: "Region",
 };
 
-const dashboardCardClass =
-  "overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_12px_32px_rgba(16,32,51,0.065)]";
-const chartCardClass = dashboardCardClass;
-const dashboardCardHeaderClass =
-  "flex items-center justify-between gap-4 border-b border-slate-100 bg-slate-50/70 px-5 py-4 sm:px-6";
-const dashboardEyebrowClass =
-  "text-[11px] font-semibold uppercase tracking-[0.14em]";
-const dashboardIconClass =
-  "grid h-9 w-9 shrink-0 place-items-center rounded-md border border-brand-100 bg-brand-50 text-brand-700";
-const dashboardSectionClass =
-  "space-y-6 border-y border-slate-200 bg-[#f4f8f9] px-4 py-8 sm:px-6 sm:py-9";
-const dashboardSectionHeaderClass =
-  "flex flex-col gap-1.5 sm:flex-row sm:items-end sm:justify-between";
-const dashboardDarkCardClass =
-  "overflow-hidden rounded-lg border border-slate-800 bg-[#102033] shadow-[0_18px_46px_rgba(16,32,51,0.16)]";
-const dashboardUtilityCardClass =
-  "overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_6px_22px_rgba(16,32,51,0.045)]";
-const chartGridColor = "#e4ecef";
-const chartAxisTick = { fill: "#6b7b8d" };
-const chartCursorFill = "#f2f7f8";
+const chartGridColor = "#e8eef1";
+const chartAxisTick = { fill: "#718096" };
+const chartCursorFill = "#f3f8f9";
 const chartTooltipStyle = {
-  border: "1px solid #cbd5e1",
+  border: "1px solid #d8e3e8",
   borderRadius: "8px",
   backgroundColor: "#ffffff",
-  boxShadow: "0 16px 38px rgba(16,32,51,0.14)",
+  boxShadow: "0 14px 34px rgba(16,32,51,0.12)",
   color: "#102033",
   fontSize: "12px",
 };
@@ -1101,8 +1099,8 @@ function buildExecutiveSummary(
   const profitabilityInsight = metrics.hasGrossProfit
     ? `Dækningsbidraget er ${currency(metrics.totalGrossProfit)} med en dækningsgrad på ${percent(metrics.grossMargin)}.`
     : metrics.hasCosts
-      ? `Det aktuelle resultat er ${currency(metrics.actualResult)} efter omkostninger på ${currency(metrics.totalCosts)}.`
-      : `${formatDanishMonth(metrics.bestMonth.name)} er den stærkeste måned med en omsætning på ${currency(metrics.bestMonth.revenue)}.`;
+      ? `Det aktuelle resultat er ${currency(metrics.actualResult)} efter omkostninger på ${currency(metrics.totalCosts)}`
+      : `${formatDanishMonth(metrics.bestMonth.name)} er den stærkeste måned med en omsætning på ${currency(metrics.bestMonth.revenue)}`;
   const conclusion = feedback?.budget
     ? `Omsætningen ligger ${currency(Math.abs(metrics.revenueVsBudget))} ${metrics.revenueVsBudget >= 0 ? "over" : "under"} budgettet i denne visning.`
     : `${formatDanishMonth(metrics.bestMonth.name)} er den stærkeste periode med ${metrics.bestCategory.name} som førende kategori.`;
@@ -1168,86 +1166,6 @@ function kpiTone(color: KpiColor): "brand" | "positive" | "warning" | "neutral" 
   return "brand";
 }
 
-function KpiCard({
-  label,
-  value,
-  detail,
-  emphasis = false,
-  icon: Icon = CircleDollarSign,
-  tone = "brand",
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  emphasis?: boolean;
-  icon?: LucideIcon;
-  tone?: "brand" | "positive" | "warning" | "neutral" | "purple";
-}) {
-  const styles = {
-    brand: {
-      icon: "border-brand-200 bg-brand-50 text-brand-700",
-      accent: "bg-brand-500",
-      detail: "text-brand-700",
-    },
-    positive: {
-      icon: "border-emerald-200 bg-emerald-50 text-emerald-700",
-      accent: "bg-emerald-500",
-      detail: "text-emerald-700",
-    },
-    warning: {
-      icon: "border-orange-200 bg-orange-50 text-orange-700",
-      accent: "bg-accent-500",
-      detail: "text-orange-700",
-    },
-    neutral: {
-      icon: "border-slate-200 bg-slate-100 text-ink",
-      accent: "bg-slate-400",
-      detail: "text-slate-500",
-    },
-    purple: {
-      icon: "border-violet-200 bg-violet-50 text-violet-700",
-      accent: "bg-violet-500",
-      detail: "text-violet-700",
-    },
-  }[tone];
-
-  return (
-    <div
-      className={`relative ${dashboardCardClass} ${
-        emphasis ? "min-h-44 p-5" : "min-h-32 p-4"
-      }`}
-    >
-      <span className={`absolute inset-x-0 top-0 h-1 ${styles.accent}`} aria-hidden="true" />
-      <div className="flex items-center justify-between gap-3">
-        <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-md border ${styles.icon}`}>
-          <Icon className="h-4 w-4" aria-hidden="true" />
-        </div>
-        <p className="text-right text-xs font-semibold leading-5 text-slate-600">{label}</p>
-      </div>
-      <p className={`mt-5 break-words font-semibold tracking-normal text-ink ${emphasis ? "text-2xl sm:text-[1.8rem]" : "text-[1.4rem]"}`}>{value}</p>
-      <p className={`mt-4 border-t border-slate-100 pt-3 text-xs font-medium leading-5 ${styles.detail}`}>{detail}</p>
-    </div>
-  );
-}
-
-function SecondaryMetric({ label, value, detail }: { label: string; value: string; detail?: string }) {
-  return (
-    <div className="min-w-0 px-4 py-4 sm:px-5">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
-      <p className="mt-1.5 truncate text-base font-semibold text-ink" title={value}>{value}</p>
-      {detail ? <p className="mt-1 truncate text-[11px] text-slate-500" title={detail}>{detail}</p> : null}
-    </div>
-  );
-}
-
-function EmptyChart({ message }: { message: string }) {
-  return (
-    <div className="grid h-72 place-items-center rounded-md border border-dashed border-slate-300 bg-slate-50 px-6 text-center text-sm text-slate-500">
-      {message}
-    </div>
-  );
-}
-
 function StatusBox({ feedback, analysis }: { feedback?: MappingFeedback; analysis?: WorkbookAnalysis | null }) {
   const status = feedback?.status ?? (analysis ? "manual" : undefined);
   if (!status) {
@@ -1257,12 +1175,12 @@ function StatusBox({ feedback, analysis }: { feedback?: MappingFeedback; analysi
   const manualReviewRequired = status === "manual" && !feedback;
   const label =
     status === "success"
-      ? "Kolonner blev registreret automatisk"
+      ? "Kolonner registreret automatisk"
       : status === "warning"
-        ? "Kolonner blev registreret med forbehold"
+        ? "Kolonner registreret med forbehold"
         : manualReviewRequired
           ? "Kolonnerne skal kontrolleres"
-          : "Kolonner blev manuelt kontrolleret";
+          : "Kolonner manuelt kontrolleret";
   const styles =
     status === "success"
       ? {
@@ -1910,9 +1828,8 @@ function AnalysisFilterPanel({
   }
 
   return (
-    <section className={`relative overflow-visible ${dashboardUtilityCardClass}`}>
-      <span className="absolute inset-x-0 top-0 h-0.5 bg-brand-500" aria-hidden="true" />
-      <div className="sticky top-0 z-10 rounded-t-lg bg-white px-3.5 pb-3 pt-4">
+    <section className={`relative overflow-visible ${dashboardUtilityCardClass}`} data-testid="analysis-filters">
+      <div className="sticky top-0 z-10 rounded-t-lg bg-white px-3.5 pb-3 pt-3.5">
         <div className="flex items-center justify-between gap-2">
           <button
             type="button"
@@ -1935,7 +1852,11 @@ function AnalysisFilterPanel({
             type="button"
             onClick={onReset}
             disabled={!activeFilters.length}
-            className="inline-flex h-8 items-center justify-center gap-1 rounded-md px-2 text-[11px] font-semibold text-slate-500 transition hover:bg-brand-50 hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
+            className={`inline-flex h-8 items-center justify-center gap-1 rounded-md px-2 text-[11px] font-semibold transition ${
+              activeFilters.length
+                ? "bg-brand-50 text-brand-700 hover:bg-brand-100"
+                : "text-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+            }`}
             title="Nulstil filtre"
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1952,7 +1873,7 @@ function AnalysisFilterPanel({
           </button>
           <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition lg:hidden ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
         </div>
-        <div className="mt-3 flex items-center justify-between border-y border-slate-100 py-2.5 text-[11px] text-slate-500">
+        <div className="mt-3 flex items-center justify-between rounded-md bg-[#f7fafb] px-2.5 py-2 text-[11px] text-slate-500">
           <span>
             Viser <strong className="font-semibold text-ink">{number(filteredRowCount)}</strong> af {number(rows.length)}
           </span>
@@ -2199,10 +2120,15 @@ function MonthlyReportCard({
       : null,
     budget: hasBudget ? { deviation, status: budgetStatus } : null,
   });
+  const metricGridClass = report.metrics.length === 4
+    ? "grid-cols-1 min-[440px]:grid-cols-2"
+    : report.metrics.length === 3
+      ? "grid-cols-1 min-[440px]:grid-cols-3"
+      : "grid-cols-1 min-[440px]:grid-cols-2";
 
   return (
-    <section className={dashboardCardClass}>
-      <div className="flex flex-col items-start gap-3 border-b border-slate-100 bg-slate-50/70 px-5 py-4 sm:px-6">
+    <section className={dashboardCardClass} data-testid="monthly-report">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#e8eef1] bg-white px-5 py-4">
         <div className="flex items-center gap-3">
           <span className={dashboardIconClass}>
             <CalendarRange className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -2231,14 +2157,14 @@ function MonthlyReportCard({
         </label>
       </div>
 
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-px border-y border-slate-100 bg-slate-100">
+      <div className={`grid ${metricGridClass} gap-px bg-[#e8eef1]`}>
         {report.metrics.map((metric) => (
-          <div key={metric.key} className="flex min-h-[112px] min-w-0 flex-col bg-white px-4 py-4 sm:px-5">
+          <div key={metric.key} className="flex min-h-[96px] min-w-0 flex-col bg-white px-3 py-3.5">
             <p className="min-h-8 text-[10px] font-semibold uppercase leading-4 tracking-[0.1em] text-slate-400">
               {metric.label}
             </p>
             <p
-              className={`mt-2 min-w-0 text-xl font-semibold leading-7 text-ink ${metric.key === "budgetStatus" ? `inline-flex w-fit whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs ${budgetStatusClasses}` : ""}`}
+              className={`mt-1.5 min-w-0 break-words text-lg font-semibold leading-6 text-ink ${metric.key === "budgetStatus" ? `inline-flex w-fit whitespace-nowrap rounded-md px-2 py-1.5 text-[11px] ${budgetStatusClasses}` : ""}`}
             >
               {metric.value}
             </p>
@@ -2246,8 +2172,8 @@ function MonthlyReportCard({
         ))}
       </div>
 
-      <div className="border-t border-slate-100 bg-slate-50/50 px-5 py-4 sm:px-6">
-        <p className="border-l-2 border-brand-500 pl-3 text-xs font-semibold leading-5 text-slate-700">
+      <div className="border-t border-[#e8eef1] bg-[#f8fbfc] px-5 py-3.5">
+        <p className="border-l-2 border-brand-500 pl-3 text-[11px] font-medium leading-5 text-slate-700">
           {reportRows.length
             ? report.summary
             : `Ingen rækker matcher de aktuelle filtre for ${formatDanishMonth(reportMonth)}.`}
@@ -2300,9 +2226,8 @@ function WorkbookSidebar({
 
       <div className={isCollapsed ? "lg:hidden" : ""}>
         <div className={dashboardUtilityCardClass}>
-          <div className="h-0.5 bg-brand-600" aria-hidden="true" />
-          <div className="p-3.5">
-            <div className="mb-3.5 flex items-center gap-2.5">
+          <div className="p-3">
+            <div className="mb-3 flex items-center gap-2.5">
               <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-brand-100 bg-brand-50 text-brand-700">
                 <Upload className="h-4 w-4" aria-hidden="true" />
               </div>
@@ -2321,7 +2246,7 @@ function WorkbookSidebar({
               </button>
             </div>
 
-            <label className="group flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-slate-50 px-2.5 py-2.5 text-center transition hover:border-brand-400 hover:bg-brand-50/70 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100">
+            <label className="group flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-[#f8fbfc] px-2.5 py-2.5 text-center transition hover:border-brand-400 hover:bg-brand-50/70 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100">
               <Upload className="h-4 w-4 text-brand-700" aria-hidden="true" />
               <span className="text-xs font-semibold text-ink">
                 {isLoading ? loadingMessage : "Vælg en Excel-fil"}
@@ -2542,6 +2467,12 @@ export default function UploadDashboard() {
   const secondaryKpis = effectiveKpiConfiguration.secondaryKpis
     .map((id) => kpiDefinitionMap.get(id))
     .filter((definition): definition is KpiDefinition => Boolean(definition));
+  const primaryKpiGridClass =
+    primaryKpis.length === 2
+      ? "xl:grid-cols-2"
+      : primaryKpis.length === 3
+        ? "xl:grid-cols-3"
+        : "xl:grid-cols-4";
 
   useEffect(() => {
     // Første version bruger én global browseropsætning; versionsfeltet gør senere migrering mulig.
@@ -2882,14 +2813,14 @@ export default function UploadDashboard() {
 
   return (
     <main
-      className="min-h-screen bg-[#edf3f5]"
+      className="min-h-screen bg-[#f4f8fa]"
       style={shouldShowManualMapping ? {
         backgroundImage: "linear-gradient(rgba(16,32,51,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(16,32,51,0.025) 1px, transparent 1px)",
         backgroundSize: "44px 44px",
       } : undefined}
     >
-      <header className="border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
+      <header className="border-b border-[#dce6eb] bg-white/95 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-[1680px] items-center justify-between px-4 py-3.5 sm:px-6 lg:px-8">
           <Link
             href="/"
             className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-slate-600 transition hover:bg-white hover:text-ink"
@@ -2907,18 +2838,18 @@ export default function UploadDashboard() {
       </header>
 
       <section
-        className={`mx-auto grid max-w-[1600px] gap-6 px-4 py-6 transition-[grid-template-columns] duration-200 sm:px-6 lg:px-8 lg:py-8 ${
+        className={`mx-auto grid max-w-[1680px] gap-5 px-4 py-5 transition-[grid-template-columns] duration-200 sm:px-6 lg:px-8 lg:py-6 ${
           showAnalysisFilters
             ? isAnalysisSidebarCollapsed
               ? "lg:grid-cols-[56px_minmax(0,1fr)]"
-              : "lg:grid-cols-[244px_minmax(0,1fr)] xl:grid-cols-[272px_minmax(0,1fr)]"
+              : "lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[252px_minmax(0,1fr)]"
             : isSidebarCollapsed
               ? "lg:grid-cols-[56px_minmax(0,1fr)]"
               : "lg:grid-cols-[184px_minmax(0,1fr)]"
         }`}
       >
         <aside className="self-start">
-          <div className={`space-y-4 ${showAnalysisFilters && isAnalysisSidebarCollapsed ? "lg:hidden" : ""}`}>
+          <div className={`space-y-3 ${showAnalysisFilters && isAnalysisSidebarCollapsed ? "lg:hidden" : ""}`}>
             <WorkbookSidebar
               isCollapsed={isSidebarCollapsed}
               isLoading={isLoading}
@@ -2965,37 +2896,24 @@ export default function UploadDashboard() {
           ) : null}
         </aside>
 
-        <section className="min-w-0 space-y-9">
-          <section className="space-y-4 border-b border-brand-100 pb-1">
-          <div className={dashboardDarkCardClass}>
-            <div className="flex flex-col gap-5 px-5 py-6 [background-image:linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] [background-size:32px_32px] sm:px-7 sm:py-7 md:flex-row md:items-start md:justify-between">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-200">{data?.fileName ?? analysis?.fileName ?? "Ingen fil uploadet endnu"}</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">{shouldShowManualMapping ? "Tilpas kolonner" : "Salgsdashboard"}</h2>
-                <p className="mt-2 text-sm text-slate-300">
-                  {shouldShowManualMapping
-                    ? "Kontrollér datakilden og de foreslåede kolonner, før dashboardet vises."
-                    : hasData
-                      ? isFiltered
-                        ? `${number(metrics.rowCount)} af ${number(allRows.length)} rækker vises med de aktuelle filtre.`
-                        : `${number(allRows.length)} rækker er klar til analyse.`
-                      : "Upload en Excel-fil for at udfylde dashboardet."}
-                </p>
-              </div>
-              <div className="flex flex-col items-start gap-2 md:items-end">
-                <StatusBox feedback={data?.feedback} analysis={analysis} />
-                {!shouldShowManualMapping ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowManualMapping(true)}
-                    className="inline-flex min-h-9 items-center justify-center rounded-md border border-white/15 bg-white/10 px-3 text-xs font-semibold text-white transition hover:border-brand-400 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-cyan-300/40"
-                  >
-                    Rediger kolonnetilknytning
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          </div>
+        <section className="min-w-0 space-y-8">
+          <section className="space-y-4">
+          <DatasetHeader
+            fileName={data?.fileName ?? analysis?.fileName ?? "Ingen fil uploadet endnu"}
+            title={shouldShowManualMapping ? "Tilpas kolonner" : "Salgsdashboard"}
+            description={
+              shouldShowManualMapping
+                ? "Kontrollér datakilden og de foreslåede kolonner, før dashboardet vises."
+                : hasData
+                  ? isFiltered
+                    ? `${number(metrics.rowCount)} af ${number(allRows.length)} rækker vises med de aktuelle filtre.`
+                    : `${number(allRows.length)} rækker er klar til analyse.`
+                  : "Upload en Excel-fil for at udfylde dashboardet."
+            }
+            status={<StatusBox feedback={data?.feedback} analysis={analysis} />}
+            showEditMapping={!shouldShowManualMapping}
+            onEditMapping={() => setShowManualMapping(true)}
+          />
 
           {shouldShowManualMapping ? (
             <ManualMappingPanel
@@ -3022,13 +2940,18 @@ export default function UploadDashboard() {
 
           {!shouldShowManualMapping ? (
           <>
-          <section className="space-y-5">
+          <section className="space-y-4" data-testid="kpi-section">
             <div className={dashboardSectionHeaderClass}>
               <div>
                 <p className={`${dashboardEyebrowClass} text-brand-700`}>Resultatoverblik</p>
-                <h2 className="mt-1.5 text-2xl font-semibold text-ink">Centrale nøgletal</h2>
+                <h2 className="mt-1 text-[1.35rem] font-semibold text-ink">Centrale nøgletal</h2>
               </div>
-              <div className="flex flex-col items-start gap-2 sm:items-end">
+              <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+                <p className="text-[11px] text-slate-500">
+                  {hasCustomizedKpis
+                    ? `${primaryKpis.length} primære · ${secondaryKpis.length} sekundære`
+                    : "Beregnet ud fra de registrerede data"}
+                </p>
                 <button
                   type="button"
                   onClick={() => setIsKpiCustomizerOpen(true)}
@@ -3037,11 +2960,6 @@ export default function UploadDashboard() {
                   <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
                   Tilpas nøgletal
                 </button>
-                <p className="text-[11px] text-slate-500">
-                  {hasCustomizedKpis
-                    ? `${primaryKpis.length} primære · ${secondaryKpis.length} sekundære`
-                    : "Beregnet ud fra de registrerede data"}
-                </p>
               </div>
             </div>
             {kpiSaveMessage ? (
@@ -3052,7 +2970,7 @@ export default function UploadDashboard() {
                 {kpiSaveMessage}
               </div>
             ) : null}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className={`grid gap-4 sm:grid-cols-2 ${primaryKpiGridClass}`}>
               {primaryKpis.map((definition) => {
                 const evaluation = kpiEvaluations[definition.id];
                 return (
@@ -3088,9 +3006,9 @@ export default function UploadDashboard() {
             </div>
           </section>
 
-          <section className={dashboardSectionClass}>
+          <section className={dashboardSectionClass} data-testid="analysis-section">
             {activeFilters.length ? (
-              <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center">
+              <div className="flex flex-col gap-2 rounded-lg border border-brand-100 bg-brand-50/50 px-3.5 py-3 sm:flex-row sm:items-center">
                 <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Aktiv visning</span>
                 <div className="flex min-w-0 flex-wrap gap-1.5">
                   {activeFilters.map((filter) => (
@@ -3111,13 +3029,13 @@ export default function UploadDashboard() {
             <div className={dashboardSectionHeaderClass}>
               <div>
                 <p className={`${dashboardEyebrowClass} text-brand-700`}>Ledelsesanalyse</p>
-                <h2 className="mt-1.5 text-2xl font-semibold text-ink">Omsætningsudvikling og indsigt</h2>
+                <h2 className="mt-1 text-[1.35rem] font-semibold text-ink">Omsætningsudvikling og indsigt</h2>
               </div>
               <p className="max-w-sm text-xs leading-5 text-slate-600 sm:text-right">Hovedtendenser og beslutningsstøtte samlet i én ledelsesvisning</p>
             </div>
 
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.85fr)] xl:items-start">
-              <div className={dashboardCardClass}>
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.8fr)_minmax(350px,0.9fr)] xl:items-start">
+              <div className={dashboardCardClass} data-testid="revenue-chart">
                 <div className={dashboardCardHeaderClass}>
                   <div>
                     <p className={`${dashboardEyebrowClass} text-brand-700`}>Primær udvikling</p>
@@ -3128,15 +3046,15 @@ export default function UploadDashboard() {
                     <ChartNoAxesCombined className="h-5 w-5" aria-hidden="true" />
                   </span>
                 </div>
-                <div className="p-4 sm:p-6">
+                <div className="px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
                 {hasFilteredData ? (
-                  <div className="h-[380px] sm:h-[460px]">
+                  <div className="h-[330px] sm:h-[390px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <RechartsAreaChart data={metrics.monthly} margin={{ top: 12, right: 20, bottom: 10, left: 0 }}>
                         <defs>
                           <linearGradient id="revenueAreaFill" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#0891b2" stopOpacity={0.28} />
-                            <stop offset="90%" stopColor="#0891b2" stopOpacity={0.025} />
+                            <stop offset="0%" stopColor="#0891b2" stopOpacity={0.2} />
+                            <stop offset="92%" stopColor="#0891b2" stopOpacity={0.015} />
                           </linearGradient>
                         </defs>
                         <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" vertical={false} />
@@ -3168,16 +3086,16 @@ export default function UploadDashboard() {
                           type="monotone"
                           dataKey="revenue"
                           stroke="#0891b2"
-                          strokeWidth={3}
+                          strokeWidth={2.5}
                           fill="url(#revenueAreaFill)"
-                          dot={{ r: 3, fill: "#ffffff", stroke: "#0891b2", strokeWidth: 2 }}
-                          activeDot={{ r: 6, fill: "#0891b2", stroke: "#ffffff", strokeWidth: 3 }}
+                          dot={metrics.monthly.length <= 18 ? { r: 2.5, fill: "#ffffff", stroke: "#0891b2", strokeWidth: 2 } : false}
+                          activeDot={{ r: 5, fill: "#0891b2", stroke: "#ffffff", strokeWidth: 2.5 }}
                         />
                       </RechartsAreaChart>
                     </ResponsiveContainer>
                   </div>
                 ) : (
-                  <EmptyChart message="Ingen rækker matcher de aktuelle filtre for dette diagram." />
+                  <EmptyChart title="Ingen omsætning i visningen" message="Tilpas eller nulstil filtrene for at vise omsætningsudviklingen." />
                 )}
                 </div>
               </div>
@@ -3194,49 +3112,25 @@ export default function UploadDashboard() {
                   />
                 ) : null}
 
-                <section className={`relative ${dashboardDarkCardClass} p-5 text-white sm:p-6`}>
-                  <span className="absolute inset-x-0 top-0 h-0.5 bg-brand-500" aria-hidden="true" />
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className={`${dashboardEyebrowClass} text-cyan-200`}>Beslutningsgrundlag</p>
-                      <h2 className="mt-1 text-lg font-semibold text-white">Ledelsesresume</h2>
-                    </div>
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-white/10 text-cyan-200">
-                      <Sparkles className="h-4 w-4" aria-hidden="true" />
-                    </span>
-                  </div>
-
-                  <ul className="mt-5 space-y-4">
-                    {executiveSummary.insights.map((insight, index) => (
-                      <li key={insight} className="grid grid-cols-[22px_1fr] gap-3 text-xs leading-6 text-slate-200">
-                        <span className="text-[10px] font-semibold text-cyan-300">0{index + 1}</span>
-                        <span>{insight}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <div className="mt-5 border-t border-white/10 pt-4">
-                    <p className="text-xs font-semibold leading-5 text-white">{executiveSummary.conclusion}</p>
-                    <div className="mt-3 flex items-center gap-2 text-[11px] text-slate-300">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-                      {executiveSummary.status}
-                    </div>
-                  </div>
-                </section>
+                <ExecutiveSummaryCard
+                  insights={executiveSummary.insights}
+                  conclusion={executiveSummary.conclusion}
+                  status={executiveSummary.status}
+                />
               </div>
             </div>
 
-            <div className="space-y-5 border-t border-slate-200 pt-7">
+            <div className="space-y-5 border-t border-[#dce6eb] pt-7">
               <div className={dashboardSectionHeaderClass}>
                 <div>
                   <p className={`${dashboardEyebrowClass} text-brand-700`}>Supplerende analyse</p>
-                  <h2 className="mt-1.5 text-xl font-semibold text-ink">Fordeling på produkter og kategorier</h2>
+                  <h2 className="mt-1 text-xl font-semibold text-ink">Fordeling på produkter og kategorier</h2>
                 </div>
                 <p className="text-xs text-slate-500">Rangerede visninger af de registrerede data</p>
               </div>
 
-              <div className="grid gap-5 lg:grid-cols-12">
-                <div className={`${chartCardClass} lg:col-span-7`}>
+              <div className="grid gap-5 xl:grid-cols-2" data-testid="supplementary-analysis">
+                <div className={chartCardClass}>
                   <div className={dashboardCardHeaderClass}>
                     <div>
                       <h3 className="font-semibold text-ink">Antal solgte pr. produkt</h3>
@@ -3269,12 +3163,12 @@ export default function UploadDashboard() {
                     </div>
                     </>
                   ) : (
-                    <EmptyChart message="Ingen rækker matcher de aktuelle filtre for dette diagram." />
+                    <EmptyChart title="Ingen produkter i visningen" message="Tilpas eller nulstil filtrene for at vise produkternes solgte enheder." />
                   )}
                   </div>
                 </div>
 
-                <div className={`${chartCardClass} lg:col-span-5`}>
+                <div className={chartCardClass}>
                   <div className={dashboardCardHeaderClass}>
                     <div>
                       <h3 className="font-semibold text-ink">Omsætning pr. kategori</h3>
@@ -3307,12 +3201,12 @@ export default function UploadDashboard() {
                     </div>
                     </>
                   ) : (
-                    <EmptyChart message="Ingen rækker matcher de aktuelle filtre for dette diagram." />
+                    <EmptyChart title="Ingen kategorier i visningen" message="Tilpas eller nulstil filtrene for at vise omsætningen pr. kategori." />
                   )}
                   </div>
                 </div>
 
-                <div className={`${chartCardClass} lg:col-span-6`}>
+                <div className={chartCardClass}>
                   <div className={dashboardCardHeaderClass}>
                     <div>
                       <h3 className="font-semibold text-ink">
@@ -3334,7 +3228,7 @@ export default function UploadDashboard() {
                     {marginChartData.length === 1 ? (
                       <p className="mb-2 text-[11px] font-semibold text-emerald-700">1 resultat i den aktuelle visning</p>
                     ) : null}
-                    <div className={marginChartData.length === 1 ? "h-36" : "h-64"}>
+                    <div className={marginChartData.length === 1 ? "h-36" : "h-72"}>
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={marginChartData} layout="vertical" margin={{ top: 4, right: marginChartData.length === 1 ? 92 : 20, bottom: 4, left: 4 }}>
                           <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" horizontal={false} />
@@ -3364,12 +3258,16 @@ export default function UploadDashboard() {
                     </div>
                     </>
                   ) : (
-                    <EmptyChart message="Upload data med dækningsbidrag eller dækningsgrad for at vise dette diagram." />
+                    <EmptyChart
+                      title="Indtjeningsdata mangler"
+                      message="Tilføj dækningsbidrag eller dækningsgrad for at se fordelingen pr. kategori."
+                      tone="positive"
+                    />
                   )}
                   </div>
                 </div>
 
-                <div className={`${chartCardClass} lg:col-span-6`}>
+                <div className={chartCardClass}>
                   <div className={dashboardCardHeaderClass}>
                     <div>
                       <h3 className="font-semibold text-ink">Omkostninger pr. kategori</h3>
@@ -3385,7 +3283,7 @@ export default function UploadDashboard() {
                     {costsByCategory.length === 1 ? (
                       <p className="mb-2 text-[11px] font-semibold text-orange-700">1 resultat i den aktuelle visning</p>
                     ) : null}
-                    <div className={costsByCategory.length === 1 ? "h-36" : "h-64"}>
+                    <div className={costsByCategory.length === 1 ? "h-36" : "h-72"}>
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={costsByCategory} layout="vertical" margin={{ top: 4, right: costsByCategory.length === 1 ? 92 : 20, bottom: 4, left: 4 }}>
                           <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" horizontal={false} />
@@ -3402,7 +3300,11 @@ export default function UploadDashboard() {
                     </div>
                     </>
                   ) : (
-                    <EmptyChart message="Upload et regneark med omkostningsdata for at vise fordelingen." />
+                    <EmptyChart
+                      title="Omkostningsdata mangler"
+                      message="Tilføj en kolonne med omkostning eller kostpris for at se fordelingen."
+                      tone="warning"
+                    />
                   )}
                   </div>
                 </div>
@@ -3411,11 +3313,11 @@ export default function UploadDashboard() {
           </section>
 
           {showBudget ? (
-            <section className="space-y-5 border-y border-slate-200 bg-[#f4f8f9] px-4 py-6 sm:px-6 sm:py-7">
+            <section className="space-y-4 rounded-lg border border-[#dce6eb] bg-white p-5 shadow-[0_8px_24px_rgba(16,32,51,0.04)]" data-testid="budget-section">
               <div className={dashboardSectionHeaderClass}>
                 <div>
                   <p className={`${dashboardEyebrowClass} text-orange-700`}>Økonomisk pejlemærke</p>
-                  <h2 className="mt-1.5 text-2xl font-semibold text-ink">Budgetoverblik</h2>
+                  <h2 className="mt-1 text-xl font-semibold text-ink">Budgetoverblik</h2>
                 </div>
                 <p className="text-xs text-slate-500">Budgettal for den aktuelle visning</p>
               </div>
@@ -3445,7 +3347,7 @@ export default function UploadDashboard() {
             </section>
           ) : null}
 
-          <div className="border-t border-slate-200/70 pt-5">
+          <div className="border-t border-[#dce6eb] pt-5">
             <FeedbackPanel feedback={data?.feedback} rowCount={allRows.length} />
           </div>
           </>

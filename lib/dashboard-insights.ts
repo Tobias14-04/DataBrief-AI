@@ -161,9 +161,8 @@ export function buildMonthlyReport(input: MonthlyReportInput) {
 
   if (input.budget) {
     metrics.push({ key: "budgetStatus", label: "Budgetstatus", value: input.budget.status });
-  } else {
-    metrics.push({ key: "rows", label: dashboardMetricLabels.rows, value: formatDanishNumber(input.rowCount) });
   }
+  metrics.push({ key: "rows", label: dashboardMetricLabels.rows, value: formatDanishNumber(input.rowCount) });
 
   const month = formatDanishMonth(input.month);
   let summary = `I ${month} var omsætningen ${formatDanishCurrency(input.revenue)}`;
@@ -181,9 +180,8 @@ export function buildMonthlyReport(input: MonthlyReportInput) {
     } else {
       summary += `, og omsætningen lå ${deviation} ${input.budget.deviation >= 0 ? "over" : "under"} det fordelte månedsbudget`;
     }
-  } else {
-    summary += `, baseret på ${rowText(input.rowCount)}`;
   }
+  summary += `, baseret på ${rowText(input.rowCount)}`;
 
   return { metrics, summary: `${summary}.` };
 }

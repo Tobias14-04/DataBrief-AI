@@ -157,8 +157,8 @@ test("månedsrapporten beskriver en vist budgetstatus", () => {
     rowCount: 30,
     budget: { deviation: 5_630, status: "Over budgettet" },
   });
-  assert.deepEqual(report.metrics.map((metric) => metric.key), ["revenue", "grossProfit", "budgetStatus"]);
-  assert.match(report.summary, /5\.630.*over det fordelte månedsbudget/);
+  assert.deepEqual(report.metrics.map((metric) => metric.key), ["revenue", "grossProfit", "budgetStatus", "rows"]);
+  assert.match(report.summary, /5\.630.*over det fordelte månedsbudget.*30 medtagne rækker/);
 });
 
 test("den adaptive indtjeningsgraf prioriterer DB, derefter DG og ellers tom tilstand", () => {
