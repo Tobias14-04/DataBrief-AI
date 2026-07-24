@@ -274,8 +274,8 @@ export function DashboardCommandShell({
   return (
     <main className="min-h-screen bg-[#edf3f6] text-ink">
       <aside
-        className={`fixed inset-y-0 left-0 z-40 hidden border-r border-white/[0.06] shadow-[12px_0_40px_rgba(7,22,37,0.12)] lg:block ${
-          sidebarCollapsed ? "w-[72px]" : "w-[72px] xl:w-[220px]"
+        className={`fixed inset-y-0 left-0 z-40 hidden overflow-x-hidden border-r border-white/[0.06] shadow-[12px_0_40px_rgba(7,22,37,0.12)] lg:block ${
+          sidebarCollapsed ? "w-[72px]" : "w-[220px]"
         }`}
       >
         <ShellSidebar
@@ -313,7 +313,7 @@ export function DashboardCommandShell({
         </div>
       ) : null}
 
-      <div className={`min-h-screen transition-[padding] duration-200 ${sidebarCollapsed ? "lg:pl-[72px]" : "lg:pl-[72px] xl:pl-[220px]"}`}>
+      <div className={`min-h-screen transition-[padding] duration-200 ${sidebarCollapsed ? "lg:pl-[72px]" : "lg:pl-[220px]"}`}>
         <header className="sticky top-0 z-30 h-16 border-b border-white/[0.07] bg-[#0b1c2d]/95 text-white shadow-[0_8px_30px_rgba(7,22,37,0.12)] backdrop-blur-xl">
           <div className="flex h-full items-center justify-between gap-3 px-4 sm:px-5 xl:px-6">
             <div className="flex min-w-0 items-center gap-3">
@@ -332,13 +332,19 @@ export function DashboardCommandShell({
             </div>
 
             <div className="flex min-w-0 items-center gap-2.5">
-              <div className="hidden min-w-0 items-center gap-2 rounded-md border border-white/[0.08] bg-white/[0.045] px-3 py-2 md:flex">
+              <button
+                type="button"
+                onClick={() => onViewChange("dataset")}
+                className="group hidden min-w-0 items-center gap-2 rounded-md border border-white/[0.08] bg-white/[0.045] px-3 py-2 text-left transition hover:border-cyan-300/20 hover:bg-white/[0.075] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 md:flex"
+                aria-label={`Åbn datasættet ${fileName}`}
+                title="Åbn datasæt"
+              >
                 <FileSpreadsheet className="h-4 w-4 shrink-0 text-cyan-300" aria-hidden="true" />
                 <div className="min-w-0">
-                  <p className="max-w-[230px] truncate text-[11px] font-semibold text-slate-200" title={fileName}>{fileName}</p>
+                  <p className="max-w-[230px] truncate text-[11px] font-semibold text-slate-200 group-hover:text-white" title={fileName}>{fileName}</p>
                   <p className="text-[9px] text-slate-500">{rowCount.toLocaleString("da-DK")} rækker · {statusLabel}</p>
                 </div>
-              </div>
+              </button>
               <Link
                 href="/"
                 className="grid h-9 w-9 place-items-center rounded-md border border-white/10 text-slate-400 transition hover:bg-white/[0.06] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50"

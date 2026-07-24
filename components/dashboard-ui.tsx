@@ -1,4 +1,5 @@
 import {
+  ChevronRight,
   CircleDollarSign,
   FileSpreadsheet,
   Info,
@@ -190,10 +191,12 @@ export function ExecutiveSummaryCard({
   insights,
   conclusion,
   status,
+  onViewAll,
 }: {
   insights: string[];
   conclusion: string;
   status: string;
+  onViewAll?: () => void;
 }) {
   return (
     <section className={`relative ${dashboardDarkCardClass} p-4 text-white sm:p-5`} data-testid="executive-summary">
@@ -226,6 +229,16 @@ export function ExecutiveSummaryCard({
           <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" aria-hidden="true" />
           <span>{status}</span>
         </div>
+        {onViewAll ? (
+          <button
+            type="button"
+            onClick={onViewAll}
+            className="mt-4 inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.06] px-3 text-[11px] font-semibold text-white transition hover:border-cyan-300/25 hover:bg-white/[0.1] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50"
+          >
+            Se alle indsigter
+            <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        ) : null}
       </div>
     </section>
   );

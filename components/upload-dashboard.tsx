@@ -4,7 +4,6 @@ import Link from "next/link";
 import * as XLSX from "xlsx";
 import {
   ArrowLeft,
-  BarChart3,
   CalendarRange,
   Calculator,
   ChartNoAxesCombined,
@@ -33,22 +32,25 @@ import {
 import {
   Area,
   AreaChart as RechartsAreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
-  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { ChangeEvent, type ReactNode, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import {
+  ChangeEvent,
+  type ReactNode,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { ExcelProcessingView } from "@/components/excel-processing-view";
 import { KpiCustomizer } from "@/components/kpi-customizer";
-import {
-  DashboardCommandShell,
-  ViewAction,
-} from "@/components/dashboard-command-shell";
+import { DashboardCommandShell } from "@/components/dashboard-command-shell";
 import {
   DashboardControlBar,
   type DashboardControlOptions,
@@ -64,14 +66,16 @@ import {
   commandSectionLabelClass,
 } from "@/components/command-center-ui";
 import {
-  chartCardClass,
+  OverviewAnalysisPreviewGrid,
+  OverviewSectionHeader,
+  OverviewTrendPanel,
+} from "@/components/overview-dashboard";
+import {
   dashboardCardClass,
-  dashboardCardHeaderClass,
   dashboardEyebrowClass,
   dashboardIconClass,
   dashboardUtilityCardClass,
   DatasetHeader,
-  EmptyAnalysisState as EmptyChart,
   ExecutiveSummaryCard,
 } from "@/components/dashboard-ui";
 import {
@@ -131,6 +135,12 @@ import {
   isImportProcessing,
   type ImportProcessingStep,
 } from "@/lib/import-processing";
+import {
+  applyDashboardFilters,
+  rowMatchesDashboardFilters,
+  type DashboardFilterKey,
+  type DashboardFilters,
+} from "@/lib/dashboard-filtering";
 import type { DashboardView } from "@/lib/dashboard-navigation";
 
 type SaleRow = {
@@ -174,8 +184,6 @@ type BudgetSummary = {
   result: number;
 };
 
-type DashboardFilterKey = "month" | "product" | "category" | "channel" | "region";
-type DashboardFilters = Record<DashboardFilterKey, string[]>;
 type TrendMetric = "revenue" | "grossProfit" | "units" | "cost";
 
 type ActiveFilter = {
@@ -276,7 +284,6 @@ const dashboardFilterLabels: Record<DashboardFilterKey, string> = {
 
 const chartGridColor = "#e8eef1";
 const chartAxisTick = { fill: "#718096" };
-const chartCursorFill = "#f3f8f9";
 const chartTooltipStyle = {
   border: "1px solid #d8e3e8",
   borderRadius: "8px",
@@ -887,14 +894,6 @@ function uniqueValues(rows: SaleRow[], field: DashboardFilterKey) {
   return Array.from(new Set(rows.map((row) => row[field]).filter(Boolean))).sort((a, b) => a.localeCompare(b));
 }
 
-function applyDashboardFilters(rows: SaleRow[], filters: DashboardFilters, ignoredField?: DashboardFilterKey) {
-  return rows.filter((row) =>
-    (Object.entries(filters) as Array<[DashboardFilterKey, string[]]>).every(
-      ([field, values]) => !values.length || field === ignoredField || values.includes(row[field]),
-    ),
-  );
-}
-
 function getActiveFilters(filters: DashboardFilters): ActiveFilter[] {
   return (Object.entries(filters) as Array<[DashboardFilterKey, string[]]>).flatMap(([field, values]) =>
     values.map((value) => ({ field, label: dashboardFilterLabels[field], value })),
@@ -1170,8 +1169,9 @@ function calculateMetrics(
   );
   const totalCosts = options.useWorkbookTotals !== false && feedback?.costs ? feedback.costs.total : rowCosts;
   const actualResult = totalRevenue - totalCosts;
-  const productsByRevenue = groupRows(rows, (row) => row.product).sort((a, b) => b.revenue - a.revenue);
-  const productsByUnits = groupRows(rows, (row) => row.product).sort((a, b) => b.units - a.units);
+  const products = groupRows(rows, (row) => row.product);
+  const productsByRevenue = [...products].sort((a, b) => b.revenue - a.revenue);
+  const productsByUnits = [...products].sort((a, b) => b.units - a.units);
   const categories = groupRows(rows, (row) => row.category).sort((a, b) => b.revenue - a.revenue);
   const grossProfitByCategory = categories.filter((category) => category.grossProfit !== 0).sort((a, b) => b.grossProfit - a.grossProfit);
   const grossMarginByCategory = categories
@@ -2231,39 +2231,52 @@ function MonthlyReportCard({
   selectedMonth: string;
   onMonthChange: (month: string) => void;
 }) {
-  const monthOptions = uniqueValues(rows, "month");
+  const monthOptions = useMemo(() => uniqueValues(rows, "month"), [rows]);
   const reportMonth = monthOptions.includes(selectedMonth)
     ? selectedMonth
     : filters.month[0] || (preferredMonth && monthOptions.includes(preferredMonth) ? preferredMonth : monthOptions.at(-1) ?? "");
-  const rowsWithoutMonthFilter = applyDashboardFilters(rows, filters, "month");
-  const reportRows = rowsWithoutMonthFilter.filter((row) => row.month === reportMonth);
-  const allRowsForMonth = rows.filter((row) => row.month === reportMonth);
-  const monthCount = Math.max(monthOptions.length, 1);
-  const segmentShare = allRowsForMonth.length ? reportRows.length / allRowsForMonth.length : 0;
-  const budgetScale = (1 / monthCount) * segmentShare;
-  const reportMetrics = calculateMetrics(reportRows, feedback, { useWorkbookTotals: false, budgetScale });
-  const hasBudget = Boolean(feedback?.budget && reportRows.length);
-  const deviation = reportMetrics.revenueVsBudget;
-  const tolerance = Math.max(1, reportMetrics.budgetRevenue * 0.01);
-  const budgetStatus = Math.abs(deviation) <= tolerance ? "På budget" : deviation > 0 ? "Over budgettet" : "Under budgettet";
-  const budgetStatusClasses =
-    budgetStatus === "På budget"
-      ? "bg-brand-50 text-brand-700"
-      : budgetStatus === "Over budgettet"
-        ? "bg-emerald-50 text-emerald-700"
-        : "bg-orange-50 text-orange-700";
-  const report = buildMonthlyReport({
-    month: reportMonth,
-    revenue: reportMetrics.totalRevenue,
-    rowCount: reportMetrics.rowCount,
-    units: reportMetrics.totalUnits,
-    grossProfit: reportMetrics.hasGrossProfit ? reportMetrics.totalGrossProfit : null,
-    grossMargin: !reportMetrics.hasGrossProfit && reportMetrics.hasGrossMargin ? reportMetrics.grossMargin : null,
-    result: !reportMetrics.hasGrossProfit && !reportMetrics.hasGrossMargin && reportMetrics.hasCosts
-      ? reportMetrics.actualResult
-      : null,
-    budget: hasBudget ? { deviation, status: budgetStatus } : null,
-  });
+  const { reportRows, report, budgetStatusClasses } = useMemo(() => {
+    let rowsInMonth = 0;
+    const matchingRows: SaleRow[] = [];
+
+    rows.forEach((row) => {
+      if (row.month !== reportMonth) return;
+      rowsInMonth += 1;
+      if (rowMatchesDashboardFilters(row, filters, "month")) matchingRows.push(row);
+    });
+
+    const monthCount = Math.max(monthOptions.length, 1);
+    const segmentShare = rowsInMonth ? matchingRows.length / rowsInMonth : 0;
+    const budgetScale = (1 / monthCount) * segmentShare;
+    const reportMetrics = calculateMetrics(matchingRows, feedback, { useWorkbookTotals: false, budgetScale });
+    const hasBudget = Boolean(feedback?.budget && matchingRows.length);
+    const deviation = reportMetrics.revenueVsBudget;
+    const tolerance = Math.max(1, reportMetrics.budgetRevenue * 0.01);
+    const budgetStatus = Math.abs(deviation) <= tolerance ? "På budget" : deviation > 0 ? "Over budgettet" : "Under budgettet";
+    const statusClasses =
+      budgetStatus === "På budget"
+        ? "bg-brand-50 text-brand-700"
+        : budgetStatus === "Over budgettet"
+          ? "bg-emerald-50 text-emerald-700"
+          : "bg-orange-50 text-orange-700";
+
+    return {
+      reportRows: matchingRows,
+      budgetStatusClasses: statusClasses,
+      report: buildMonthlyReport({
+        month: reportMonth,
+        revenue: reportMetrics.totalRevenue,
+        rowCount: reportMetrics.rowCount,
+        units: reportMetrics.totalUnits,
+        grossProfit: reportMetrics.hasGrossProfit ? reportMetrics.totalGrossProfit : null,
+        grossMargin: !reportMetrics.hasGrossProfit && reportMetrics.hasGrossMargin ? reportMetrics.grossMargin : null,
+        result: !reportMetrics.hasGrossProfit && !reportMetrics.hasGrossMargin && reportMetrics.hasCosts
+          ? reportMetrics.actualResult
+          : null,
+        budget: hasBudget ? { deviation, status: budgetStatus } : null,
+      }),
+    };
+  }, [feedback, filters, monthOptions.length, reportMonth, rows]);
   const metricGridClass = report.metrics.length === 4
     ? "grid-cols-2"
     : report.metrics.length === 3
@@ -2468,10 +2481,12 @@ export default function UploadDashboard() {
   const loadingMessage = importStatusLabel(importState.status) || "Analyserer regnearket";
 
   const allRows = useMemo(() => data?.rows ?? [], [data?.rows]);
-  const activeFilters = useMemo(() => getActiveFilters(filters), [filters]);
+  const deferredFilters = useDeferredValue(filters);
+  const isFilterUpdatePending = deferredFilters !== filters;
+  const activeFilters = useMemo(() => getActiveFilters(deferredFilters), [deferredFilters]);
   const activeFilterLabels = useMemo(() => activeFilters.map((filter) => filter.value), [activeFilters]);
   const isFiltered = activeFilterLabels.length > 0;
-  const filteredRows = useMemo(() => applyDashboardFilters(allRows, filters), [allRows, filters]);
+  const filteredRows = useMemo(() => applyDashboardFilters(allRows, deferredFilters), [allRows, deferredFilters]);
   const budgetScale = allRows.length && isFiltered ? filteredRows.length / allRows.length : 1;
   const baseMetrics = useMemo(() => calculateMetrics(allRows, data?.feedback), [allRows, data?.feedback]);
   const metrics = useMemo(
@@ -2513,19 +2528,30 @@ export default function UploadDashboard() {
   }, [baseMetrics.hasCosts, baseMetrics.hasGrossProfit]);
   const activeTrendMetric = availableTrendMetrics.includes(trendMetric) ? trendMetric : "revenue";
   const activeTrendDefinition = trendMetricDefinitions[activeTrendMetric];
+  const trendMetricOptions = useMemo(
+    () => availableTrendMetrics.map((metric) => ({
+      value: metric,
+      label: trendMetricDefinitions[metric].shortLabel,
+    })),
+    [availableTrendMetrics],
+  );
   const trendChartDomain = useMemo(
     () => paddedChartDomain(metrics.monthly.map((month) => month[activeTrendMetric])),
     [activeTrendMetric, metrics.monthly],
   );
   const trendTotal = metrics.monthly.reduce((sum, month) => sum + month[activeTrendMetric], 0);
   const productViewData = useMemo(
-    () => groupRows(filteredRows, (row) => row.product)
-      .sort((a, b) => productSort === "revenue" ? b.revenue - a.revenue : b.units - a.units),
-    [filteredRows, productSort],
+    () => activeView === "products"
+      ? groupRows(filteredRows, (row) => row.product)
+        .sort((a, b) => productSort === "revenue" ? b.revenue - a.revenue : b.units - a.units)
+      : [],
+    [activeView, filteredRows, productSort],
   );
   const categoryViewData = useMemo(
-    () => groupRows(filteredRows, (row) => row.category).sort((a, b) => b.revenue - a.revenue),
-    [filteredRows],
+    () => activeView === "categories"
+      ? groupRows(filteredRows, (row) => row.category).sort((a, b) => b.revenue - a.revenue)
+      : [],
+    [activeView, filteredRows],
   );
   const shouldShowManualMapping = shouldShowColumnReview({
     hasWorkbookAnalysis: Boolean(analysis),
@@ -3059,7 +3085,7 @@ export default function UploadDashboard() {
           </section>
 
           {!shouldShowManualMapping ? (
-          <div className="grid min-w-0 gap-4 min-[1360px]:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="grid min-w-0 gap-4 min-[1360px]:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0 min-[1360px]:col-span-2">
             <DatasetCommandCenter
               fileName={data?.fileName ?? analysis?.fileName ?? "Excel-regneark"}
@@ -3079,6 +3105,7 @@ export default function UploadDashboard() {
                 options={filterOptions}
                 filteredRows={metrics.rowCount}
                 totalRows={allRows.length}
+                isPending={isFilterUpdatePending}
                 onToggle={toggleDashboardFilter}
                 onClear={clearDashboardFilter}
                 onReset={() => setFilters(emptyDashboardFilters)}
@@ -3088,13 +3115,13 @@ export default function UploadDashboard() {
 
           {activeView === "overview" ? (
           <>
-          <section className="min-w-0 space-y-3 min-[1360px]:col-start-1" data-testid="kpi-section">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className={`${commandSectionLabelClass} text-brand-700`}>Resultatoverblik</p>
-                <h2 className="mt-1 text-lg font-semibold text-ink">Centrale nøgletal</h2>
-              </div>
-              <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+          <section className="order-1 min-w-0 space-y-3 min-[1360px]:col-span-2" data-testid="kpi-section">
+            <OverviewSectionHeader
+              eyebrow="Resultatoverblik"
+              title="Centrale nøgletal"
+              description="De vigtigste resultater i den aktuelle visning."
+              action={(
+                <div className="flex flex-wrap items-center gap-3 sm:justify-end">
                 <p className="text-[10px] text-slate-500">
                   {hasCustomizedKpis
                     ? `${primaryKpis.length} primære · ${secondaryKpis.length} sekundære`
@@ -3108,8 +3135,9 @@ export default function UploadDashboard() {
                   <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
                   Tilpas nøgletal
                 </button>
-              </div>
-            </div>
+                </div>
+              )}
+            />
             {kpiSaveMessage ? (
               <div
                 role="status"
@@ -3151,11 +3179,41 @@ export default function UploadDashboard() {
             </div>
           </section>
 
-          <aside className="min-w-0 space-y-3 min-[1360px]:col-start-2 min-[1360px]:row-start-3 min-[1360px]:row-span-4 min-[1360px]:sticky min-[1360px]:top-20 min-[1360px]:self-start" data-testid="insights-rail">
+          <section className="order-2 min-w-0 space-y-4 min-[1360px]:col-start-1 min-[1360px]:row-start-4" data-testid="analysis-section">
+            <OverviewSectionHeader
+              eyebrow="Ledelsesanalyse"
+              title="Omsætningsudvikling og indsigt"
+              description="Følg udviklingen, og brug indsigterne til at vælge næste analysetrin."
+            />
+
+            <OverviewTrendPanel
+              data={hasFilteredData ? metrics.monthly : []}
+              metric={activeTrendMetric}
+              metricLabel={activeTrendDefinition.label}
+              metricTotal={formatTrendValue(activeTrendMetric, trendTotal)}
+              metricColor={activeTrendDefinition.color}
+              metricOptions={trendMetricOptions}
+              domain={trendChartDomain}
+              isPending={isFilterUpdatePending}
+              onMetricChange={setTrendMetric}
+            />
+
+            <OverviewAnalysisPreviewGrid
+              products={metrics.productsByUnits}
+              categories={metrics.categories}
+              coverage={marginChartData}
+              coverageMode={marginChartMode}
+              costs={costsByCategory}
+              showCosts={showCosts}
+              onNavigate={setActiveView}
+            />
+          </section>
+
+          <aside className="order-3 min-w-0 space-y-3 min-[1360px]:col-start-2 min-[1360px]:row-start-4 min-[1360px]:row-span-2 min-[1360px]:sticky min-[1360px]:top-20 min-[1360px]:self-start" data-testid="insights-rail">
             {hasData ? (
               <MonthlyReportCard
                 rows={allRows}
-                filters={filters}
+                filters={deferredFilters}
                 feedback={data?.feedback}
                 preferredMonth={baseMetrics.bestMonth?.name}
                 selectedMonth={reportMonth}
@@ -3166,298 +3224,12 @@ export default function UploadDashboard() {
               insights={executiveSummary.insights}
               conclusion={executiveSummary.conclusion}
               status={executiveSummary.status}
+              onViewAll={() => setActiveView("insights")}
             />
           </aside>
 
-          <section className="min-w-0 space-y-4 min-[1360px]:col-start-1" data-testid="analysis-section">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className={`${commandSectionLabelClass} text-brand-700`}>Ledelsesanalyse</p>
-                <h2 className="mt-1 text-lg font-semibold text-ink">Omsætningsudvikling</h2>
-              </div>
-              <p className="max-w-sm text-[10px] leading-4 text-slate-500 sm:text-right">Udviklingen i den aktuelle filtrerede visning</p>
-            </div>
-
-            <div>
-              <div className={dashboardCardClass} data-testid="revenue-chart">
-                <div className="flex min-h-[72px] flex-col gap-3 border-b border-[#e5ecef] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className={`${commandSectionLabelClass} text-brand-700`}>Primær udvikling</p>
-                    <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                      <h3 className="text-sm font-semibold text-ink">{activeTrendDefinition.label}</h3>
-                      <p className="text-lg font-semibold text-ink">{formatTrendValue(activeTrendMetric, trendTotal)}</p>
-                    </div>
-                    <p className="text-[10px] leading-4 text-slate-500">Månedlig udvikling i den valgte visning</p>
-                  </div>
-                  <label className="relative block min-w-[158px]">
-                    <span className="sr-only">Vælg nøgletal til grafen</span>
-                    <select
-                      value={activeTrendMetric}
-                      onChange={(event) => setTrendMetric(event.target.value as TrendMetric)}
-                      className="h-9 w-full appearance-none rounded-md border border-slate-200 bg-white py-1 pl-3 pr-8 text-[10px] font-semibold text-slate-700 outline-none transition hover:border-brand-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                    >
-                      {availableTrendMetrics.map((metric) => (
-                        <option key={metric} value={metric}>{trendMetricDefinitions[metric].shortLabel}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-                  </label>
-                </div>
-                <div className="px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
-                {hasFilteredData ? (
-                  <div className="h-[280px] sm:h-[320px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RechartsAreaChart data={metrics.monthly} margin={{ top: 12, right: 20, bottom: 10, left: 0 }}>
-                        <defs>
-                          <linearGradient id="commandTrendFill" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={activeTrendDefinition.color} stopOpacity={0.2} />
-                            <stop offset="92%" stopColor={activeTrendDefinition.color} stopOpacity={0.015} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" vertical={false} />
-                        <XAxis
-                          dataKey="name"
-                          tickLine={false}
-                          axisLine={false}
-                          fontSize={12}
-                          tick={chartAxisTick}
-                          dy={8}
-                          tickFormatter={(value) => formatDanishMonth(String(value), "short")}
-                        />
-                        <YAxis
-                          domain={trendChartDomain}
-                          tickCount={5}
-                          tickLine={false}
-                          axisLine={false}
-                          fontSize={12}
-                          tick={chartAxisTick}
-                          width={56}
-                          tickFormatter={(value) => formatTrendAxis(activeTrendMetric, Number(value))}
-                        />
-                        <Tooltip
-                          contentStyle={chartTooltipStyle}
-                          formatter={formatMetricTooltip}
-                          labelFormatter={(label) => formatDanishMonth(String(label))}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey={activeTrendMetric}
-                          stroke={activeTrendDefinition.color}
-                          strokeWidth={2.5}
-                          fill="url(#commandTrendFill)"
-                          dot={metrics.monthly.length <= 18 ? { r: 2.5, fill: "#ffffff", stroke: activeTrendDefinition.color, strokeWidth: 2 } : false}
-                          activeDot={{ r: 5, fill: activeTrendDefinition.color, stroke: "#ffffff", strokeWidth: 2.5 }}
-                        />
-                      </RechartsAreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <EmptyChart title="Ingen omsætning i visningen" message="Tilpas eller nulstil filtrene for at vise omsætningsudviklingen." />
-                )}
-                </div>
-              </div>
-
-            </div>
-
-            <div className="space-y-3 border-t border-[#dce6eb] pt-4">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className={`${commandSectionLabelClass} text-brand-700`}>Supplerende analyse</p>
-                  <h2 className="mt-1 text-lg font-semibold text-ink">Produkter og kategorier</h2>
-                </div>
-                <p className="text-[10px] text-slate-500">Rangerede visninger af de registrerede data</p>
-              </div>
-
-              <div className="grid gap-3 xl:grid-cols-2" data-testid="supplementary-analysis">
-                <div className={chartCardClass}>
-                  <div className={dashboardCardHeaderClass}>
-                    <div>
-                      <h3 className="font-semibold text-ink">Antal solgte pr. produkt</h3>
-                      <p className="text-xs leading-5 text-slate-500">Produkter rangeret efter solgte enheder</p>
-                    </div>
-                    <span className={dashboardIconClass}>
-                      <BarChart3 className="h-4 w-4" aria-hidden="true" />
-                    </span>
-                  </div>
-                  <div className="p-4 sm:p-5">
-                  {hasFilteredData ? (
-                    <>
-                    {metrics.productsByUnits.length === 1 ? (
-                      <p className="mb-2 text-[11px] font-semibold text-brand-700">1 resultat i den aktuelle visning</p>
-                    ) : null}
-                    <div className={metrics.productsByUnits.length === 1 ? "h-32" : "h-52"}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={metrics.productsByUnits} layout="vertical" margin={{ top: 4, right: metrics.productsByUnits.length === 1 ? 78 : 24, bottom: 4, left: 8 }}>
-                          <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" horizontal={false} />
-                          <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} />
-                          <YAxis type="category" dataKey="name" width={110} tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} />
-                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: chartCursorFill }} formatter={formatMetricTooltip} />
-                          <Bar dataKey="units" fill="#0891b2" radius={[0, 5, 5, 0]}>
-                            {metrics.productsByUnits.length === 1 ? (
-                              <LabelList dataKey="units" position="right" fill="#475569" fontSize={11} formatter={(value: unknown) => number(Number(value))} />
-                            ) : null}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                    </>
-                  ) : (
-                    <EmptyChart title="Ingen produkter i visningen" message="Tilpas eller nulstil filtrene for at vise produkternes solgte enheder." />
-                  )}
-                  </div>
-                </div>
-
-                <div className={chartCardClass}>
-                  <div className={dashboardCardHeaderClass}>
-                    <div>
-                      <h3 className="font-semibold text-ink">Omsætning pr. kategori</h3>
-                      <p className="text-xs leading-5 text-slate-500">Kategorier rangeret efter omsætning</p>
-                    </div>
-                    <span className={dashboardIconClass}>
-                      <CircleDollarSign className="h-4 w-4" aria-hidden="true" />
-                    </span>
-                  </div>
-                  <div className="p-4 sm:p-5">
-                  {hasFilteredData ? (
-                    <>
-                    {metrics.categories.length === 1 ? (
-                      <p className="mb-2 text-[11px] font-semibold text-brand-700">1 resultat i den aktuelle visning</p>
-                    ) : null}
-                    <div className={metrics.categories.length === 1 ? "h-32" : "h-52"}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={metrics.categories} layout="vertical" margin={{ top: 4, right: metrics.categories.length === 1 ? 92 : 20, bottom: 4, left: 4 }}>
-                          <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" horizontal={false} />
-                          <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
-                          <YAxis type="category" dataKey="name" width={90} tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} />
-                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: chartCursorFill }} formatter={formatMetricTooltip} />
-                          <Bar dataKey="revenue" fill="#0891b2" radius={[0, 5, 5, 0]}>
-                            {metrics.categories.length === 1 ? (
-                              <LabelList dataKey="revenue" position="right" fill="#475569" fontSize={11} formatter={(value: unknown) => currency(Number(value))} />
-                            ) : null}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                    </>
-                  ) : (
-                    <EmptyChart title="Ingen kategorier i visningen" message="Tilpas eller nulstil filtrene for at vise omsætningen pr. kategori." />
-                  )}
-                  </div>
-                </div>
-
-                <div className={chartCardClass}>
-                  <div className={dashboardCardHeaderClass}>
-                    <div>
-                      <h3 className="font-semibold text-ink">
-                        {marginChartMode === "grossMargin" ? "Dækningsgrad pr. kategori" : "Dækningsbidrag pr. kategori"}
-                      </h3>
-                      <p className="text-xs leading-5 text-slate-500">
-                        {marginChartMode === "grossMargin"
-                          ? "Kategorier rangeret efter gennemsnitlig dækningsgrad"
-                          : "Kategorier rangeret efter dækningsbidrag"}
-                      </p>
-                    </div>
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700">
-                      <TrendingUp className="h-4 w-4" aria-hidden="true" />
-                    </span>
-                  </div>
-                  <div className="p-4 sm:p-5">
-                  {marginChartMode !== "empty" && marginChartData.length ? (
-                    <>
-                    {marginChartData.length === 1 ? (
-                      <p className="mb-2 text-[11px] font-semibold text-emerald-700">1 resultat i den aktuelle visning</p>
-                    ) : null}
-                    <div className={marginChartData.length === 1 ? "h-32" : "h-52"}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={marginChartData} layout="vertical" margin={{ top: 4, right: marginChartData.length === 1 ? 92 : 20, bottom: 4, left: 4 }}>
-                          <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" horizontal={false} />
-                          <XAxis
-                            type="number"
-                            tickLine={false}
-                            axisLine={false}
-                            fontSize={11}
-                            tick={chartAxisTick}
-                            tickFormatter={(value) => marginChartMode === "grossMargin" ? percent(Number(value)) : `${number(Number(value) / 1000)} t.kr.`}
-                          />
-                          <YAxis type="category" dataKey="name" width={96} tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} />
-                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: chartCursorFill }} formatter={formatMetricTooltip} />
-                          <Bar dataKey={marginChartMode} fill="#22c55e" radius={[0, 5, 5, 0]}>
-                            {marginChartData.length === 1 ? (
-                              <LabelList
-                                dataKey={marginChartMode}
-                                position="right"
-                                fill="#475569"
-                                fontSize={11}
-                                formatter={(value: unknown) => marginChartMode === "grossMargin" ? percent(Number(value)) : currency(Number(value))}
-                              />
-                            ) : null}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                    </>
-                  ) : (
-                    <EmptyChart
-                      title="Indtjeningsdata mangler"
-                      message="Tilføj dækningsbidrag eller dækningsgrad for at se fordelingen pr. kategori."
-                      tone="positive"
-                    />
-                  )}
-                  </div>
-                </div>
-
-                <div className={chartCardClass}>
-                  <div className={dashboardCardHeaderClass}>
-                    <div>
-                      <h3 className="font-semibold text-ink">Omkostninger pr. kategori</h3>
-                      <p className="text-xs leading-5 text-slate-500">Vises, når omkostningsdata er fundet</p>
-                    </div>
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-orange-200 bg-orange-50 text-orange-700">
-                      <WalletCards className="h-4 w-4" aria-hidden="true" />
-                    </span>
-                  </div>
-                  <div className="p-4 sm:p-5">
-                  {showCosts && costsByCategory.length ? (
-                    <>
-                    {costsByCategory.length === 1 ? (
-                      <p className="mb-2 text-[11px] font-semibold text-orange-700">1 resultat i den aktuelle visning</p>
-                    ) : null}
-                    <div className={costsByCategory.length === 1 ? "h-32" : "h-52"}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={costsByCategory} layout="vertical" margin={{ top: 4, right: costsByCategory.length === 1 ? 92 : 20, bottom: 4, left: 4 }}>
-                          <CartesianGrid stroke={chartGridColor} strokeDasharray="3 5" horizontal={false} />
-                          <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} tickFormatter={(value) => `${number(value / 1000)} t.kr.`} />
-                          <YAxis type="category" dataKey="name" width={96} tickLine={false} axisLine={false} fontSize={11} tick={chartAxisTick} />
-                          <Tooltip contentStyle={chartTooltipStyle} cursor={{ fill: chartCursorFill }} formatter={formatMetricTooltip} />
-                          <Bar dataKey="cost" fill="#f97316" radius={[0, 5, 5, 0]}>
-                            {costsByCategory.length === 1 ? (
-                              <LabelList dataKey="cost" position="right" fill="#475569" fontSize={11} formatter={(value: unknown) => currency(Number(value))} />
-                            ) : null}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                    </>
-                  ) : (
-                    <EmptyChart
-                      title="Omkostningsdata mangler"
-                      message="Tilføj en kolonne med omkostning eller kostpris for at se fordelingen."
-                      tone="warning"
-                    />
-                  )}
-                  </div>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-x-5 gap-y-2 border-t border-slate-200 pt-3">
-                <ViewAction label="Se produktanalyse" onClick={() => setActiveView("products")} />
-                <ViewAction label="Se kategorianalyse" onClick={() => setActiveView("categories")} />
-                {showCosts ? <ViewAction label="Se omkostningsanalyse" onClick={() => setActiveView("costs")} /> : null}
-              </div>
-            </div>
-          </section>
-
           {showBudget ? (
-            <section className="min-w-0 space-y-3 rounded-lg border border-[#dce6eb] bg-white p-4 shadow-[0_6px_22px_rgba(7,22,37,0.045)] min-[1360px]:col-start-1" data-testid="budget-section">
+            <section className="order-4 min-w-0 space-y-3 rounded-lg border border-[#dce6eb] bg-white p-4 shadow-[0_6px_22px_rgba(7,22,37,0.045)] min-[1360px]:col-start-1 min-[1360px]:row-start-5" data-testid="budget-section">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p className={`${commandSectionLabelClass} text-orange-700`}>Økonomisk pejlemærke</p>

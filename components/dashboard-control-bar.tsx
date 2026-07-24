@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   Filter,
+  LoaderCircle,
   RotateCcw,
   Search,
   SlidersHorizontal,
@@ -150,6 +151,7 @@ export function DashboardControlBar({
   options,
   filteredRows,
   totalRows,
+  isPending = false,
   onToggle,
   onClear,
   onReset,
@@ -158,6 +160,7 @@ export function DashboardControlBar({
   options: DashboardControlOptions;
   filteredRows: number;
   totalRows: number;
+  isPending?: boolean;
   onToggle: (field: DashboardControlKey, value: string) => void;
   onClear: (field: DashboardControlKey) => void;
   onReset: () => void;
@@ -200,6 +203,7 @@ export function DashboardControlBar({
       className="relative rounded-lg border border-[#d8e3e8] bg-white px-3 py-3 shadow-[0_5px_18px_rgba(7,22,37,0.045)]"
       data-testid="dashboard-control-bar"
       aria-label="Dashboardfiltre"
+      aria-busy={isPending}
     >
       <div className="flex flex-wrap items-center gap-2">
         <div className="mr-1 hidden h-10 items-center gap-2 border-r border-slate-200 pr-3 sm:flex">
@@ -280,19 +284,31 @@ export function DashboardControlBar({
           </div>
         ) : null}
 
-        <button
-          type="button"
-          onClick={onReset}
-          disabled={!activeEntries.length}
-          className={`ml-auto inline-flex h-10 items-center gap-2 rounded-md px-3 text-[11px] font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 ${
-            activeEntries.length
-              ? "bg-[#0b1c2d] text-white hover:bg-[#132c43]"
-              : "cursor-not-allowed text-slate-400"
-          }`}
-        >
-          <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-          Nulstil
-        </button>
+        <div className="ml-auto flex min-h-10 items-center gap-2">
+          {isPending ? (
+            <span
+              className="inline-flex items-center gap-1.5 text-[11px] font-medium text-brand-700"
+              role="status"
+              aria-live="polite"
+            >
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              Opdaterer visningen…
+            </span>
+          ) : null}
+          <button
+            type="button"
+            onClick={onReset}
+            disabled={!activeEntries.length}
+            className={`inline-flex h-10 items-center gap-2 rounded-md px-3 text-[11px] font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 ${
+              activeEntries.length
+                ? "bg-[#0b1c2d] text-white hover:bg-[#132c43]"
+                : "cursor-not-allowed text-slate-400"
+            }`}
+          >
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+            Nulstil
+          </button>
+        </div>
       </div>
 
       {activeEntries.length ? (
