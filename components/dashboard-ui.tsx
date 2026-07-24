@@ -8,15 +8,15 @@ import {
 import type { ReactNode } from "react";
 
 export const dashboardCardClass =
-  "overflow-hidden rounded-lg border border-[#dce6eb] bg-white shadow-[0_8px_24px_rgba(16,32,51,0.055)]";
+  "overflow-hidden rounded-lg border border-[#d8e3e8] bg-white shadow-[0_6px_22px_rgba(7,22,37,0.05)]";
 export const chartCardClass =
-  "overflow-hidden rounded-lg border border-[#dce6eb] bg-white shadow-[0_8px_24px_rgba(16,32,51,0.05)]";
+  "overflow-hidden rounded-lg border border-[#d8e3e8] bg-white shadow-[0_6px_22px_rgba(7,22,37,0.045)]";
 export const dashboardCardHeaderClass =
-  "flex min-h-[84px] items-center justify-between gap-4 border-b border-[#e8eef1] bg-white px-5 py-4";
+  "flex min-h-[70px] items-center justify-between gap-3 border-b border-[#e8eef1] bg-white px-4 py-3";
 export const dashboardEyebrowClass =
   "text-[10px] font-semibold uppercase tracking-[0.14em]";
 export const dashboardIconClass =
-  "grid h-9 w-9 shrink-0 place-items-center rounded-md border border-brand-100 bg-brand-50/80 text-brand-700";
+  "grid h-8 w-8 shrink-0 place-items-center rounded-md border border-brand-100 bg-brand-50/80 text-brand-700";
 export const dashboardSectionClass = "space-y-6";
 export const dashboardSectionHeaderClass =
   "flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between";
@@ -127,7 +127,7 @@ export function EmptyAnalysisState({
   }[tone];
 
   return (
-    <div className="grid h-72 place-items-center rounded-md bg-[#f7fafb] px-6 text-center">
+    <div className="grid h-full min-h-52 place-items-center rounded-md bg-[#f7fafb] px-6 text-center">
       <div className="max-w-xs">
         <span className={`mx-auto grid h-10 w-10 place-items-center rounded-md border ${toneClasses}`}>
           <Info className="h-4 w-4" aria-hidden="true" />
@@ -196,7 +196,7 @@ export function ExecutiveSummaryCard({
   status: string;
 }) {
   return (
-    <section className={`relative ${dashboardDarkCardClass} p-5 text-white sm:p-6`} data-testid="executive-summary">
+    <section className={`relative ${dashboardDarkCardClass} p-4 text-white sm:p-5`} data-testid="executive-summary">
       <span className="absolute inset-x-0 top-0 h-0.5 bg-brand-500" aria-hidden="true" />
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -209,7 +209,7 @@ export function ExecutiveSummaryCard({
         </span>
       </div>
 
-      <ol className="mt-5 divide-y divide-white/[0.08]">
+      <ol className="mt-4 divide-y divide-white/[0.08]">
         {insights.map((insight, index) => (
           <li key={insight} className="grid grid-cols-[26px_1fr] gap-3 py-3 first:pt-0 last:pb-0">
             <span className="grid h-6 w-6 place-items-center rounded-md bg-cyan-300/10 text-[10px] font-semibold text-cyan-300">
@@ -220,7 +220,7 @@ export function ExecutiveSummaryCard({
         ))}
       </ol>
 
-      <div className="mt-5 border-t border-white/10 pt-4">
+      <div className="mt-4 border-t border-white/10 pt-3.5">
         <p className="text-xs font-semibold leading-5 text-white">{conclusion}</p>
         <div className="mt-3 flex items-start gap-2 text-[11px] leading-4 text-slate-300">
           <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" aria-hidden="true" />

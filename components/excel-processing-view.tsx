@@ -73,20 +73,37 @@ export function ExcelProcessingView({ fileName, status }: ExcelProcessingViewPro
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_78%_18%,rgba(8,145,178,0.14),transparent_28%),radial-gradient(circle_at_10%_85%,rgba(249,115,22,0.09),transparent_24%)]" />
       <div className="pointer-events-none absolute inset-0 -z-10 opacity-40 [background-image:linear-gradient(rgba(16,32,51,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(16,32,51,0.035)_1px,transparent_1px)] [background-size:48px_48px]" />
 
-      <header className="border-b border-white/70 bg-white/70 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
+      <aside className="fixed inset-y-0 left-0 hidden w-[72px] border-r border-white/[0.06] bg-[#071625] lg:flex lg:flex-col xl:w-[220px]">
+        <div className="flex h-16 items-center justify-center border-b border-white/[0.07] px-3 xl:justify-start xl:gap-2.5 xl:px-4">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-cyan-300/20 bg-cyan-300/10 text-cyan-200">
+            <FileSpreadsheet className="h-[18px] w-[18px]" aria-hidden="true" />
+          </span>
+          <div className="hidden xl:block">
+            <p className="text-sm font-semibold text-white">DataBrief AI</p>
+            <p className="text-[10px] text-slate-500">Behandler regneark</p>
+          </div>
+        </div>
+        <div className="hidden px-4 py-5 xl:block">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-slate-600">Importflow</p>
+          <p className="mt-2 text-xs leading-5 text-slate-400">Regnearket klargøres til dit kommandocenter.</p>
+        </div>
+      </aside>
+
+      <div className="min-h-screen lg:pl-[72px] xl:pl-[220px]">
+      <header className="border-b border-white/[0.07] bg-[#0b1c2d]/95 text-white shadow-[0_8px_30px_rgba(7,22,37,0.12)] backdrop-blur-xl">
+        <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-5">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-slate-600 transition hover:bg-white hover:text-ink"
+            className="inline-flex items-center gap-2 rounded-md px-2 py-2 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Forside
           </Link>
           <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-lg bg-ink text-white shadow-[0_10px_24px_rgba(16,32,51,0.18)]">
+            <span className="grid h-9 w-9 place-items-center rounded-md border border-cyan-300/20 bg-cyan-300/10 text-cyan-200">
               <FileSpreadsheet className="h-5 w-5" aria-hidden="true" />
             </span>
-            <span className="font-semibold text-ink">DataBrief AI</span>
+            <span className="font-semibold text-white">Forbereder dashboard</span>
           </div>
         </div>
       </header>
@@ -144,6 +161,7 @@ export function ExcelProcessingView({ fileName, status }: ExcelProcessingViewPro
           </div>
         </div>
       </section>
+      </div>
     </main>
   );
 }
