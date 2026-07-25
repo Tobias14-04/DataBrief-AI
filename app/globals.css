@@ -5,6 +5,18 @@
 :root {
   color: #102033;
   background: #f7fafc;
+  --overview-workspace: #eaf2f6;
+  --overview-surface: #f7fbfc;
+  --overview-surface-elevated: #ffffff;
+  --overview-surface-muted: #eef6f8;
+  --overview-contrast: #0b1c2d;
+  --overview-border: #cfdee5;
+  --overview-border-strong: #bfd3dc;
+  --overview-text: #0b1c2d;
+  --overview-text-muted: #526779;
+  --overview-cyan: #0891b2;
+  --overview-green: #10b981;
+  --overview-orange: #f97316;
 }
 
 * {
@@ -25,4 +37,64 @@ body {
 button,
 input {
   font: inherit;
+}
+
+@layer components {
+  .overview-workspace {
+    background-color: var(--overview-workspace);
+    background-image:
+      radial-gradient(circle at 42% -8%, rgba(8, 145, 178, 0.13), transparent 34rem),
+      linear-gradient(rgba(15, 63, 82, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(15, 63, 82, 0.025) 1px, transparent 1px);
+    background-size: auto, 36px 36px, 36px 36px;
+  }
+
+  .overview-section-surface {
+    border: 1px solid rgba(207, 222, 229, 0.88);
+    background: rgba(247, 251, 252, 0.76);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  }
+
+  .overview-card {
+    border: 1px solid var(--overview-border);
+    background: var(--overview-surface-elevated);
+    box-shadow:
+      0 12px 32px rgba(13, 35, 55, 0.075),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+
+  .overview-card-primary {
+    border: 1px solid var(--overview-border-strong);
+    background:
+      radial-gradient(circle at 88% 10%, rgba(8, 145, 178, 0.08), transparent 9rem),
+      var(--overview-surface-elevated);
+    box-shadow:
+      0 20px 48px rgba(13, 35, 55, 0.105),
+      inset 0 1px 0 rgba(255, 255, 255, 0.94);
+  }
+
+  .overview-card-muted {
+    border: 1px solid var(--overview-border);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(238, 246, 248, 0.9));
+    box-shadow:
+      0 10px 26px rgba(13, 35, 55, 0.065),
+      inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .overview-interactive-card {
+      transition:
+        transform 180ms ease,
+        border-color 180ms ease,
+        box-shadow 180ms ease;
+    }
+
+    .overview-interactive-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--overview-border-strong);
+      box-shadow:
+        0 18px 42px rgba(13, 35, 55, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.94);
+    }
+  }
 }

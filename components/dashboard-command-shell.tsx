@@ -261,6 +261,7 @@ export function DashboardCommandShell({
         description: "Kontrollér datagrundlaget, før dashboardet vises.",
       }
     : getDashboardView(activeView);
+  const isOverview = activeView === "overview" && !mappingMode;
 
   useEffect(() => {
     if (!mobileNavigationOpen) return;
@@ -272,7 +273,7 @@ export function DashboardCommandShell({
   }, [mobileNavigationOpen]);
 
   return (
-    <main className="min-h-screen bg-[#edf3f6] text-ink">
+    <main className={`min-h-screen text-ink ${isOverview ? "overview-workspace" : "bg-[#edf3f6]"}`}>
       <aside
         className={`fixed inset-y-0 left-0 z-40 hidden overflow-x-hidden border-r border-white/[0.06] shadow-[12px_0_40px_rgba(7,22,37,0.12)] lg:block ${
           sidebarCollapsed ? "w-[72px]" : "w-[220px]"
@@ -314,8 +315,8 @@ export function DashboardCommandShell({
       ) : null}
 
       <div className={`min-h-screen transition-[padding] duration-200 ${sidebarCollapsed ? "lg:pl-[72px]" : "lg:pl-[220px]"}`}>
-        <header className="sticky top-0 z-30 h-16 border-b border-white/[0.07] bg-[#0b1c2d]/95 text-white shadow-[0_8px_30px_rgba(7,22,37,0.12)] backdrop-blur-xl">
-          <div className="flex h-full items-center justify-between gap-3 px-4 sm:px-5 xl:px-6">
+        <header className={`sticky top-0 z-30 border-b border-white/[0.07] bg-[#0b1c2d]/95 text-white shadow-[0_8px_30px_rgba(7,22,37,0.12)] backdrop-blur-xl ${isOverview ? "h-[72px]" : "h-16"}`}>
+          <div className={`flex h-full items-center justify-between gap-3 px-4 sm:px-5 ${isOverview ? "xl:px-7" : "xl:px-6"}`}>
             <div className="flex min-w-0 items-center gap-3">
               <button
                 type="button"
@@ -326,8 +327,8 @@ export function DashboardCommandShell({
                 <Menu className="h-5 w-5" aria-hidden="true" />
               </button>
               <div className="min-w-0">
-                <h1 className="truncate text-base font-semibold text-white sm:text-lg">{activeDefinition.title}</h1>
-                <p className="hidden truncate text-[11px] text-slate-400 sm:block">{activeDefinition.description}</p>
+                <h1 className={`truncate font-semibold text-white ${isOverview ? "text-xl sm:text-[24px] sm:leading-7" : "text-base sm:text-lg"}`}>{activeDefinition.title}</h1>
+                <p className={`hidden truncate text-slate-400 sm:block ${isOverview ? "mt-0.5 text-sm" : "text-[11px]"}`}>{activeDefinition.description}</p>
               </div>
             </div>
 
@@ -335,14 +336,14 @@ export function DashboardCommandShell({
               <button
                 type="button"
                 onClick={() => onViewChange("dataset")}
-                className="group hidden min-w-0 items-center gap-2 rounded-md border border-white/[0.08] bg-white/[0.045] px-3 py-2 text-left transition hover:border-cyan-300/20 hover:bg-white/[0.075] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 md:flex"
+                className={`group hidden min-w-0 items-center rounded-md border border-white/[0.08] bg-white/[0.045] text-left transition hover:border-cyan-300/20 hover:bg-white/[0.075] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 md:flex ${isOverview ? "gap-2.5 px-3.5 py-2.5" : "gap-2 px-3 py-2"}`}
                 aria-label={`Åbn datasættet ${fileName}`}
                 title="Åbn datasæt"
               >
-                <FileSpreadsheet className="h-4 w-4 shrink-0 text-cyan-300" aria-hidden="true" />
+                <FileSpreadsheet className={`${isOverview ? "h-[18px] w-[18px]" : "h-4 w-4"} shrink-0 text-cyan-300`} aria-hidden="true" />
                 <div className="min-w-0">
-                  <p className="max-w-[230px] truncate text-[11px] font-semibold text-slate-200 group-hover:text-white" title={fileName}>{fileName}</p>
-                  <p className="text-[9px] text-slate-500">{rowCount.toLocaleString("da-DK")} rækker · {statusLabel}</p>
+                  <p className={`max-w-[250px] truncate font-semibold text-slate-200 group-hover:text-white ${isOverview ? "text-xs" : "text-[11px]"}`} title={fileName}>{fileName}</p>
+                  <p className={`text-slate-500 ${isOverview ? "text-[10px]" : "text-[9px]"}`}>{rowCount.toLocaleString("da-DK")} rækker · {statusLabel}</p>
                 </div>
               </button>
               <Link
@@ -357,7 +358,7 @@ export function DashboardCommandShell({
           </div>
         </header>
 
-        <div className="min-w-0 px-3 py-3 sm:px-4 sm:py-4 xl:px-5">{children}</div>
+        <div className={`min-w-0 ${isOverview ? "px-3 py-4 sm:px-5 sm:py-5 xl:px-7 xl:py-6" : "px-3 py-3 sm:px-4 sm:py-4 xl:px-5"}`}>{children}</div>
       </div>
     </main>
   );

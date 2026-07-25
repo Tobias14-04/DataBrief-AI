@@ -192,40 +192,50 @@ export function ExecutiveSummaryCard({
   conclusion,
   status,
   onViewAll,
+  variant = "default",
 }: {
   insights: string[];
   conclusion: string;
   status: string;
   onViewAll?: () => void;
+  variant?: "default" | "overview";
 }) {
+  const isOverview = variant === "overview";
+
   return (
-    <section className={`relative ${dashboardDarkCardClass} p-4 text-white sm:p-5`} data-testid="executive-summary">
+    <section
+      className={`relative ${dashboardDarkCardClass} text-white ${isOverview ? "rounded-xl p-5 shadow-[0_22px_48px_rgba(8,28,45,0.2)] sm:p-6" : "p-4 sm:p-5"}`}
+      data-testid="executive-summary"
+    >
       <span className="absolute inset-x-0 top-0 h-0.5 bg-brand-500" aria-hidden="true" />
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className={`${dashboardEyebrowClass} text-cyan-200`}>Beslutningsgrundlag</p>
-          <h2 className="mt-1.5 text-lg font-semibold text-white">Ledelsesresume</h2>
-          <p className="mt-1 text-[11px] text-slate-400">Kort opsummering af den aktuelle visning</p>
+          <h2 className={isOverview ? "mt-2 text-[22px] font-semibold text-white" : "mt-1.5 text-lg font-semibold text-white"}>Ledelsesresume</h2>
+          <p className={isOverview ? "mt-1.5 text-[13px] leading-5 text-slate-300" : "mt-1 text-[11px] text-slate-400"}>Kort opsummering af den aktuelle visning</p>
         </div>
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-white/10 bg-white/10 text-cyan-200">
-          <Sparkles className="h-4 w-4" aria-hidden="true" />
+        <span className={`grid shrink-0 place-items-center border border-white/10 bg-white/10 text-cyan-200 ${isOverview ? "h-11 w-11 rounded-lg" : "h-9 w-9 rounded-md"}`}>
+          <Sparkles className={isOverview ? "h-5 w-5" : "h-4 w-4"} aria-hidden="true" />
         </span>
       </div>
 
-      <ol className="mt-4 divide-y divide-white/[0.08]">
+      <ol className={`${isOverview ? "mt-6" : "mt-4"} divide-y divide-white/[0.08]`}>
         {insights.map((insight, index) => (
-          <li key={insight} className="grid grid-cols-[26px_1fr] gap-3 py-3 first:pt-0 last:pb-0">
-            <span className="grid h-6 w-6 place-items-center rounded-md bg-cyan-300/10 text-[10px] font-semibold text-cyan-300">
+          <li
+            key={insight}
+            className={`grid gap-3 first:pt-0 last:pb-0 ${isOverview ? "grid-cols-[30px_1fr] py-4" : "grid-cols-[26px_1fr] py-3"}`}
+          >
+            <span className={`grid place-items-center rounded-md bg-cyan-300/10 font-semibold text-cyan-300 ${isOverview ? "h-[30px] w-[30px] text-[11px]" : "h-6 w-6 text-[10px]"}`}>
               {String(index + 1).padStart(2, "0")}
             </span>
-            <span className="text-xs leading-5 text-slate-200">{insight}</span>
+            <span className={isOverview ? "text-sm leading-6 text-slate-100" : "text-xs leading-5 text-slate-200"}>{insight}</span>
           </li>
         ))}
       </ol>
 
-      <div className="mt-4 border-t border-white/10 pt-3.5">
-        <p className="text-xs font-semibold leading-5 text-white">{conclusion}</p>
-        <div className="mt-3 flex items-start gap-2 text-[11px] leading-4 text-slate-300">
+      <div className={`${isOverview ? "mt-5 pt-4" : "mt-4 pt-3.5"} border-t border-white/10`}>
+        <p className={isOverview ? "text-sm font-semibold leading-6 text-white" : "text-xs font-semibold leading-5 text-white"}>{conclusion}</p>
+        <div className={`flex items-start gap-2 text-slate-300 ${isOverview ? "mt-4 text-xs leading-5" : "mt-3 text-[11px] leading-4"}`}>
           <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" aria-hidden="true" />
           <span>{status}</span>
         </div>
@@ -233,7 +243,9 @@ export function ExecutiveSummaryCard({
           <button
             type="button"
             onClick={onViewAll}
-            className="mt-4 inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.06] px-3 text-[11px] font-semibold text-white transition hover:border-cyan-300/25 hover:bg-white/[0.1] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50"
+            className={`mt-4 inline-flex w-full items-center justify-center gap-1.5 border border-white/10 bg-white/[0.06] px-3 font-semibold text-white transition hover:border-cyan-300/25 hover:bg-white/[0.1] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 ${
+              isOverview ? "h-11 rounded-lg text-[13px]" : "h-9 rounded-md text-[11px]"
+            }`}
           >
             Se alle indsigter
             <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />

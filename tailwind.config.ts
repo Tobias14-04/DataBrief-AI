@@ -23,6 +23,8 @@ const config: Config = {
       },
       boxShadow: {
         soft: "0 18px 50px rgba(16, 32, 51, 0.08)",
+        "overview-card": "0 12px 32px rgba(13, 35, 55, 0.08)",
+        "overview-primary": "0 22px 52px rgba(13, 35, 55, 0.12)",
       },
     },
   },

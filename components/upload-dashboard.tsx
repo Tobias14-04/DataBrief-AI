@@ -2223,6 +2223,7 @@ function MonthlyReportCard({
   preferredMonth,
   selectedMonth,
   onMonthChange,
+  variant = "default",
 }: {
   rows: SaleRow[];
   filters: DashboardFilters;
@@ -2230,6 +2231,7 @@ function MonthlyReportCard({
   preferredMonth?: string;
   selectedMonth: string;
   onMonthChange: (month: string) => void;
+  variant?: "default" | "overview";
 }) {
   const monthOptions = useMemo(() => uniqueValues(rows, "month"), [rows]);
   const reportMonth = monthOptions.includes(selectedMonth)
@@ -2282,26 +2284,34 @@ function MonthlyReportCard({
     : report.metrics.length === 3
       ? "grid-cols-3"
       : "grid-cols-2";
+  const isOverview = variant === "overview";
 
   return (
-    <section className={dashboardCardClass} data-testid="monthly-report">
-      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#e8eef1] bg-white px-4 py-3">
+    <section
+      className={isOverview ? "overview-card overflow-hidden rounded-xl" : dashboardCardClass}
+      data-testid="monthly-report"
+    >
+      <div className={`flex flex-wrap items-end justify-between border-b border-[#e8eef1] bg-white ${isOverview ? "gap-4 px-5 py-5" : "gap-3 px-4 py-3"}`}>
         <div className="flex items-center gap-3">
-          <span className={dashboardIconClass}>
-            <CalendarRange className="h-[18px] w-[18px]" aria-hidden="true" />
+          <span className={isOverview ? "grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 shadow-sm" : dashboardIconClass}>
+            <CalendarRange className={isOverview ? "h-5 w-5" : "h-[18px] w-[18px]"} aria-hidden="true" />
           </span>
           <div>
             <p className={`${dashboardEyebrowClass} text-brand-700`}>Periodeanalyse</p>
-            <h2 className="mt-0.5 text-sm font-semibold text-ink">Månedsrapport</h2>
+            <h2 className={isOverview ? "mt-1 text-lg font-semibold text-ink" : "mt-0.5 text-sm font-semibold text-ink"}>Månedsrapport</h2>
           </div>
         </div>
-        <label className="flex flex-col items-start gap-1 text-xs font-semibold text-slate-500">
+        <label className={`flex flex-col items-start font-semibold text-slate-500 ${isOverview ? "gap-1.5 text-[13px]" : "gap-1 text-xs"}`}>
           <span>Rapportmåned</span>
-          <span className="relative block min-w-[128px]">
+          <span className={`relative block ${isOverview ? "min-w-[136px]" : "min-w-[128px]"}`}>
             <select
               value={reportMonth}
               onChange={(event) => onMonthChange(event.target.value)}
-              className="w-full min-w-[128px] appearance-none rounded-md border border-slate-200 bg-white py-2 pl-3 pr-8 text-xs font-semibold text-ink shadow-sm outline-none transition hover:border-brand-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              className={`w-full appearance-none border border-slate-200 bg-white pl-3 pr-9 font-semibold text-ink shadow-sm outline-none transition hover:border-brand-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 ${
+                isOverview
+                  ? "h-11 min-w-[136px] rounded-lg text-[13px]"
+                  : "min-w-[128px] rounded-md py-2 text-xs"
+              }`}
             >
               {monthOptions.map((month) => (
                 <option key={month} value={month}>
@@ -2316,12 +2326,17 @@ function MonthlyReportCard({
 
       <div className={`grid ${metricGridClass} gap-px bg-[#e8eef1]`}>
         {report.metrics.map((metric) => (
-          <div key={metric.key} className="flex min-h-[78px] min-w-0 flex-col bg-white px-2.5 py-3">
-            <p className="min-h-7 text-[8px] font-semibold uppercase leading-3.5 tracking-[0.08em] text-slate-400">
+          <div
+            key={metric.key}
+            className={`flex min-w-0 flex-col bg-white ${isOverview ? "min-h-[102px] px-4 py-4" : "min-h-[78px] px-2.5 py-3"}`}
+          >
+            <p className={`font-semibold uppercase text-slate-400 ${isOverview ? "min-h-8 text-[10px] leading-4 tracking-[0.1em]" : "min-h-7 text-[8px] leading-3.5 tracking-[0.08em]"}`}>
               {metric.label}
             </p>
             <p
-              className={`mt-1 min-w-0 break-words text-sm font-semibold leading-5 text-ink ${metric.key === "budgetStatus" ? `inline-flex w-fit whitespace-nowrap rounded-md px-1.5 py-1 text-[9px] ${budgetStatusClasses}` : ""}`}
+              className={`mt-1 min-w-0 break-words font-semibold text-ink ${
+                isOverview ? "text-lg leading-6" : "text-sm leading-5"
+              } ${metric.key === "budgetStatus" ? `inline-flex w-fit whitespace-nowrap rounded-md px-2 py-1 ${isOverview ? "text-[11px]" : "text-[9px]"} ${budgetStatusClasses}` : ""}`}
             >
               {metric.value}
             </p>
@@ -2329,8 +2344,8 @@ function MonthlyReportCard({
         ))}
       </div>
 
-      <div className="border-t border-[#e8eef1] bg-[#f8fbfc] px-4 py-3">
-        <p className="border-l-2 border-brand-500 pl-3 text-[11px] font-medium leading-5 text-slate-700">
+      <div className={`border-t border-[#e8eef1] bg-[#f8fbfc] ${isOverview ? "px-5 py-4" : "px-4 py-3"}`}>
+        <p className={`border-l-2 border-brand-500 font-medium text-slate-700 ${isOverview ? "pl-4 text-[13px] leading-6" : "pl-3 text-[11px] leading-5"}`}>
           {reportRows.length
             ? report.summary
             : `Ingen rækker matcher de aktuelle filtre for ${formatDanishMonth(reportMonth)}.`}
@@ -2676,10 +2691,10 @@ export default function UploadDashboard() {
     .filter((definition): definition is KpiDefinition => Boolean(definition));
   const primaryKpiGridClass =
     primaryKpis.length === 2
-      ? "xl:grid-cols-2"
+      ? "min-[1360px]:grid-cols-2"
       : primaryKpis.length === 3
-        ? "xl:grid-cols-3"
-        : "xl:grid-cols-4";
+        ? "min-[1360px]:grid-cols-3"
+        : "min-[1360px]:grid-cols-4";
 
   useEffect(() => {
     return () => {
@@ -3085,7 +3100,7 @@ export default function UploadDashboard() {
           </section>
 
           {!shouldShowManualMapping ? (
-          <div className="grid min-w-0 gap-4 min-[1360px]:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="grid min-w-0 gap-5 min-[1360px]:grid-cols-[minmax(0,1fr)_370px]">
           <div className="min-w-0 min-[1360px]:col-span-2">
             <DatasetCommandCenter
               fileName={data?.fileName ?? analysis?.fileName ?? "Excel-regneark"}
@@ -3095,6 +3110,7 @@ export default function UploadDashboard() {
               warning={mappingWarning}
               onUpload={() => commandFileInputRef.current?.click()}
               onEditMapping={() => setShowManualMapping(true)}
+              variant={activeView === "overview" ? "overview" : "default"}
             />
           </div>
 
@@ -3109,20 +3125,21 @@ export default function UploadDashboard() {
                 onToggle={toggleDashboardFilter}
                 onClear={clearDashboardFilter}
                 onReset={() => setFilters(emptyDashboardFilters)}
+                variant={activeView === "overview" ? "overview" : "default"}
               />
             </div>
           ) : null}
 
           {activeView === "overview" ? (
           <>
-          <section className="order-1 min-w-0 space-y-3 min-[1360px]:col-span-2" data-testid="kpi-section">
+          <section className="overview-section-surface order-1 min-w-0 space-y-5 rounded-2xl p-4 sm:p-6 min-[1360px]:col-span-2" data-testid="kpi-section">
             <OverviewSectionHeader
               eyebrow="Resultatoverblik"
               title="Centrale nøgletal"
               description="De vigtigste resultater i den aktuelle visning."
               action={(
                 <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-                <p className="text-[10px] text-slate-500">
+                <p className="text-xs font-medium text-slate-500">
                   {hasCustomizedKpis
                     ? `${primaryKpis.length} primære · ${secondaryKpis.length} sekundære`
                     : "Beregnet ud fra de registrerede data"}
@@ -3130,7 +3147,7 @@ export default function UploadDashboard() {
                 <button
                   type="button"
                   onClick={() => setIsKpiCustomizerOpen(true)}
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-[10px] font-semibold text-slate-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-200"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 shadow-sm transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-200"
                 >
                   <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
                   Tilpas nøgletal
@@ -3146,7 +3163,7 @@ export default function UploadDashboard() {
                 {kpiSaveMessage}
               </div>
             ) : null}
-            <div className={`grid gap-2.5 sm:grid-cols-2 ${primaryKpiGridClass}`}>
+            <div className={`grid gap-4 sm:grid-cols-2 ${primaryKpiGridClass}`}>
               {primaryKpis.map((definition) => {
                 const evaluation = kpiEvaluations[definition.id];
                 return (
@@ -3159,11 +3176,12 @@ export default function UploadDashboard() {
                     detail={evaluation?.available ? evaluation.detail : (evaluation?.reason ?? "Mangler data")}
                     icon={kpiIconMap[definition.icon]}
                     tone={kpiTone(definition.color)}
+                    variant="overview"
                   />
                 );
               })}
             </div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 min-[1360px]:grid-cols-5">
               {secondaryKpis.map((definition) => {
                 const evaluation = kpiEvaluations[definition.id];
                 return (
@@ -3173,13 +3191,16 @@ export default function UploadDashboard() {
                     value={evaluation?.available && evaluation.value !== null
                       ? formatNumber(evaluation.value, definition.format, definition.decimals)
                       : "Kan ikke beregnes"}
+                    icon={kpiIconMap[definition.icon]}
+                    tone={kpiTone(definition.color)}
+                    variant="overview"
                   />
                 );
               })}
             </div>
           </section>
 
-          <section className="order-2 min-w-0 space-y-4 min-[1360px]:col-start-1 min-[1360px]:row-start-4" data-testid="analysis-section">
+          <section className="order-2 min-w-0 space-y-6 min-[1360px]:col-start-1 min-[1360px]:row-start-4" data-testid="analysis-section">
             <OverviewSectionHeader
               eyebrow="Ledelsesanalyse"
               title="Omsætningsudvikling og indsigt"
@@ -3209,7 +3230,7 @@ export default function UploadDashboard() {
             />
           </section>
 
-          <aside className="order-3 min-w-0 space-y-3 min-[1360px]:col-start-2 min-[1360px]:row-start-4 min-[1360px]:row-span-2 min-[1360px]:sticky min-[1360px]:top-20 min-[1360px]:self-start" data-testid="insights-rail">
+          <aside className="order-3 min-w-0 space-y-4 min-[1360px]:col-start-2 min-[1360px]:row-start-4 min-[1360px]:row-span-2 min-[1360px]:sticky min-[1360px]:top-20 min-[1360px]:self-start" data-testid="insights-rail">
             {hasData ? (
               <MonthlyReportCard
                 rows={allRows}
@@ -3218,6 +3239,7 @@ export default function UploadDashboard() {
                 preferredMonth={baseMetrics.bestMonth?.name}
                 selectedMonth={reportMonth}
                 onMonthChange={setReportMonth}
+                variant="overview"
               />
             ) : null}
             <ExecutiveSummaryCard
@@ -3225,25 +3247,27 @@ export default function UploadDashboard() {
               conclusion={executiveSummary.conclusion}
               status={executiveSummary.status}
               onViewAll={() => setActiveView("insights")}
+              variant="overview"
             />
           </aside>
 
           {showBudget ? (
-            <section className="order-4 min-w-0 space-y-3 rounded-lg border border-[#dce6eb] bg-white p-4 shadow-[0_6px_22px_rgba(7,22,37,0.045)] min-[1360px]:col-start-1 min-[1360px]:row-start-5" data-testid="budget-section">
+            <section className="overview-section-surface order-4 min-w-0 space-y-5 rounded-2xl p-4 sm:p-6 min-[1360px]:col-start-1 min-[1360px]:row-start-5" data-testid="budget-section">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p className={`${commandSectionLabelClass} text-orange-700`}>Økonomisk pejlemærke</p>
-                  <h2 className="mt-1 text-lg font-semibold text-ink">Budgetoverblik</h2>
+                  <h2 className="mt-1.5 text-[26px] font-semibold leading-tight text-ink">Budgetoverblik</h2>
                 </div>
-                <p className="text-[10px] text-slate-500">Budgettal for den aktuelle visning</p>
+                <p className="text-xs text-slate-500">Budgettal for den aktuelle visning</p>
               </div>
-              <div className="grid gap-2.5 sm:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-3">
                 <CompactKpiCard
                   label="Budgetteret omsætning"
                   value={currency(metrics.budgetRevenue)}
                   detail={isFiltered ? "Fordelt efter andelen af filtrerede rækker" : (data?.feedback.budget?.sheetName ?? "Budget")}
                   icon={WalletCards}
                   tone="brand"
+                  variant="overview"
                 />
                 <CompactKpiCard
                   label="Budgetterede omkostninger"
@@ -3251,6 +3275,7 @@ export default function UploadDashboard() {
                   detail={isFiltered ? "Fordelt efter andelen af filtrerede rækker" : "Fundne budgetomkostninger"}
                   icon={Target}
                   tone="warning"
+                  variant="overview"
                 />
                 <CompactKpiCard
                   label="Budgetteret resultat"
@@ -3258,6 +3283,7 @@ export default function UploadDashboard() {
                   detail="Budgetteret omsætning minus omkostninger"
                   icon={TrendingUp}
                   tone="positive"
+                  variant="overview"
                 />
               </div>
             </section>
