@@ -16,10 +16,15 @@ export function rowMatchesDashboardFilters(
   filters: DashboardFilters,
   ignoredField?: DashboardFilterKey,
 ) {
-  return dashboardFilterKeys.every((field) => {
+  for (const field of dashboardFilterKeys) {
     const values = filters[field];
-    return field === ignoredField || !values.length || values.includes(row[field]);
-  });
+    if (field === ignoredField || !values.length) continue;
+    if (values.length === 1 ? row[field] !== values[0] : !values.includes(row[field])) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 export function applyDashboardFilters<T extends DashboardFilterRow>(
@@ -27,5 +32,16 @@ export function applyDashboardFilters<T extends DashboardFilterRow>(
   filters: DashboardFilters,
   ignoredField?: DashboardFilterKey,
 ) {
-  return rows.filter((row) => rowMatchesDashboardFilters(row, filters, ignoredField));
+  const activeFields = dashboardFilterKeys
+    .filter((field) => field !== ignoredField && filters[field].length)
+    .map((field) => ({
+      field,
+      values: new Set(filters[field]),
+    }));
+
+  if (!activeFields.length) return rows;
+
+  return rows.filter((row) =>
+    activeFields.every(({ field, values }) => values.has(row[field])),
+  );
 }

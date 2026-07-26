@@ -40,7 +40,9 @@ import {
 } from "recharts";
 import {
   ChangeEvent,
+  memo,
   type ReactNode,
+  useCallback,
   useDeferredValue,
   useEffect,
   useMemo,
@@ -2216,7 +2218,7 @@ export function AnalysisFilterPanel({
   );
 }
 
-function MonthlyReportCard({
+const MonthlyReportCard = memo(function MonthlyReportCard({
   rows,
   filters,
   feedback,
@@ -2353,7 +2355,7 @@ function MonthlyReportCard({
       </div>
     </section>
   );
-}
+});
 
 export function WorkbookSidebar({
   isCollapsed,
@@ -2725,14 +2727,14 @@ export default function UploadDashboard() {
     return () => window.clearTimeout(timeout);
   }, [kpiSaveMessage]);
 
-  function resetDashboardView() {
+  const resetDashboardView = useCallback(() => {
     setFilters(emptyDashboardFilters);
     setReportMonth("");
     setActiveView("overview");
     setTrendMetric("revenue");
-  }
+  }, []);
 
-  function toggleDashboardFilter(field: DashboardFilterKey, value: string) {
+  const toggleDashboardFilter = useCallback((field: DashboardFilterKey, value: string) => {
     setFilters((current) => {
       if (field === "month") {
         return { ...current, month: current.month.includes(value) ? [] : [value] };
@@ -2746,11 +2748,27 @@ export default function UploadDashboard() {
           : [...current[field], value],
       };
     });
-  }
+  }, []);
 
-  function clearDashboardFilter(field: DashboardFilterKey) {
+  const clearDashboardFilter = useCallback((field: DashboardFilterKey) => {
     setFilters((current) => ({ ...current, [field]: [] }));
-  }
+  }, []);
+
+  const resetDashboardFilters = useCallback(() => {
+    setFilters(emptyDashboardFilters);
+  }, []);
+
+  const openCommandFilePicker = useCallback(() => {
+    commandFileInputRef.current?.click();
+  }, []);
+
+  const openManualMapping = useCallback(() => {
+    setShowManualMapping(true);
+  }, []);
+
+  const openInsightsView = useCallback(() => {
+    setActiveView("insights");
+  }, []);
 
   function saveKpiConfiguration(configuration: KpiConfiguration) {
     setKpiConfiguration(configuration);
@@ -3045,8 +3063,8 @@ export default function UploadDashboard() {
       statusLabel={mappingStatusLabel}
       mappingMode={shouldShowManualMapping}
       onViewChange={setActiveView}
-      onUpload={() => commandFileInputRef.current?.click()}
-      onEditMapping={() => setShowManualMapping(true)}
+      onUpload={openCommandFilePicker}
+      onEditMapping={openManualMapping}
     >
       <input
         ref={commandFileInputRef}
@@ -3058,10 +3076,11 @@ export default function UploadDashboard() {
       />
       <section className="min-w-0">
         <section className="min-w-0">
-          <section className={shouldShowManualMapping ? "mx-auto max-w-6xl space-y-4" : "hidden"}>
-          <DatasetHeader
-            fileName={data?.fileName ?? analysis?.fileName ?? "Ingen fil uploadet endnu"}
-            title={shouldShowManualMapping ? "Tilpas kolonner" : "Salgsdashboard"}
+          {shouldShowManualMapping ? (
+            <section className="mx-auto max-w-6xl space-y-4">
+              <DatasetHeader
+                fileName={data?.fileName ?? analysis?.fileName ?? "Ingen fil uploadet endnu"}
+                title={shouldShowManualMapping ? "Tilpas kolonner" : "Salgsdashboard"}
             description={
               shouldShowManualMapping
                 ? "Kontrollér datakilden og de foreslåede kolonner, før dashboardet vises."
@@ -3071,33 +3090,31 @@ export default function UploadDashboard() {
                     : `${number(allRows.length)} rækker er klar til analyse.`
                   : "Upload en Excel-fil for at udfylde dashboardet."
             }
-            status={<StatusBox feedback={data?.feedback} analysis={analysis} />}
-            showEditMapping={!shouldShowManualMapping}
-            onEditMapping={() => setShowManualMapping(true)}
-          />
+                status={<StatusBox feedback={data?.feedback} analysis={analysis} />}
+                showEditMapping={!shouldShowManualMapping}
+                onEditMapping={openManualMapping}
+              />
 
-          {shouldShowManualMapping ? (
-            <ManualMappingPanel
-              analysis={analysis}
-              selectedSheet={selectedSheet}
-              mappings={manualMappings}
-              error={error || mappingReviewReason}
-              onSheetChange={(sheetName) => {
-                selectSheet(sheetName);
-                setError("");
-                setMappingReviewReason("");
-              }}
-              onMappingChange={(field, column) => {
-                setManualMappings((current) => ({ ...current, [field]: column }));
-                setError("");
-                setMappingReviewReason("");
-              }}
-              onApply={applyManualMappings}
-              onCancel={cancelManualMapping}
-            />
+              <ManualMappingPanel
+                analysis={analysis}
+                selectedSheet={selectedSheet}
+                mappings={manualMappings}
+                error={error || mappingReviewReason}
+                onSheetChange={(sheetName) => {
+                  selectSheet(sheetName);
+                  setError("");
+                  setMappingReviewReason("");
+                }}
+                onMappingChange={(field, column) => {
+                  setManualMappings((current) => ({ ...current, [field]: column }));
+                  setError("");
+                  setMappingReviewReason("");
+                }}
+                onApply={applyManualMappings}
+                onCancel={cancelManualMapping}
+              />
+            </section>
           ) : null}
-
-          </section>
 
           {!shouldShowManualMapping ? (
           <div className="grid min-w-0 gap-5 min-[1360px]:grid-cols-[minmax(0,1fr)_380px]">
@@ -3108,8 +3125,8 @@ export default function UploadDashboard() {
               rowCount={detectedRowCount}
               statusLabel={mappingStatusLabel}
               warning={mappingWarning}
-              onUpload={() => commandFileInputRef.current?.click()}
-              onEditMapping={() => setShowManualMapping(true)}
+              onUpload={openCommandFilePicker}
+              onEditMapping={openManualMapping}
               variant={activeView === "overview" ? "overview" : "default"}
             />
           </div>
@@ -3124,7 +3141,7 @@ export default function UploadDashboard() {
                 isPending={isFilterUpdatePending}
                 onToggle={toggleDashboardFilter}
                 onClear={clearDashboardFilter}
-                onReset={() => setFilters(emptyDashboardFilters)}
+                onReset={resetDashboardFilters}
                 variant={activeView === "overview" ? "overview" : "default"}
               />
             </div>
@@ -3177,6 +3194,7 @@ export default function UploadDashboard() {
                     icon={kpiIconMap[definition.icon]}
                     tone={kpiTone(definition.color)}
                     variant="overview"
+                    density="balanced"
                   />
                 );
               })}
@@ -3246,7 +3264,7 @@ export default function UploadDashboard() {
               insights={executiveSummary.insights}
               conclusion={executiveSummary.conclusion}
               status={executiveSummary.status}
-              onViewAll={() => setActiveView("insights")}
+              onViewAll={openInsightsView}
               variant="overview"
             />
           </aside>

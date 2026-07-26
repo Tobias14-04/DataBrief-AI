@@ -5,7 +5,7 @@ import {
   Upload,
   type LucideIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 
 export type CommandTone = "brand" | "positive" | "warning" | "neutral" | "purple";
 export type CommandVariant = "default" | "overview";
@@ -66,13 +66,14 @@ export const commandCardClass =
 export const commandSectionLabelClass =
   "text-[9px] font-semibold uppercase tracking-[0.15em]";
 
-export function CompactKpiCard({
+export const CompactKpiCard = memo(function CompactKpiCard({
   label,
   value,
   detail,
   icon: Icon,
   tone,
   variant = "default",
+  density = "default",
 }: {
   label: string;
   value: string;
@@ -80,29 +81,55 @@ export function CompactKpiCard({
   icon: LucideIcon;
   tone: CommandTone;
   variant?: CommandVariant;
+  density?: "default" | "balanced";
 }) {
   const styles = toneStyles[tone];
+  const isBalancedOverview = variant === "overview" && density === "balanced";
 
   if (variant === "overview") {
     return (
-      <article className="overview-card overview-interactive-card relative min-h-[176px] min-w-0 overflow-hidden rounded-xl p-5">
+      <article
+        className={`overview-card overview-interactive-card relative min-w-0 overflow-hidden rounded-xl ${
+          isBalancedOverview ? "min-h-[164px] p-[18px]" : "min-h-[176px] p-5"
+        }`}
+      >
         <span className={`absolute inset-x-0 top-0 h-24 bg-gradient-to-b ${styles.tint} to-transparent`} aria-hidden="true" />
         <span className={`absolute inset-x-0 top-0 h-1 ${styles.accent}`} aria-hidden="true" />
-        <div className="relative flex items-start gap-4">
-          <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-lg border ${styles.overviewIcon}`}>
-            <Icon className="h-5 w-5" aria-hidden="true" />
+        <div className={`relative flex items-start ${isBalancedOverview ? "gap-3.5" : "gap-4"}`}>
+          <span
+            className={`grid shrink-0 place-items-center rounded-lg border ${styles.overviewIcon} ${
+              isBalancedOverview ? "h-11 w-11" : "h-12 w-12"
+            }`}
+          >
+            <Icon className={isBalancedOverview ? "h-[18px] w-[18px]" : "h-5 w-5"} aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1 pt-0.5">
-            <p className="text-sm font-semibold leading-5 text-slate-600" title={label}>{label}</p>
             <p
-              className="mt-2 whitespace-nowrap text-[clamp(1.7rem,1.8vw,2.15rem)] font-semibold leading-none text-[#0b1c2d]"
+              className={isBalancedOverview
+                ? "text-[13px] font-semibold leading-5 text-slate-600"
+                : "text-sm font-semibold leading-5 text-slate-600"}
+              title={label}
+            >
+              {label}
+            </p>
+            <p
+              className={`whitespace-nowrap font-semibold leading-none text-[#0b1c2d] ${
+                isBalancedOverview
+                  ? "mt-1.5 text-[clamp(1.55rem,1.65vw,2rem)]"
+                  : "mt-2 text-[clamp(1.7rem,1.8vw,2.15rem)]"
+              }`}
               title={value}
             >
               {value}
             </p>
           </div>
         </div>
-        <p className={`relative mt-5 border-t border-slate-200/80 pt-3 text-[13px] font-medium leading-5 ${styles.helper}`} title={detail}>
+        <p
+          className={`relative border-t border-slate-200/80 pt-3 font-medium leading-5 ${styles.helper} ${
+            isBalancedOverview ? "mt-4 text-xs" : "mt-5 text-[13px]"
+          }`}
+          title={detail}
+        >
           {detail}
         </p>
       </article>
@@ -124,9 +151,9 @@ export function CompactKpiCard({
       <p className={`mt-3 truncate border-t border-slate-100 pt-2.5 text-[9px] font-medium ${styles.helper}`} title={detail}>{detail}</p>
     </article>
   );
-}
+});
 
-export function CompactSecondaryMetric({
+export const CompactSecondaryMetric = memo(function CompactSecondaryMetric({
   label,
   value,
   icon: Icon,
@@ -161,9 +188,9 @@ export function CompactSecondaryMetric({
       <p className="mt-1 truncate text-xs font-semibold text-[#0b1c2d]" title={value}>{value}</p>
     </div>
   );
-}
+});
 
-export function DatasetCommandCenter({
+export const DatasetCommandCenter = memo(function DatasetCommandCenter({
   fileName,
   sheetName,
   rowCount,
@@ -226,7 +253,7 @@ export function DatasetCommandCenter({
       </div>
     </section>
   );
-}
+});
 
 export function CommandPanel({
   eyebrow,

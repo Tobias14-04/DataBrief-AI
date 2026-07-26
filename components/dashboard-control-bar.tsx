@@ -10,7 +10,7 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export type DashboardControlKey = "month" | "product" | "category" | "channel" | "region";
 export type DashboardControlValues = Record<DashboardControlKey, string[]>;
@@ -32,7 +32,7 @@ const allLabels: Record<DashboardControlKey, string> = {
   region: "Alle regioner",
 };
 
-function FilterMenu({
+const FilterMenu = memo(function FilterMenu({
   field,
   values,
   options,
@@ -46,9 +46,9 @@ function FilterMenu({
   values: string[];
   options: string[];
   open: boolean;
-  onOpen: () => void;
-  onToggle: (value: string) => void;
-  onClear: () => void;
+  onOpen: (field: DashboardControlKey) => void;
+  onToggle: (field: DashboardControlKey, value: string) => void;
+  onClear: (field: DashboardControlKey) => void;
   variant: "default" | "overview";
 }) {
   const [search, setSearch] = useState("");
@@ -70,7 +70,7 @@ function FilterMenu({
     <div className="relative min-w-0">
       <button
         type="button"
-        onClick={onOpen}
+        onClick={() => onOpen(field)}
         aria-expanded={open}
         className={`flex max-w-full items-center justify-between gap-3 border text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 ${
           isOverview ? "h-11 min-w-[150px] rounded-lg px-3.5" : "h-10 min-w-[138px] rounded-md px-3"
@@ -94,7 +94,7 @@ function FilterMenu({
             {values.length ? (
               <button
                 type="button"
-                onClick={onClear}
+                onClick={() => onClear(field)}
                 className="text-[10px] font-semibold text-brand-700 transition hover:text-brand-500"
               >
                 Ryd valg
@@ -116,7 +116,7 @@ function FilterMenu({
           <div className="max-h-64 overflow-y-auto p-1.5">
             <button
               type="button"
-              onClick={onClear}
+              onClick={() => onClear(field)}
               className={`flex min-h-9 w-full items-center justify-between rounded-md px-2.5 text-left text-xs font-medium transition ${
                 !values.length ? "bg-cyan-50 text-cyan-800" : "text-slate-600 hover:bg-slate-50"
               }`}
@@ -130,7 +130,7 @@ function FilterMenu({
                 <button
                   key={option}
                   type="button"
-                  onClick={() => onToggle(option)}
+                  onClick={() => onToggle(field, option)}
                   className={`flex min-h-9 w-full items-center justify-between gap-3 rounded-md px-2.5 text-left text-xs font-medium transition ${
                     selected ? "bg-cyan-50 text-cyan-800" : "text-slate-600 hover:bg-slate-50 hover:text-ink"
                   }`}
@@ -150,9 +150,9 @@ function FilterMenu({
       ) : null}
     </div>
   );
-}
+});
 
-export function DashboardControlBar({
+export const DashboardControlBar = memo(function DashboardControlBar({
   filters,
   options,
   filteredRows,
@@ -182,6 +182,10 @@ export function DashboardControlBar({
     values.map((value) => ({ field, value })),
   );
   const isOverview = variant === "overview";
+  const openFilterMenu = useCallback((field: DashboardControlKey) => {
+    setMoreOpen(false);
+    setOpenField((current) => current === field ? null : field);
+  }, []);
 
   useEffect(() => {
     function closeMenus(event: PointerEvent) {
@@ -239,12 +243,9 @@ export function DashboardControlBar({
             values={filters[field]}
             options={options[field]}
             open={openField === field}
-            onOpen={() => {
-              setMoreOpen(false);
-              setOpenField((current) => current === field ? null : field);
-            }}
-            onToggle={(value) => onToggle(field, value)}
-            onClear={() => onClear(field)}
+            onOpen={openFilterMenu}
+            onToggle={onToggle}
+            onClear={onClear}
             variant={variant}
           />
         ))}
@@ -351,4 +352,4 @@ export function DashboardControlBar({
       ) : null}
     </section>
   );
-}
+});

@@ -120,6 +120,66 @@ function formatTrendAxis(metric: OverviewTrendMetric, value: number) {
     : `${formatDanishNumber(value / 1000)} t.kr.`;
 }
 
+const OverviewTrendChart = memo(function OverviewTrendChart({
+  data,
+  metric,
+  metricColor,
+  domain,
+}: {
+  data: OverviewTrendPoint[];
+  metric: OverviewTrendMetric;
+  metricColor: string;
+  domain: [number, number];
+}) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={data} margin={{ top: 24, right: 22, bottom: 14, left: 6 }}>
+        <defs>
+          <linearGradient id="overviewTrendFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={metricColor} stopOpacity={0.24} />
+            <stop offset="90%" stopColor={metricColor} stopOpacity={0.015} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid stroke={chartGridColor} strokeDasharray="2 6" vertical={false} />
+        <XAxis
+          dataKey="name"
+          tickLine={false}
+          axisLine={false}
+          tick={chartAxisTick}
+          dy={10}
+          minTickGap={24}
+          interval="preserveStartEnd"
+          tickFormatter={(value) => formatDanishMonth(String(value), "short")}
+        />
+        <YAxis
+          domain={domain}
+          tickCount={5}
+          tickLine={false}
+          axisLine={false}
+          tick={chartAxisTick}
+          width={68}
+          tickFormatter={(value) => formatTrendAxis(metric, Number(value))}
+        />
+        <Tooltip
+          contentStyle={chartTooltipStyle}
+          formatter={formatMetricTooltip}
+          labelFormatter={(label) => formatDanishMonth(String(label))}
+        />
+        <Area
+          type="linear"
+          dataKey={metric}
+          stroke={metricColor}
+          strokeWidth={3}
+          fill="url(#overviewTrendFill)"
+          isAnimationActive={false}
+          dot={data.length <= 18 ? { r: 2.5, fill: "#ffffff", stroke: metricColor, strokeWidth: 2 } : false}
+          activeDot={{ r: 5, fill: metricColor, stroke: "#ffffff", strokeWidth: 2.5 }}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+});
+
 export function OverviewSectionHeader({
   eyebrow,
   title,
@@ -138,7 +198,7 @@ export function OverviewSectionHeader({
   );
 }
 
-export function OverviewTrendPanel({
+export const OverviewTrendPanel = memo(function OverviewTrendPanel({
   data,
   metric,
   metricLabel,
@@ -204,51 +264,12 @@ export function OverviewTrendPanel({
       <div className="px-3 pb-4 pt-3 sm:px-6 sm:pb-6">
         {data.length ? (
           <div className="h-[340px] sm:h-[380px] xl:h-[410px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data} margin={{ top: 24, right: 22, bottom: 14, left: 6 }}>
-                <defs>
-                  <linearGradient id="overviewTrendFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={metricColor} stopOpacity={0.24} />
-                    <stop offset="90%" stopColor={metricColor} stopOpacity={0.015} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke={chartGridColor} strokeDasharray="2 6" vertical={false} />
-                <XAxis
-                  dataKey="name"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={chartAxisTick}
-                  dy={10}
-                  minTickGap={24}
-                  interval="preserveStartEnd"
-                  tickFormatter={(value) => formatDanishMonth(String(value), "short")}
-                />
-                <YAxis
-                  domain={domain}
-                  tickCount={5}
-                  tickLine={false}
-                  axisLine={false}
-                  tick={chartAxisTick}
-                  width={68}
-                  tickFormatter={(value) => formatTrendAxis(metric, Number(value))}
-                />
-                <Tooltip
-                  contentStyle={chartTooltipStyle}
-                  formatter={formatMetricTooltip}
-                  labelFormatter={(label) => formatDanishMonth(String(label))}
-                />
-                <Area
-                  type="linear"
-                  dataKey={metric}
-                  stroke={metricColor}
-                  strokeWidth={3}
-                  fill="url(#overviewTrendFill)"
-                  isAnimationActive={false}
-                  dot={data.length <= 18 ? { r: 2.5, fill: "#ffffff", stroke: metricColor, strokeWidth: 2 } : false}
-                  activeDot={{ r: 5, fill: metricColor, stroke: "#ffffff", strokeWidth: 2.5 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <OverviewTrendChart
+              data={data}
+              metric={metric}
+              metricColor={metricColor}
+              domain={domain}
+            />
           </div>
         ) : (
           <div className="grid min-h-[380px] place-items-center px-5 py-8 text-center">
@@ -264,7 +285,7 @@ export function OverviewTrendPanel({
       </div>
     </section>
   );
-}
+});
 
 function PreviewAction({
   label,

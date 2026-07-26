@@ -277,12 +277,18 @@ export function buildKpiDataProfile(
   rows: KpiSourceRow[],
   virtualValues: Partial<Record<KpiDataField, unknown[]>> = {},
 ): KpiDataProfile {
-  const columns = Array.from(
-    new Set(rows.flatMap((row) => Object.keys(row.sourceValues))),
-  ).filter((column) => !column.startsWith("__"));
+  const columnSet = new Set<string>();
+  rows.forEach((row) => {
+    Object.keys(row.sourceValues).forEach((column) => {
+      if (!column.startsWith("__")) columnSet.add(column);
+    });
+  });
+
+  const columns = Array.from(columnSet);
   const matchedColumns: Partial<Record<KpiDataField, string[]>> = {};
   const rawValues: Partial<Record<KpiDataField, unknown[]>> = {};
   const numericValues: Partial<Record<KpiDataField, number[]>> = {};
+  const fields = Object.keys(kpiFieldRegistry) as KpiDataField[];
 
   columns.forEach((column) => {
     const field = matchKpiField(column);
@@ -290,39 +296,48 @@ export function buildKpiDataProfile(
     matchedColumns[field] = [...(matchedColumns[field] ?? []), column];
   });
 
-  (Object.keys(kpiFieldRegistry) as KpiDataField[]).forEach((field) => {
-    const fieldColumns = matchedColumns[field] ?? [];
-    const values = [
-      ...rows.flatMap((row) =>
-        fieldColumns
-          .map((column) => row.sourceValues[column])
-          .filter((value) => value !== "" && value !== null && value !== undefined),
-      ),
-      ...(virtualValues[field] ?? []),
-    ];
-    if (!values.length) return;
-    rawValues[field] = values;
-    numericValues[field] = values
-      .map(toNumericValue)
-      .filter((value): value is number => value !== null);
-    if (!matchedColumns[field]?.length && virtualValues[field]?.length) {
-      matchedColumns[field] = [kpiFieldRegistry[field].label];
-    }
+  const profileRows: KpiDataProfile["rows"] = [];
+  rows.forEach((row) => {
+    const rowValues: Partial<Record<KpiDataField, unknown>> = {};
+    let hasProfileValue = false;
+
+    fields.forEach((field) => {
+      const fieldColumns = matchedColumns[field] ?? [];
+      fieldColumns.forEach((column) => {
+        const value = row.sourceValues[column];
+        if (value === "" || value === null || value === undefined) return;
+
+        (rawValues[field] ??= []).push(value);
+        const numericValue = toNumericValue(value);
+        if (numericValue !== null) (numericValues[field] ??= []).push(numericValue);
+
+        if (!(field in rowValues)) {
+          rowValues[field] = value;
+          hasProfileValue = true;
+        }
+      });
+    });
+
+    if (hasProfileValue) profileRows.push({ values: rowValues });
   });
 
-  const profileRows = rows
-    .map((row) => {
-      const values: Partial<Record<KpiDataField, unknown>> = {};
-      (Object.keys(kpiFieldRegistry) as KpiDataField[]).forEach((field) => {
-        const column = (matchedColumns[field] ?? []).find((candidate) => {
-          const value = row.sourceValues[candidate];
-          return value !== "" && value !== null && value !== undefined;
-        });
-        if (column) values[field] = row.sourceValues[column];
+  fields.forEach((field) => {
+    const values = virtualValues[field] ?? [];
+    if (values.length) {
+      (rawValues[field] ??= []).push(...values);
+      values.forEach((value) => {
+        const numericValue = toNumericValue(value);
+        if (numericValue !== null) (numericValues[field] ??= []).push(numericValue);
       });
-      return { values };
-    })
-    .filter((row) => Object.keys(row.values).length > 0);
+      if (!matchedColumns[field]?.length) {
+        matchedColumns[field] = [kpiFieldRegistry[field].label];
+      }
+    }
+
+    if (rawValues[field]?.length && !numericValues[field]) {
+      numericValues[field] = [];
+    }
+  });
 
   return { columns, matchedColumns, rawValues, numericValues, rows: profileRows };
 }

@@ -21,6 +21,10 @@ const emptyFilters = {
   region: [],
 };
 
+test("en visning uden aktive filtre genbruger de eksisterende rækker", () => {
+  assert.equal(applyDashboardFilters(rows, emptyFilters), rows);
+});
+
 test("dashboardfiltre anvender flere felter på den samme rækkevisning", () => {
   const filtered = applyDashboardFilters(rows, {
     ...emptyFilters,

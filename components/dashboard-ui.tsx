@@ -6,7 +6,7 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 
 export const dashboardCardClass =
   "overflow-hidden rounded-lg border border-[#d8e3e8] bg-white shadow-[0_6px_22px_rgba(7,22,37,0.05)]";
@@ -187,7 +187,7 @@ export function DatasetHeader({
   );
 }
 
-export function ExecutiveSummaryCard({
+export const ExecutiveSummaryCard = memo(function ExecutiveSummaryCard({
   insights,
   conclusion,
   status,
@@ -254,4 +254,4 @@ export function ExecutiveSummaryCard({
       </div>
     </section>
   );
-}
+});
