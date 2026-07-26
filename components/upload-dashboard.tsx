@@ -2734,28 +2734,8 @@ export default function UploadDashboard() {
     setTrendMetric("revenue");
   }, []);
 
-  const toggleDashboardFilter = useCallback((field: DashboardFilterKey, value: string) => {
-    setFilters((current) => {
-      if (field === "month") {
-        return { ...current, month: current.month.includes(value) ? [] : [value] };
-      }
-
-      const isSelected = current[field].includes(value);
-      return {
-        ...current,
-        [field]: isSelected
-          ? current[field].filter((selected) => selected !== value)
-          : [...current[field], value],
-      };
-    });
-  }, []);
-
-  const clearDashboardFilter = useCallback((field: DashboardFilterKey) => {
-    setFilters((current) => ({ ...current, [field]: [] }));
-  }, []);
-
-  const resetDashboardFilters = useCallback(() => {
-    setFilters(emptyDashboardFilters);
+  const commitDashboardFilters = useCallback((nextFilters: DashboardFilters) => {
+    setFilters(nextFilters);
   }, []);
 
   const openCommandFilePicker = useCallback(() => {
@@ -3139,9 +3119,7 @@ export default function UploadDashboard() {
                 filteredRows={metrics.rowCount}
                 totalRows={allRows.length}
                 isPending={isFilterUpdatePending}
-                onToggle={toggleDashboardFilter}
-                onClear={clearDashboardFilter}
-                onReset={resetDashboardFilters}
+                onChange={commitDashboardFilters}
                 variant={activeView === "overview" ? "overview" : "default"}
               />
             </div>

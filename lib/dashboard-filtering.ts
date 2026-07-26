@@ -11,6 +11,26 @@ export type DashboardFilters = Record<DashboardFilterKey, string[]>;
 
 export type DashboardFilterRow = Record<DashboardFilterKey, string>;
 
+export function toggleDashboardFilterValue(
+  filters: DashboardFilters,
+  field: DashboardFilterKey,
+  value: string,
+): DashboardFilters {
+  if (field === "month") {
+    return {
+      ...filters,
+      month: filters.month.includes(value) ? [] : [value],
+    };
+  }
+
+  return {
+    ...filters,
+    [field]: filters[field].includes(value)
+      ? filters[field].filter((selected) => selected !== value)
+      : [...filters[field], value],
+  };
+}
+
 export function rowMatchesDashboardFilters(
   row: DashboardFilterRow,
   filters: DashboardFilters,

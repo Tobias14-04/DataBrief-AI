@@ -10,7 +10,8 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { toggleDashboardFilterValue } from "@/lib/dashboard-filtering";
 
 export type DashboardControlKey = "month" | "product" | "category" | "channel" | "region";
 export type DashboardControlValues = Record<DashboardControlKey, string[]>;
@@ -31,6 +32,8 @@ const allLabels: Record<DashboardControlKey, string> = {
   channel: "Alle kanaler",
   region: "Alle regioner",
 };
+
+const largeDatasetCommitDelayMs = 350;
 
 const FilterMenu = memo(function FilterMenu({
   field,
@@ -158,9 +161,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
   filteredRows,
   totalRows,
   isPending = false,
-  onToggle,
-  onClear,
-  onReset,
+  onChange,
   variant = "default",
 }: {
   filters: DashboardControlValues;
@@ -168,23 +169,78 @@ export const DashboardControlBar = memo(function DashboardControlBar({
   filteredRows: number;
   totalRows: number;
   isPending?: boolean;
-  onToggle: (field: DashboardControlKey, value: string) => void;
-  onClear: (field: DashboardControlKey) => void;
-  onReset: () => void;
+  onChange: (filters: DashboardControlValues) => void;
   variant?: "default" | "overview";
 }) {
   const [openField, setOpenField] = useState<DashboardControlKey | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [draftFilters, setDraftFilters] = useState(filters);
+  const [isUpdateQueued, setIsUpdateQueued] = useState(false);
+  const [isDashboardUpdatePending, startDashboardUpdate] = useTransition();
   const rootRef = useRef<HTMLDivElement>(null);
+  const draftFiltersRef = useRef(filters);
+  const updateTimerRef = useRef<number | null>(null);
   const primaryFields = (["month", "category", "product"] as DashboardControlKey[]).filter((field) => options[field].length);
   const moreFields = (["channel", "region"] as DashboardControlKey[]).filter((field) => options[field].length);
-  const activeEntries = (Object.entries(filters) as Array<[DashboardControlKey, string[]]>).flatMap(([field, values]) =>
+  const activeEntries = (Object.entries(draftFilters) as Array<[DashboardControlKey, string[]]>).flatMap(([field, values]) =>
     values.map((value) => ({ field, value })),
   );
   const isOverview = variant === "overview";
+  const isUpdating = isPending || isUpdateQueued || isDashboardUpdatePending;
   const openFilterMenu = useCallback((field: DashboardControlKey) => {
     setMoreOpen(false);
     setOpenField((current) => current === field ? null : field);
+  }, []);
+  const queueDashboardUpdate = useCallback((nextFilters: DashboardControlValues) => {
+    draftFiltersRef.current = nextFilters;
+    setDraftFilters(nextFilters);
+
+    if (updateTimerRef.current) {
+      window.clearTimeout(updateTimerRef.current);
+      updateTimerRef.current = null;
+    }
+
+    const commit = () => {
+      updateTimerRef.current = null;
+      startDashboardUpdate(() => onChange(nextFilters));
+      setIsUpdateQueued(false);
+    };
+
+    if (totalRows >= 3000) {
+      setIsUpdateQueued(true);
+      updateTimerRef.current = window.setTimeout(commit, largeDatasetCommitDelayMs);
+    } else {
+      commit();
+    }
+  }, [onChange, totalRows]);
+  const toggleDraftFilter = useCallback((field: DashboardControlKey, value: string) => {
+    queueDashboardUpdate(toggleDashboardFilterValue(draftFiltersRef.current, field, value));
+  }, [queueDashboardUpdate]);
+  const clearDraftFilter = useCallback((field: DashboardControlKey) => {
+    queueDashboardUpdate({ ...draftFiltersRef.current, [field]: [] });
+  }, [queueDashboardUpdate]);
+  const resetDraftFilters = useCallback(() => {
+    queueDashboardUpdate({
+      month: [],
+      product: [],
+      category: [],
+      channel: [],
+      region: [],
+    });
+  }, [queueDashboardUpdate]);
+
+  useEffect(() => {
+    if (filters !== draftFiltersRef.current && updateTimerRef.current) {
+      window.clearTimeout(updateTimerRef.current);
+      updateTimerRef.current = null;
+      setIsUpdateQueued(false);
+    }
+    draftFiltersRef.current = filters;
+    setDraftFilters(filters);
+  }, [filters]);
+
+  useEffect(() => () => {
+    if (updateTimerRef.current) window.clearTimeout(updateTimerRef.current);
   }, []);
 
   useEffect(() => {
@@ -216,7 +272,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
       className={`relative ${isOverview ? "overview-card-muted rounded-xl px-4 py-4" : "rounded-lg border border-[#d8e3e8] bg-white px-3 py-3 shadow-[0_5px_18px_rgba(7,22,37,0.045)]"}`}
       data-testid="dashboard-control-bar"
       aria-label="Dashboardfiltre"
-      aria-busy={isPending}
+      aria-busy={isUpdating}
     >
       <div className="flex flex-wrap items-center gap-2">
         <div className={`${isOverview ? "h-11 gap-3 pr-4" : "h-10 gap-2 pr-3"} mr-1 hidden items-center border-r border-slate-200 sm:flex`}>
@@ -240,12 +296,12 @@ export const DashboardControlBar = memo(function DashboardControlBar({
           <FilterMenu
             key={field}
             field={field}
-            values={filters[field]}
+            values={draftFilters[field]}
             options={options[field]}
             open={openField === field}
             onOpen={openFilterMenu}
-            onToggle={onToggle}
-            onClear={onClear}
+            onToggle={toggleDraftFilter}
+            onClear={clearDraftFilter}
             variant={variant}
           />
         ))}
@@ -262,7 +318,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
               className={`inline-flex items-center gap-2 rounded-md border px-3 font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 ${
                 isOverview ? "h-11 text-[13px]" : "h-10 text-[11px]"
               } ${
-                moreFields.some((field) => filters[field].length)
+                moreFields.some((field) => draftFilters[field].length)
                   ? "border-cyan-300 bg-cyan-50 text-cyan-900"
                   : "border-[#d8e3e8] bg-white text-slate-600 hover:border-cyan-300"
               }`}
@@ -279,12 +335,12 @@ export const DashboardControlBar = memo(function DashboardControlBar({
                       <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">{labels[field]}</p>
                       <div className="max-h-48 space-y-1 overflow-y-auto">
                         {options[field].map((option) => {
-                          const selected = filters[field].includes(option);
+                          const selected = draftFilters[field].includes(option);
                           return (
                             <button
                               key={option}
                               type="button"
-                              onClick={() => onToggle(field, option)}
+                              onClick={() => toggleDraftFilter(field, option)}
                               className={`flex min-h-8 w-full items-center justify-between gap-2 rounded-md px-2 text-left text-[11px] font-medium ${
                                 selected ? "bg-cyan-50 text-cyan-800" : "text-slate-600 hover:bg-slate-50"
                               }`}
@@ -305,7 +361,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
         ) : null}
 
         <div className={`ml-auto flex items-center gap-2 ${isOverview ? "min-h-11" : "min-h-10"}`}>
-          {isPending ? (
+          {isUpdating ? (
             <span
               className={`inline-flex items-center gap-1.5 font-medium text-brand-700 ${isOverview ? "text-xs" : "text-[11px]"}`}
               role="status"
@@ -317,7 +373,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
           ) : null}
           <button
             type="button"
-            onClick={onReset}
+            onClick={resetDraftFilters}
             disabled={!activeEntries.length}
             className={`inline-flex items-center gap-2 rounded-md px-3 font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 ${
               isOverview ? "h-11 text-[13px]" : "h-10 text-[11px]"
@@ -340,7 +396,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
             <button
               key={`${field}-${value}`}
               type="button"
-              onClick={() => onToggle(field, value)}
+              onClick={() => toggleDraftFilter(field, value)}
               className={`inline-flex max-w-full items-center gap-1.5 rounded-md bg-cyan-50 font-semibold text-cyan-800 transition hover:bg-cyan-100 ${isOverview ? "px-2.5 py-1.5 text-xs" : "px-2 py-1 text-[10px]"}`}
               title={`Fjern ${labels[field]}: ${value}`}
             >

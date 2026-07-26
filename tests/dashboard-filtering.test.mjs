@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   applyDashboardFilters,
   rowMatchesDashboardFilters,
+  toggleDashboardFilterValue,
 } from "../lib/dashboard-filtering.ts";
 
 const rows = [
@@ -23,6 +24,14 @@ const emptyFilters = {
 
 test("en visning uden aktive filtre genbruger de eksisterende rækker", () => {
   assert.equal(applyDashboardFilters(rows, emptyFilters), rows);
+});
+
+test("hurtige multivalg bevarer alle valgte kategorier", () => {
+  const withBakery = toggleDashboardFilterValue(emptyFilters, "category", "Bagværk");
+  const withDrinks = toggleDashboardFilterValue(withBakery, "category", "Drikke");
+  const withSandwiches = toggleDashboardFilterValue(withDrinks, "category", "Sandwich");
+
+  assert.deepEqual(withSandwiches.category, ["Bagværk", "Drikke", "Sandwich"]);
 });
 
 test("dashboardfiltre anvender flere felter på den samme rækkevisning", () => {
