@@ -77,31 +77,37 @@ const chartTooltipStyle = {
 const overviewEyebrowClass = "text-[11px] font-semibold uppercase tracking-[0.14em]";
 
 const previewToneStyles: Record<CommandTone, {
+  accent: string;
   icon: string;
   bar: string;
   value: string;
 }> = {
   brand: {
+    accent: "bg-cyan-500",
     icon: "border-cyan-200 bg-cyan-50 text-cyan-700",
     bar: "bg-cyan-500",
     value: "text-cyan-800",
   },
   positive: {
+    accent: "bg-emerald-500",
     icon: "border-emerald-200 bg-emerald-50 text-emerald-700",
     bar: "bg-emerald-500",
     value: "text-emerald-800",
   },
   warning: {
+    accent: "bg-orange-500",
     icon: "border-orange-200 bg-orange-50 text-orange-700",
     bar: "bg-orange-500",
     value: "text-orange-800",
   },
   neutral: {
+    accent: "bg-slate-500",
     icon: "border-slate-200 bg-slate-100 text-slate-700",
     bar: "bg-slate-500",
     value: "text-slate-700",
   },
   purple: {
+    accent: "bg-violet-500",
     icon: "border-violet-200 bg-violet-50 text-violet-700",
     bar: "bg-violet-500",
     value: "text-violet-800",
@@ -170,9 +176,9 @@ export function OverviewTrendPanel({
               </span>
             ) : null}
           </div>
-          <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1.5">
-            <h3 className="text-xl font-semibold text-ink">{metricLabel}</h3>
-            <p className="text-[28px] font-semibold leading-none text-ink">{metricTotal}</p>
+          <div className="mt-2">
+            <h3 className="text-xl font-semibold leading-6 text-ink">{metricLabel}</h3>
+            <p className="mt-1.5 text-[24px] font-semibold leading-none text-slate-700">{metricTotal}</p>
           </div>
           <p className="mt-2 text-sm leading-5 text-slate-600">Månedlig udvikling i den aktuelle visning</p>
         </div>
@@ -324,10 +330,11 @@ function RankedPreviewCard({
   const styles = previewToneStyles[tone];
 
   return (
-    <article className="overview-card overview-interactive-card flex min-h-[360px] min-w-0 flex-col overflow-hidden rounded-xl">
+    <article className="overview-card overview-interactive-card relative flex min-h-[360px] min-w-0 flex-col overflow-hidden rounded-xl">
+      <span className={`absolute inset-x-0 top-0 h-1 ${styles.accent}`} aria-hidden="true" />
       <header className="flex min-h-[96px] items-start justify-between gap-4 border-b border-slate-200/80 px-5 py-4">
         <div className="min-w-0">
-          <p className={`${overviewEyebrowClass} text-slate-500`}>{eyebrow}</p>
+          <p className={`${overviewEyebrowClass} ${styles.value}`}>{eyebrow}</p>
           <h3 className="mt-1.5 text-lg font-semibold leading-6 text-ink">{title}</h3>
           <p className="mt-1 text-[13px] leading-5 text-slate-500">{description}</p>
         </div>
@@ -382,10 +389,11 @@ function EmptyPreviewCard({
   const styles = previewToneStyles[tone];
 
   return (
-    <article className="overview-card flex min-h-[360px] min-w-0 flex-col overflow-hidden rounded-xl">
+    <article className="overview-card relative flex min-h-[360px] min-w-0 flex-col overflow-hidden rounded-xl">
+      <span className={`absolute inset-x-0 top-0 h-1 ${styles.accent}`} aria-hidden="true" />
       <header className="flex min-h-[96px] items-start justify-between gap-4 border-b border-slate-200/80 px-5 py-4">
         <div className="min-w-0">
-          <p className={`${overviewEyebrowClass} text-slate-500`}>{eyebrow}</p>
+          <p className={`${overviewEyebrowClass} ${styles.value}`}>{eyebrow}</p>
           <h3 className="mt-1.5 text-lg font-semibold leading-6 text-ink">{title}</h3>
           <p className="mt-1 text-[13px] leading-5 text-slate-500">{description}</p>
         </div>

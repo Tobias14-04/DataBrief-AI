@@ -44,9 +44,9 @@ input {
     background-color: var(--overview-workspace);
     background-image:
       radial-gradient(circle at 42% -8%, rgba(8, 145, 178, 0.13), transparent 34rem),
-      linear-gradient(rgba(15, 63, 82, 0.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(15, 63, 82, 0.025) 1px, transparent 1px);
-    background-size: auto, 36px 36px, 36px 36px;
+      linear-gradient(rgba(15, 63, 82, 0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(15, 63, 82, 0.015) 1px, transparent 1px);
+    background-size: auto, 40px 40px, 40px 40px;
   }
 
   .overview-section-surface {

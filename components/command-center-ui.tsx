@@ -95,7 +95,7 @@ export function CompactKpiCard({
           <div className="min-w-0 flex-1 pt-0.5">
             <p className="text-sm font-semibold leading-5 text-slate-600" title={label}>{label}</p>
             <p
-              className="mt-2 break-words text-[clamp(1.75rem,2.15vw,2.35rem)] font-semibold leading-none text-[#0b1c2d]"
+              className="mt-2 whitespace-nowrap text-[clamp(1.7rem,1.8vw,2.15rem)] font-semibold leading-none text-[#0b1c2d]"
               title={value}
             >
               {value}

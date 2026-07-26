@@ -2328,14 +2328,14 @@ function MonthlyReportCard({
         {report.metrics.map((metric) => (
           <div
             key={metric.key}
-            className={`flex min-w-0 flex-col bg-white ${isOverview ? "min-h-[102px] px-4 py-4" : "min-h-[78px] px-2.5 py-3"}`}
+            className={`flex min-w-0 flex-col bg-white ${isOverview ? "min-h-[102px] px-3 py-4" : "min-h-[78px] px-2.5 py-3"}`}
           >
             <p className={`font-semibold uppercase text-slate-400 ${isOverview ? "min-h-8 text-[10px] leading-4 tracking-[0.1em]" : "min-h-7 text-[8px] leading-3.5 tracking-[0.08em]"}`}>
               {metric.label}
             </p>
             <p
               className={`mt-1 min-w-0 break-words font-semibold text-ink ${
-                isOverview ? "text-lg leading-6" : "text-sm leading-5"
+                isOverview ? "whitespace-nowrap text-[17px] leading-6" : "text-sm leading-5"
               } ${metric.key === "budgetStatus" ? `inline-flex w-fit whitespace-nowrap rounded-md px-2 py-1 ${isOverview ? "text-[11px]" : "text-[9px]"} ${budgetStatusClasses}` : ""}`}
             >
               {metric.value}
@@ -3100,7 +3100,7 @@ export default function UploadDashboard() {
           </section>
 
           {!shouldShowManualMapping ? (
-          <div className="grid min-w-0 gap-5 min-[1360px]:grid-cols-[minmax(0,1fr)_370px]">
+          <div className="grid min-w-0 gap-5 min-[1360px]:grid-cols-[minmax(0,1fr)_380px]">
           <div className="min-w-0 min-[1360px]:col-span-2">
             <DatasetCommandCenter
               fileName={data?.fileName ?? analysis?.fileName ?? "Excel-regneark"}
@@ -3132,7 +3132,7 @@ export default function UploadDashboard() {
 
           {activeView === "overview" ? (
           <>
-          <section className="overview-section-surface order-1 min-w-0 space-y-5 rounded-2xl p-4 sm:p-6 min-[1360px]:col-span-2" data-testid="kpi-section">
+          <section className="overview-section-surface order-1 min-w-0 space-y-4 rounded-2xl p-4 sm:px-6 sm:py-4 min-[1360px]:col-span-2" data-testid="kpi-section">
             <OverviewSectionHeader
               eyebrow="Resultatoverblik"
               title="Centrale nøgletal"
