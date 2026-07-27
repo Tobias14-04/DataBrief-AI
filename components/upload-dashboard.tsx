@@ -52,6 +52,7 @@ import {
 } from "react";
 import { ExcelProcessingView } from "@/components/excel-processing-view";
 import { KpiCustomizer } from "@/components/kpi-customizer";
+import { PremiumSelect } from "@/components/premium-select";
 import { SmoothMetricValue } from "@/components/smooth-metric-value";
 import { DashboardCommandShell } from "@/components/dashboard-command-shell";
 import {
@@ -287,14 +288,14 @@ const dashboardFilterLabels: Record<DashboardFilterKey, string> = {
 };
 
 const chartGridColor = "#e8eef1";
-const chartAxisTick = { fill: "#718096" };
+const chartAxisTick = { fill: "#526779", fontWeight: 500 };
 const chartTooltipStyle = {
-  border: "1px solid #d8e3e8",
-  borderRadius: "8px",
+  border: "1px solid #cfdee5",
+  borderRadius: "10px",
   backgroundColor: "#ffffff",
-  boxShadow: "0 14px 34px rgba(16,32,51,0.12)",
+  boxShadow: "0 16px 38px rgba(16,32,51,0.14)",
   color: "#102033",
-  fontSize: "12px",
+  fontSize: "13px",
 };
 
 const trendMetricDefinitions: Record<TrendMetric, {
@@ -2181,9 +2182,13 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
   preferredMonth?: string;
   selectedMonth: string;
   onMonthChange: (month: string) => void;
-  variant?: "default" | "overview";
+  variant?: "default" | "overview" | "analysis";
 }) {
   const monthOptions = useMemo(() => uniqueValues(rows, "month"), [rows]);
+  const reportMonthOptions = useMemo(
+    () => monthOptions.map((month) => ({ value: month, label: formatDanishMonth(month) })),
+    [monthOptions],
+  );
   const reportMonth = monthOptions.includes(selectedMonth)
     ? selectedMonth
     : filters.month[0] || (preferredMonth && monthOptions.includes(preferredMonth) ? preferredMonth : monthOptions.at(-1) ?? "");
@@ -2235,66 +2240,62 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
       ? "grid-cols-3"
       : "grid-cols-2";
   const isOverview = variant === "overview";
+  const isAnalysis = variant === "analysis";
+  const isPremium = isOverview || isAnalysis;
 
   return (
     <section
-      className={isOverview ? "overview-card overflow-hidden rounded-xl" : dashboardCardClass}
+      className={
+        isOverview
+          ? "overview-card overflow-hidden rounded-xl"
+          : isAnalysis
+            ? "analysis-panel flex h-full flex-col overflow-hidden rounded-xl"
+            : dashboardCardClass
+      }
       data-testid="monthly-report"
     >
-      <div className={`flex flex-wrap items-end justify-between border-b border-[#e8eef1] bg-white ${isOverview ? "gap-4 px-5 py-5" : "gap-3 px-4 py-3"}`}>
+      <div className={`flex flex-wrap items-end justify-between border-b border-[#e8eef1] ${isAnalysis ? "bg-[linear-gradient(135deg,#ffffff_55%,#f0fafc)]" : "bg-white"} ${isPremium ? "gap-4 px-5 py-5" : "gap-3 px-4 py-3"}`}>
         <div className="flex items-center gap-3">
-          <span className={isOverview ? "grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 shadow-sm" : dashboardIconClass}>
-            <CalendarRange className={isOverview ? "h-5 w-5" : "h-[18px] w-[18px]"} aria-hidden="true" />
+          <span className={isPremium ? "grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 shadow-sm" : dashboardIconClass}>
+            <CalendarRange className={isPremium ? "h-5 w-5" : "h-[18px] w-[18px]"} aria-hidden="true" />
           </span>
           <div>
-            <p className={`${dashboardEyebrowClass} text-brand-700`}>Periodeanalyse</p>
-            <h2 className={isOverview ? "mt-1 text-lg font-semibold text-ink" : "mt-0.5 text-sm font-semibold text-ink"}>Månedsrapport</h2>
+            <p className={`${isPremium ? "text-[10px]" : dashboardEyebrowClass} font-semibold uppercase tracking-[0.14em] text-brand-700`}>Periodeanalyse</p>
+            <h2 className={isPremium ? "mt-1 text-lg font-semibold text-ink" : "mt-0.5 text-sm font-semibold text-ink"}>Månedsrapport</h2>
           </div>
         </div>
-        <label className={`flex flex-col items-start font-semibold text-slate-500 ${isOverview ? "gap-1.5 text-[13px]" : "gap-1 text-xs"}`}>
-          <span>Rapportmåned</span>
-          <span className={`relative block ${isOverview ? "min-w-[136px]" : "min-w-[128px]"}`}>
-            <select
-              value={reportMonth}
-              onChange={(event) => onMonthChange(event.target.value)}
-              className={`w-full appearance-none border border-slate-200 bg-white pl-3 pr-9 font-semibold text-ink shadow-sm outline-none transition hover:border-brand-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 ${
-                isOverview
-                  ? "h-11 min-w-[136px] rounded-lg text-[13px]"
-                  : "min-w-[128px] rounded-md py-2 text-xs"
-              }`}
-            >
-              {monthOptions.map((month) => (
-                <option key={month} value={month}>
-                  {formatDanishMonth(month)}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-          </span>
-        </label>
+        <PremiumSelect
+          value={reportMonth}
+          options={reportMonthOptions}
+          onChange={onMonthChange}
+          label="Rapportmåned"
+          ariaLabel="Vælg rapportmåned"
+          searchable={monthOptions.length > 10}
+          className={isPremium ? "w-[172px]" : "w-[160px]"}
+        />
       </div>
 
       <div className={`grid ${metricGridClass} gap-px bg-[#e8eef1]`}>
         {report.metrics.map((metric) => (
           <div
             key={metric.key}
-            className={`flex min-w-0 flex-col bg-white ${isOverview ? "min-h-[102px] px-3 py-4" : "min-h-[78px] px-2.5 py-3"}`}
+            className={`flex min-w-0 flex-col bg-white ${isPremium ? "min-h-[108px] px-3.5 py-4" : "min-h-[78px] px-2.5 py-3"}`}
           >
-            <p className={`font-semibold uppercase text-slate-400 ${isOverview ? "min-h-8 text-[10px] leading-4 tracking-[0.1em]" : "min-h-7 text-[8px] leading-3.5 tracking-[0.08em]"}`}>
+            <p className={`font-semibold uppercase text-slate-500 ${isPremium ? "min-h-8 text-[10px] leading-4 tracking-[0.1em]" : "min-h-7 text-[8px] leading-3.5 tracking-[0.08em]"}`}>
               {metric.label}
             </p>
             <SmoothMetricValue
               value={metric.value}
               className={`mt-1 min-w-0 break-words font-semibold text-ink ${
-                isOverview ? "whitespace-nowrap text-[17px] leading-6" : "text-sm leading-5"
-              } ${metric.key === "budgetStatus" ? `inline-flex w-fit whitespace-nowrap rounded-md px-2 py-1 ${isOverview ? "text-[11px]" : "text-[9px]"} ${budgetStatusClasses}` : ""}`}
+                isPremium ? "whitespace-nowrap text-[18px] leading-6" : "text-sm leading-5"
+              } ${metric.key === "budgetStatus" ? `inline-flex w-fit whitespace-nowrap rounded-md px-2 py-1 ${isPremium ? "text-[11px]" : "text-[9px]"} ${budgetStatusClasses}` : ""}`}
             />
           </div>
         ))}
       </div>
 
-      <div className={`border-t border-[#e8eef1] bg-[#f8fbfc] ${isOverview ? "px-5 py-4" : "px-4 py-3"}`}>
-        <p className={`border-l-2 border-brand-500 font-medium text-slate-700 ${isOverview ? "pl-4 text-[13px] leading-6" : "pl-3 text-[11px] leading-5"}`}>
+      <div className={`mt-auto border-t border-[#e8eef1] bg-[#f8fbfc] ${isPremium ? "px-5 py-5" : "px-4 py-3"}`}>
+        <p className={`border-l-2 border-brand-500 font-medium text-slate-700 ${isPremium ? "pl-4 text-[13px] leading-6" : "pl-3 text-[11px] leading-5"}`}>
           {reportRows.length
             ? report.summary
             : `Ingen rækker matcher de aktuelle filtre for ${formatDanishMonth(reportMonth)}.`}
@@ -3082,7 +3083,7 @@ export default function UploadDashboard() {
               warning={mappingWarning}
               onUpload={openCommandFilePicker}
               onEditMapping={openManualMapping}
-              variant={activeView === "overview" ? "overview" : "default"}
+              variant={activeView === "overview" ? "overview" : activeView === "analysis" ? "analysis" : "default"}
             />
           </div>
 
@@ -3096,7 +3097,7 @@ export default function UploadDashboard() {
                 datasetIdentity={allRows}
                 isPending={isFilterUpdatePending}
                 onChange={commitDashboardFilters}
-                variant={activeView === "overview" ? "overview" : "default"}
+                variant={activeView === "overview" ? "overview" : activeView === "analysis" ? "analysis" : "default"}
               />
             </div>
           ) : null}
@@ -3264,29 +3265,29 @@ export default function UploadDashboard() {
           </>
           ) : null}
           {activeView === "analysis" ? (
-            <section className="min-w-0 space-y-4 min-[1360px]:col-span-2" data-testid="analysis-view">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <section className="min-w-0 space-y-6 min-[1360px]:col-span-2" data-testid="analysis-view">
+              <div className="flex flex-col gap-4 px-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className={`${commandSectionLabelClass} text-brand-700`}>Tidsserieanalyse</p>
-                  <h2 className="mt-1 text-xl font-semibold text-ink">Udvikling på tværs af perioder</h2>
-                  <p className="mt-1 text-xs text-slate-500">Alle tal følger de aktive dashboardfiltre.</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-brand-700">Tidsserieanalyse</p>
+                  <h2 className="mt-2 text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[#0b1c2d] sm:text-[32px]">
+                    Udvikling på tværs af perioder
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    Sammenlign udviklingen måned for måned. Alle tal følger de aktive dashboardfiltre.
+                  </p>
                 </div>
-                <label className="relative block min-w-[170px]">
-                  <span className="sr-only">Vælg nøgletal til analyse</span>
-                  <select
-                    value={activeTrendMetric}
-                    onChange={(event) => setTrendMetric(event.target.value as TrendMetric)}
-                    className="h-10 w-full appearance-none rounded-md border border-slate-200 bg-white py-1 pl-3 pr-8 text-xs font-semibold text-slate-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                  >
-                    {availableTrendMetrics.map((metric) => (
-                      <option key={metric} value={metric}>{trendMetricDefinitions[metric].shortLabel}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-                </label>
+                <PremiumSelect
+                  value={activeTrendMetric}
+                  options={trendMetricOptions}
+                  onChange={(metric) => setTrendMetric(metric as TrendMetric)}
+                  label="Vis nøgletal"
+                  ariaLabel="Vælg nøgletal til analyse"
+                  align="right"
+                  className="w-full sm:w-[210px]"
+                />
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(340px,0.68fr)] xl:items-stretch">
                 <CommandPanel
                   eyebrow="Primær analyse"
                   title={activeTrendDefinition.label}
@@ -3294,11 +3295,13 @@ export default function UploadDashboard() {
                   icon={ChartNoAxesCombined}
                   tone={activeTrendDefinition.tone}
                   testId="analysis-primary-chart"
+                  variant="analysis"
+                  className="analysis-panel-primary"
                 >
-                  <div className="h-[330px] px-3 pb-3 pt-4 sm:h-[390px] sm:px-4">
+                  <div className="h-[360px] bg-[linear-gradient(180deg,#ffffff_0%,#fbfdfe_100%)] px-3 pb-4 pt-5 sm:h-[430px] sm:px-5 sm:pb-5 sm:pt-6">
                     {hasFilteredData ? (
                       <ResponsiveContainer width="100%" height="100%">
-                        <RechartsAreaChart data={metrics.monthly} margin={{ top: 10, right: 18, bottom: 10, left: 0 }}>
+                        <RechartsAreaChart data={metrics.monthly} margin={{ top: 14, right: 24, bottom: 16, left: 8 }}>
                           <defs>
                             <linearGradient id="analysisTrendFill" x1="0" y1="0" x2="0" y2="1">
                               <stop offset="0%" stopColor={activeTrendDefinition.color} stopOpacity={0.22} />
@@ -3310,9 +3313,9 @@ export default function UploadDashboard() {
                             dataKey="name"
                             tickLine={false}
                             axisLine={false}
-                            fontSize={11}
+                            fontSize={12}
                             tick={chartAxisTick}
-                            dy={8}
+                            dy={10}
                             tickFormatter={(value) => formatDanishMonth(String(value), "short")}
                           />
                           <YAxis
@@ -3320,9 +3323,9 @@ export default function UploadDashboard() {
                             tickCount={5}
                             tickLine={false}
                             axisLine={false}
-                            fontSize={11}
+                            fontSize={12}
                             tick={chartAxisTick}
-                            width={58}
+                            width={70}
                             tickFormatter={(value) => formatTrendAxis(activeTrendMetric, Number(value))}
                           />
                           <Tooltip
@@ -3334,10 +3337,10 @@ export default function UploadDashboard() {
                             type="monotone"
                             dataKey={activeTrendMetric}
                             stroke={activeTrendDefinition.color}
-                            strokeWidth={2.5}
+                            strokeWidth={3}
                             fill="url(#analysisTrendFill)"
-                            dot={metrics.monthly.length <= 18 ? { r: 2.5, fill: "#fff", stroke: activeTrendDefinition.color, strokeWidth: 2 } : false}
-                            activeDot={{ r: 5, fill: activeTrendDefinition.color, stroke: "#fff", strokeWidth: 2.5 }}
+                            dot={metrics.monthly.length <= 18 ? { r: 3, fill: "#fff", stroke: activeTrendDefinition.color, strokeWidth: 2 } : false}
+                            activeDot={{ r: 5.5, fill: activeTrendDefinition.color, stroke: "#fff", strokeWidth: 2.5 }}
                           />
                         </RechartsAreaChart>
                       </ResponsiveContainer>
@@ -3356,6 +3359,7 @@ export default function UploadDashboard() {
                   preferredMonth={baseMetrics.bestMonth?.name}
                   selectedMonth={reportMonth}
                   onMonthChange={setReportMonth}
+                  variant="analysis"
                 />
               </div>
 
@@ -3364,26 +3368,27 @@ export default function UploadDashboard() {
                 title="Månedlige resultater"
                 description="Samme datagrundlag som grafen ovenfor"
                 icon={Rows3}
+                variant="analysis"
               >
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[640px] text-left">
-                    <thead className="bg-slate-50 text-[9px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+                <div className="max-h-[520px] overflow-auto">
+                  <table className="analysis-table-numbers w-full min-w-[720px] border-separate border-spacing-0 text-left">
+                    <thead className="sticky top-0 z-10 bg-[#f3f8fa]/95 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600 backdrop-blur">
                       <tr>
-                        <th className="px-4 py-3">Måned</th>
-                        <th className="px-4 py-3 text-right">Omsætning</th>
-                        <th className="px-4 py-3 text-right">Solgte enheder</th>
-                        <th className="px-4 py-3 text-right">Dækningsbidrag</th>
-                        <th className="px-4 py-3 text-right">Omkostninger</th>
+                        <th scope="col" className="border-b border-[#d8e5ea] px-5 py-4 sm:px-6">Måned</th>
+                        <th scope="col" className="border-b border-[#d8e5ea] px-5 py-4 text-right">Omsætning</th>
+                        <th scope="col" className="border-b border-[#d8e5ea] px-5 py-4 text-right">Solgte enheder</th>
+                        <th scope="col" className="border-b border-[#d8e5ea] px-5 py-4 text-right">Dækningsbidrag</th>
+                        <th scope="col" className="border-b border-[#d8e5ea] px-5 py-4 text-right sm:px-6">Omkostninger</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs">
+                    <tbody className="text-[13px]">
                       {metrics.monthly.map((month) => (
-                        <tr key={month.sortKey} className="transition hover:bg-slate-50/70">
-                          <td className="px-4 py-3 font-semibold text-ink">{formatDanishMonth(month.name)}</td>
-                          <td className="px-4 py-3 text-right text-slate-700">{currency(month.revenue)}</td>
-                          <td className="px-4 py-3 text-right text-slate-700">{number(month.units)}</td>
-                          <td className="px-4 py-3 text-right text-slate-700">{baseMetrics.hasGrossProfit ? currency(month.grossProfit) : "–"}</td>
-                          <td className="px-4 py-3 text-right text-slate-700">{baseMetrics.hasCosts ? currency(month.cost) : "–"}</td>
+                        <tr key={month.sortKey} className="bg-white transition-colors even:bg-[#fbfdfe] hover:bg-cyan-50/55">
+                          <td className="border-b border-slate-100 px-5 py-4 text-sm font-semibold text-ink sm:px-6">{formatDanishMonth(month.name)}</td>
+                          <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700">{currency(month.revenue)}</td>
+                          <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700">{number(month.units)}</td>
+                          <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700">{baseMetrics.hasGrossProfit ? currency(month.grossProfit) : "–"}</td>
+                          <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700 sm:px-6">{baseMetrics.hasCosts ? currency(month.cost) : "–"}</td>
                         </tr>
                       ))}
                     </tbody>

@@ -9,7 +9,7 @@ import { memo, type ReactNode } from "react";
 import { SmoothMetricValue } from "@/components/smooth-metric-value";
 
 export type CommandTone = "brand" | "positive" | "warning" | "neutral" | "purple";
-export type CommandVariant = "default" | "overview";
+export type CommandVariant = "default" | "overview" | "analysis";
 
 const toneStyles: Record<CommandTone, {
   accent: string;
@@ -213,44 +213,51 @@ export const DatasetCommandCenter = memo(function DatasetCommandCenter({
   variant?: CommandVariant;
 }) {
   const isOverview = variant === "overview";
+  const isAnalysis = variant === "analysis";
 
   return (
     <section
-      className={`${isOverview ? "overview-card-muted rounded-xl p-4 sm:p-5" : `${commandCardClass} p-3.5`} grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center`}
+      className={`${
+        isOverview
+          ? "overview-card-muted rounded-xl p-4 sm:p-5"
+          : isAnalysis
+            ? "analysis-panel rounded-xl p-4"
+            : `${commandCardClass} p-3.5`
+      } grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center`}
       data-testid="dataset-command-center"
     >
-      <div className={`flex min-w-0 items-center ${isOverview ? "gap-4" : "gap-3"}`}>
-        <span className={`${isOverview ? "h-12 w-12 rounded-lg shadow-[0_8px_22px_rgba(16,185,129,0.12)]" : "h-10 w-10 rounded-md"} grid shrink-0 place-items-center border border-emerald-100 bg-emerald-50 text-emerald-700`}>
-          <FileSpreadsheet className={isOverview ? "h-5 w-5" : "h-[18px] w-[18px]"} aria-hidden="true" />
+      <div className={`flex min-w-0 items-center ${isOverview || isAnalysis ? "gap-4" : "gap-3"}`}>
+        <span className={`${isOverview || isAnalysis ? "h-12 w-12 rounded-lg shadow-[0_8px_22px_rgba(16,185,129,0.12)]" : "h-10 w-10 rounded-md"} grid shrink-0 place-items-center border border-emerald-100 bg-emerald-50 text-emerald-700`}>
+          <FileSpreadsheet className={isOverview || isAnalysis ? "h-5 w-5" : "h-[18px] w-[18px]"} aria-hidden="true" />
         </span>
         <div className="min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <p className={`max-w-full truncate font-semibold text-[#0b1c2d] ${isOverview ? "text-sm" : "text-xs"}`} title={fileName}>{fileName}</p>
-            <span className={`inline-flex items-center gap-1 rounded-md bg-emerald-50 font-semibold text-emerald-700 ${isOverview ? "px-2.5 py-1.5 text-xs" : "px-2 py-1 text-[9px]"}`}>
-              <Check className={isOverview ? "h-3.5 w-3.5" : "h-3 w-3"} aria-hidden="true" />
+            <p className={`max-w-full truncate font-semibold text-[#0b1c2d] ${isOverview || isAnalysis ? "text-sm" : "text-xs"}`} title={fileName}>{fileName}</p>
+            <span className={`inline-flex items-center gap-1 rounded-md bg-emerald-50 font-semibold text-emerald-700 ${isOverview || isAnalysis ? "px-2.5 py-1.5 text-xs" : "px-2 py-1 text-[9px]"}`}>
+              <Check className={isOverview || isAnalysis ? "h-3.5 w-3.5" : "h-3 w-3"} aria-hidden="true" />
               {statusLabel}
             </span>
           </div>
-          <p className={`mt-1 text-slate-500 ${isOverview ? "text-[13px]" : "text-[10px]"}`}>
+          <p className={`mt-1 text-slate-500 ${isOverview || isAnalysis ? "text-[13px]" : "text-[10px]"}`}>
             {rowCount.toLocaleString("da-DK")} rækker · Ark: {sheetName}
           </p>
-          {warning ? <p className={`mt-1 truncate text-amber-700 ${isOverview ? "text-xs" : "text-[9px]"}`} title={warning}>{warning}</p> : null}
+          {warning ? <p className={`mt-1 truncate text-amber-700 ${isOverview || isAnalysis ? "text-xs" : "text-[9px]"}`} title={warning}>{warning}</p> : null}
         </div>
       </div>
       <div className="flex flex-wrap gap-2 lg:justify-end">
         <button
           type="button"
           onClick={onEditMapping}
-          className={`inline-flex items-center justify-center rounded-md border border-[#d8e3e8] bg-white font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 ${isOverview ? "h-11 px-4 text-[13px] shadow-sm" : "h-9 px-3 text-[10px]"}`}
+          className={`inline-flex items-center justify-center rounded-md border border-[#d8e3e8] bg-white font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 ${isOverview || isAnalysis ? "h-11 px-4 text-[13px] shadow-sm" : "h-9 px-3 text-[10px]"}`}
         >
           Rediger kolonnetilknytning
         </button>
         <button
           type="button"
           onClick={onUpload}
-          className={`inline-flex items-center justify-center gap-1.5 rounded-md bg-[#0b1c2d] font-semibold text-white transition hover:bg-[#15334d] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${isOverview ? "h-11 px-4 text-[13px] shadow-[0_8px_20px_rgba(11,28,45,0.16)]" : "h-9 px-3 text-[10px]"}`}
+          className={`inline-flex items-center justify-center gap-1.5 rounded-md bg-[#0b1c2d] font-semibold text-white transition hover:bg-[#15334d] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${isOverview || isAnalysis ? "h-11 px-4 text-[13px] shadow-[0_8px_20px_rgba(11,28,45,0.16)]" : "h-9 px-3 text-[10px]"}`}
         >
-          <Upload className={isOverview ? "h-4 w-4" : "h-3.5 w-3.5"} aria-hidden="true" />
+          <Upload className={isOverview || isAnalysis ? "h-4 w-4" : "h-3.5 w-3.5"} aria-hidden="true" />
           Skift fil
         </button>
       </div>
@@ -268,6 +275,7 @@ export function CommandPanel({
   children,
   className = "",
   testId,
+  variant = "default",
 }: {
   eyebrow?: string;
   title: string;
@@ -278,22 +286,26 @@ export function CommandPanel({
   children: ReactNode;
   className?: string;
   testId?: string;
+  variant?: CommandVariant;
 }) {
   const styles = toneStyles[tone];
+  const isAnalysis = variant === "analysis";
 
   return (
-    <section className={`${commandCardClass} ${className}`} data-testid={testId}>
-      <header className="flex min-h-[66px] items-center justify-between gap-3 border-b border-[#e5ecef] px-4 py-3">
+    <section className={`${isAnalysis ? "analysis-panel overflow-hidden rounded-xl" : commandCardClass} ${className}`} data-testid={testId}>
+      <header className={`flex items-center justify-between gap-4 border-b border-[#e5ecef] ${
+        isAnalysis ? "min-h-[88px] px-5 py-4 sm:px-6" : "min-h-[66px] px-4 py-3"
+      }`}>
         <div className="min-w-0">
-          {eyebrow ? <p className={`${commandSectionLabelClass} ${styles.helper}`}>{eyebrow}</p> : null}
-          <h2 className={`${eyebrow ? "mt-1" : ""} truncate text-sm font-semibold text-[#0b1c2d]`} title={title}>{title}</h2>
-          {description ? <p className="mt-0.5 truncate text-[10px] text-slate-500" title={description}>{description}</p> : null}
+          {eyebrow ? <p className={`${isAnalysis ? "text-[10px]" : commandSectionLabelClass} font-semibold uppercase tracking-[0.14em] ${styles.helper}`}>{eyebrow}</p> : null}
+          <h2 className={`${eyebrow ? (isAnalysis ? "mt-1.5" : "mt-1") : ""} ${isAnalysis ? "text-lg leading-6" : "truncate text-sm"} font-semibold text-[#0b1c2d]`} title={title}>{title}</h2>
+          {description ? <p className={`${isAnalysis ? "mt-1 text-[13px] leading-5" : "mt-0.5 truncate text-[10px]"} text-slate-500`} title={description}>{description}</p> : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {action}
           {Icon ? (
-            <span className={`grid h-8 w-8 place-items-center rounded-md border ${styles.icon}`}>
-              <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className={`grid place-items-center border ${styles.icon} ${isAnalysis ? "h-11 w-11 rounded-lg shadow-sm" : "h-8 w-8 rounded-md"}`}>
+              <Icon className={isAnalysis ? "h-[18px] w-[18px]" : "h-3.5 w-3.5"} aria-hidden="true" />
             </span>
           ) : null}
         </div>

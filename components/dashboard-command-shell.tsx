@@ -63,12 +63,14 @@ function NavigationButton({
   active,
   collapsed,
   disabled,
+  softened,
   onClick,
 }: {
   view: DashboardView;
   active: boolean;
   collapsed: boolean;
   disabled?: boolean;
+  softened?: boolean;
   onClick: () => void;
 }) {
   const definition = getDashboardView(view);
@@ -81,13 +83,17 @@ function NavigationButton({
       disabled={disabled}
       aria-current={active ? "page" : undefined}
       title={collapsed ? definition.label : undefined}
-      className={`group flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 disabled:cursor-not-allowed disabled:opacity-40 ${
+      className={`group flex w-full items-center gap-3 px-3 text-left font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 disabled:cursor-not-allowed disabled:opacity-40 ${
+        softened ? "h-11 rounded-lg text-[13px]" : "h-10 rounded-md text-xs"
+      } ${
         active
-          ? "bg-cyan-400/10 text-cyan-200 shadow-[inset_2px_0_0_#22d3ee]"
+          ? softened
+            ? "border border-cyan-200/15 bg-white/[0.075] text-cyan-100 shadow-[inset_3px_0_0_#22d3ee,0_6px_18px_rgba(0,0,0,0.08)]"
+            : "bg-cyan-400/10 text-cyan-200 shadow-[inset_2px_0_0_#22d3ee]"
           : "text-slate-400 hover:bg-white/[0.055] hover:text-white"
       } ${collapsed ? "justify-center px-0" : ""}`}
     >
-      <Icon className={`h-[17px] w-[17px] shrink-0 ${active ? "text-cyan-300" : "text-slate-500 group-hover:text-slate-300"}`} aria-hidden="true" />
+      <Icon className={`${softened ? "h-[18px] w-[18px]" : "h-[17px] w-[17px]"} shrink-0 ${active ? "text-cyan-300" : "text-slate-500 group-hover:text-slate-300"}`} aria-hidden="true" />
       {!collapsed ? <span className="truncate">{definition.label}</span> : null}
     </button>
   );
@@ -98,6 +104,7 @@ function ShellSidebar({
   collapsed,
   mobile,
   navigationLocked,
+  softened,
   onViewChange,
   onUpload,
   onEditMapping,
@@ -108,6 +115,7 @@ function ShellSidebar({
   collapsed: boolean;
   mobile?: boolean;
   navigationLocked?: boolean;
+  softened?: boolean;
   onViewChange: (view: DashboardView) => void;
   onUpload: () => void;
   onEditMapping: () => void;
@@ -122,16 +130,16 @@ function ShellSidebar({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#071625] text-white">
-      <div className={`flex h-16 shrink-0 items-center border-b border-white/[0.07] ${navigationCollapsed ? "justify-center px-2" : "justify-between px-4"}`}>
+    <div className={`flex h-full min-h-0 flex-col text-white ${softened ? "bg-[linear-gradient(180deg,#102b3d_0%,#0b2232_100%)]" : "bg-[#071625]"}`}>
+      <div className={`flex shrink-0 items-center border-b border-white/[0.07] ${softened ? "h-[72px]" : "h-16"} ${navigationCollapsed ? "justify-center px-2" : "justify-between px-4"}`}>
         <div className={`flex min-w-0 items-center ${navigationCollapsed ? "" : "gap-2.5"}`}>
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-cyan-300/20 bg-cyan-300/10 text-cyan-200">
+          <span className={`grid shrink-0 place-items-center border border-cyan-300/20 bg-cyan-300/10 text-cyan-200 ${softened ? "h-10 w-10 rounded-lg shadow-[0_7px_18px_rgba(0,0,0,0.12)]" : "h-9 w-9 rounded-md"}`}>
             <BarChart3 className="h-[18px] w-[18px]" aria-hidden="true" />
           </span>
           {!navigationCollapsed ? (
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-white">DataBrief AI</p>
-              <p className="text-[10px] font-medium text-slate-500">Sales intelligence</p>
+              <p className={`truncate font-semibold text-white ${softened ? "text-[15px]" : "text-sm"}`}>DataBrief AI</p>
+              <p className={`${softened ? "mt-0.5 text-[11px] text-slate-400" : "text-[10px] text-slate-500"} font-medium`}>Sales intelligence</p>
             </div>
           ) : null}
         </div>
@@ -157,9 +165,9 @@ function ShellSidebar({
         ) : null}
       </div>
 
-      <nav className="min-h-0 flex-1 overflow-y-auto px-2.5 py-4" aria-label="Dashboardnavigation">
+      <nav className={`min-h-0 flex-1 overflow-y-auto px-2.5 ${softened ? "py-5" : "py-4"}`} aria-label="Dashboardnavigation">
         {!navigationCollapsed ? (
-          <p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.15em] text-slate-600">Analyse</p>
+          <p className={`mb-2 px-3 font-semibold uppercase tracking-[0.15em] ${softened ? "text-[10px] text-slate-500" : "text-[9px] text-slate-600"}`}>Analyse</p>
         ) : null}
         <div className="space-y-1">
           {primaryViewIds.map((view) => (
@@ -169,6 +177,7 @@ function ShellSidebar({
               active={activeView === view}
               collapsed={navigationCollapsed}
               disabled={navigationLocked}
+              softened={softened}
               onClick={() => selectView(view)}
             />
           ))}
@@ -184,6 +193,7 @@ function ShellSidebar({
             active={activeView === "dataset"}
             collapsed={navigationCollapsed}
             disabled={navigationLocked}
+            softened={softened}
             onClick={() => selectView("dataset")}
           />
           <button
@@ -193,7 +203,7 @@ function ShellSidebar({
               onClose?.();
             }}
             title={navigationCollapsed ? "Upload ny fil" : undefined}
-            className={`group flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-xs font-semibold text-slate-400 transition hover:bg-white/[0.055] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 ${
+            className={`group flex w-full items-center gap-3 px-3 text-left font-semibold text-slate-400 transition hover:bg-white/[0.055] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 ${softened ? "h-11 rounded-lg text-[13px]" : "h-10 rounded-md text-xs"} ${
               navigationCollapsed ? "justify-center px-0" : ""
             }`}
           >
@@ -207,7 +217,7 @@ function ShellSidebar({
               onClose?.();
             }}
             title={navigationCollapsed ? "Kolonnetilknytning" : undefined}
-            className={`group flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-xs font-semibold text-slate-400 transition hover:bg-white/[0.055] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 ${
+            className={`group flex w-full items-center gap-3 px-3 text-left font-semibold text-slate-400 transition hover:bg-white/[0.055] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 ${softened ? "h-11 rounded-lg text-[13px]" : "h-10 rounded-md text-xs"} ${
               navigationCollapsed ? "justify-center px-0" : ""
             }`}
           >
@@ -262,6 +272,7 @@ export function DashboardCommandShell({
       }
     : getDashboardView(activeView);
   const isOverview = activeView === "overview" && !mappingMode;
+  const isAnalysis = activeView === "analysis" && !mappingMode;
 
   useEffect(() => {
     if (!mobileNavigationOpen) return;
@@ -273,9 +284,11 @@ export function DashboardCommandShell({
   }, [mobileNavigationOpen]);
 
   return (
-    <main className={`min-h-screen text-ink ${isOverview ? "overview-workspace" : "bg-[#edf3f6]"}`}>
+    <main className={`min-h-screen text-ink ${isOverview ? "overview-workspace" : isAnalysis ? "analysis-workspace" : "bg-[#edf3f6]"}`}>
       <aside
-        className={`fixed inset-y-0 left-0 z-40 hidden overflow-x-hidden border-r border-white/[0.06] shadow-[12px_0_40px_rgba(7,22,37,0.12)] lg:block ${
+        className={`fixed inset-y-0 left-0 z-40 hidden overflow-x-hidden border-r border-white/[0.06] lg:block ${
+          isAnalysis ? "shadow-[10px_0_34px_rgba(7,22,37,0.09)]" : "shadow-[12px_0_40px_rgba(7,22,37,0.12)]"
+        } ${
           sidebarCollapsed ? "w-[72px]" : "w-[220px]"
         }`}
       >
@@ -283,6 +296,7 @@ export function DashboardCommandShell({
           activeView={activeView}
           collapsed={sidebarCollapsed}
           navigationLocked={mappingMode}
+          softened={isAnalysis}
           onViewChange={onViewChange}
           onUpload={onUpload}
           onEditMapping={onEditMapping}
@@ -304,6 +318,7 @@ export function DashboardCommandShell({
               collapsed={false}
               mobile
               navigationLocked={mappingMode}
+              softened={isAnalysis}
               onViewChange={onViewChange}
               onUpload={onUpload}
               onEditMapping={onEditMapping}
@@ -315,8 +330,12 @@ export function DashboardCommandShell({
       ) : null}
 
       <div className={`min-h-screen transition-[padding] duration-200 ${sidebarCollapsed ? "lg:pl-[72px]" : "lg:pl-[220px]"}`}>
-        <header className={`sticky top-0 z-30 border-b border-white/[0.07] bg-[#0b1c2d]/95 text-white shadow-[0_8px_30px_rgba(7,22,37,0.12)] backdrop-blur-xl ${isOverview ? "h-[72px]" : "h-16"}`}>
-          <div className={`flex h-full items-center justify-between gap-3 px-4 sm:px-5 ${isOverview ? "xl:px-7" : "xl:px-6"}`}>
+        <header className={`sticky top-0 z-30 border-b text-white backdrop-blur-xl ${
+          isAnalysis
+            ? "h-[72px] border-cyan-100/10 bg-[#112c3d]/94 shadow-[0_7px_24px_rgba(7,22,37,0.09)]"
+            : `border-white/[0.07] bg-[#0b1c2d]/95 shadow-[0_8px_30px_rgba(7,22,37,0.12)] ${isOverview ? "h-[72px]" : "h-16"}`
+        }`}>
+          <div className={`flex h-full items-center justify-between gap-3 px-4 sm:px-5 ${isOverview || isAnalysis ? "xl:px-7" : "xl:px-6"}`}>
             <div className="flex min-w-0 items-center gap-3">
               <button
                 type="button"
@@ -327,8 +346,8 @@ export function DashboardCommandShell({
                 <Menu className="h-5 w-5" aria-hidden="true" />
               </button>
               <div className="min-w-0">
-                <h1 className={`truncate font-semibold text-white ${isOverview ? "text-xl sm:text-[24px] sm:leading-7" : "text-base sm:text-lg"}`}>{activeDefinition.title}</h1>
-                <p className={`hidden truncate text-slate-400 sm:block ${isOverview ? "mt-0.5 text-sm" : "text-[11px]"}`}>{activeDefinition.description}</p>
+                <h1 className={`truncate font-semibold text-white ${isOverview || isAnalysis ? "text-xl sm:text-[24px] sm:leading-7" : "text-base sm:text-lg"}`}>{activeDefinition.title}</h1>
+                <p className={`hidden truncate sm:block ${isOverview || isAnalysis ? "mt-0.5 text-sm text-slate-300" : "text-[11px] text-slate-400"}`}>{activeDefinition.description}</p>
               </div>
             </div>
 
@@ -336,14 +355,14 @@ export function DashboardCommandShell({
               <button
                 type="button"
                 onClick={() => onViewChange("dataset")}
-                className={`group hidden min-w-0 items-center rounded-md border border-white/[0.08] bg-white/[0.045] text-left transition hover:border-cyan-300/20 hover:bg-white/[0.075] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 md:flex ${isOverview ? "gap-2.5 px-3.5 py-2.5" : "gap-2 px-3 py-2"}`}
+                className={`group hidden min-w-0 items-center border border-white/[0.08] bg-white/[0.045] text-left transition hover:border-cyan-300/20 hover:bg-white/[0.075] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 md:flex ${isOverview || isAnalysis ? "gap-2.5 rounded-lg px-3.5 py-2.5" : "gap-2 rounded-md px-3 py-2"}`}
                 aria-label={`Åbn datasættet ${fileName}`}
                 title="Åbn datasæt"
               >
-                <FileSpreadsheet className={`${isOverview ? "h-[18px] w-[18px]" : "h-4 w-4"} shrink-0 text-cyan-300`} aria-hidden="true" />
+                <FileSpreadsheet className={`${isOverview || isAnalysis ? "h-[18px] w-[18px]" : "h-4 w-4"} shrink-0 text-cyan-300`} aria-hidden="true" />
                 <div className="min-w-0">
-                  <p className={`max-w-[250px] truncate font-semibold text-slate-200 group-hover:text-white ${isOverview ? "text-xs" : "text-[11px]"}`} title={fileName}>{fileName}</p>
-                  <p className={`text-slate-500 ${isOverview ? "text-[10px]" : "text-[9px]"}`}>{rowCount.toLocaleString("da-DK")} rækker · {statusLabel}</p>
+                  <p className={`max-w-[250px] truncate font-semibold text-slate-200 group-hover:text-white ${isOverview || isAnalysis ? "text-xs" : "text-[11px]"}`} title={fileName}>{fileName}</p>
+                  <p className={`${isAnalysis ? "text-slate-400" : "text-slate-500"} ${isOverview || isAnalysis ? "text-[10px]" : "text-[9px]"}`}>{rowCount.toLocaleString("da-DK")} rækker · {statusLabel}</p>
                 </div>
               </button>
               <Link
@@ -358,7 +377,11 @@ export function DashboardCommandShell({
           </div>
         </header>
 
-        <div className={`min-w-0 ${isOverview ? "px-3 py-4 sm:px-5 sm:py-5 xl:px-7 xl:py-6" : "px-3 py-3 sm:px-4 sm:py-4 xl:px-5"}`}>{children}</div>
+        <div className={`min-w-0 ${
+          isOverview || isAnalysis
+            ? "px-3 py-4 sm:px-5 sm:py-5 xl:px-7 xl:py-6"
+            : "px-3 py-3 sm:px-4 sm:py-4 xl:px-5"
+        }`}>{children}</div>
       </div>
     </main>
   );
