@@ -52,6 +52,7 @@ import {
 } from "react";
 import { ExcelProcessingView } from "@/components/excel-processing-view";
 import { KpiCustomizer } from "@/components/kpi-customizer";
+import { SmoothMetricValue } from "@/components/smooth-metric-value";
 import { DashboardCommandShell } from "@/components/dashboard-command-shell";
 import {
   DashboardControlBar,
@@ -2335,13 +2336,12 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
             <p className={`font-semibold uppercase text-slate-400 ${isOverview ? "min-h-8 text-[10px] leading-4 tracking-[0.1em]" : "min-h-7 text-[8px] leading-3.5 tracking-[0.08em]"}`}>
               {metric.label}
             </p>
-            <p
+            <SmoothMetricValue
+              value={metric.value}
               className={`mt-1 min-w-0 break-words font-semibold text-ink ${
                 isOverview ? "whitespace-nowrap text-[17px] leading-6" : "text-sm leading-5"
               } ${metric.key === "budgetStatus" ? `inline-flex w-fit whitespace-nowrap rounded-md px-2 py-1 ${isOverview ? "text-[11px]" : "text-[9px]"} ${budgetStatusClasses}` : ""}`}
-            >
-              {metric.value}
-            </p>
+            />
           </div>
         ))}
       </div>

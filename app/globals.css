@@ -81,6 +81,42 @@ input {
       inset 0 1px 0 rgba(255, 255, 255, 0.92);
   }
 
+  .smooth-metric-value {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .smooth-metric-value-in {
+    animation: smooth-metric-value-in 190ms ease-out both;
+  }
+
+  .smooth-metric-value-out {
+    animation: smooth-metric-value-out 190ms ease-out both;
+  }
+
+  @keyframes smooth-metric-value-in {
+    from {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes smooth-metric-value-out {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    to {
+      opacity: 0;
+      transform: translateY(-2px);
+    }
+  }
+
   @media (prefers-reduced-motion: no-preference) {
     .overview-interactive-card {
       transition:
@@ -95,6 +131,14 @@ input {
       box-shadow:
         0 18px 42px rgba(13, 35, 55, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.94);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .smooth-metric-value-in,
+    .smooth-metric-value-out {
+      animation-duration: 1ms;
+      transform: none;
     }
   }
 }

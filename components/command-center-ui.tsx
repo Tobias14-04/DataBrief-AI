@@ -6,6 +6,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { memo, type ReactNode } from "react";
+import { SmoothMetricValue } from "@/components/smooth-metric-value";
 
 export type CommandTone = "brand" | "positive" | "warning" | "neutral" | "purple";
 export type CommandVariant = "default" | "overview";
@@ -112,16 +113,15 @@ export const CompactKpiCard = memo(function CompactKpiCard({
             >
               {label}
             </p>
-            <p
+            <SmoothMetricValue
+              value={value}
               className={`whitespace-nowrap font-semibold leading-none text-[#0b1c2d] ${
                 isBalancedOverview
                   ? "mt-1.5 text-[clamp(1.55rem,1.65vw,2rem)]"
                   : "mt-2 text-[clamp(1.7rem,1.8vw,2.15rem)]"
               }`}
               title={value}
-            >
-              {value}
-            </p>
+            />
           </div>
         </div>
         <p
@@ -176,7 +176,10 @@ export const CompactSecondaryMetric = memo(function CompactSecondaryMetric({
         </span>
         <div className="min-w-0">
           <p className="truncate text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500" title={label}>{label}</p>
-          <p className="mt-1.5 truncate text-[17px] font-semibold leading-6 text-[#0b1c2d]" title={value}>{value}</p>
+          <SmoothMetricValue
+            value={value}
+            className="mt-1.5 truncate text-[17px] font-semibold leading-6 text-[#0b1c2d]"
+          />
         </div>
       </div>
     );

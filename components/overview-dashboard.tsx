@@ -23,6 +23,7 @@ import {
   type CommandTone,
 } from "@/components/command-center-ui";
 import { ViewAction } from "@/components/dashboard-command-shell";
+import { SmoothMetricValue } from "@/components/smooth-metric-value";
 import {
   formatDanishCurrency,
   formatDanishMonth,
@@ -238,7 +239,10 @@ export const OverviewTrendPanel = memo(function OverviewTrendPanel({
           </div>
           <div className="mt-2">
             <h3 className="text-xl font-semibold leading-6 text-ink">{metricLabel}</h3>
-            <p className="mt-1.5 text-[24px] font-semibold leading-none text-slate-700">{metricTotal}</p>
+            <SmoothMetricValue
+              value={metricTotal}
+              className="mt-1.5 text-[24px] font-semibold leading-none text-slate-700"
+            />
           </div>
           <p className="mt-2 text-sm leading-5 text-slate-600">Månedlig udvikling i den aktuelle visning</p>
         </div>
