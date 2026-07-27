@@ -11,6 +11,20 @@ export type DashboardFilters = Record<DashboardFilterKey, string[]>;
 
 export type DashboardFilterRow = Record<DashboardFilterKey, string>;
 
+export function reconcileDashboardFilterDraft(
+  appliedFilters: DashboardFilters,
+  draftFilters: DashboardFilters,
+  hasPendingDraft: boolean,
+) {
+  if (appliedFilters === draftFilters) {
+    return { filters: draftFilters, hasPendingDraft: false };
+  }
+  if (hasPendingDraft) {
+    return { filters: draftFilters, hasPendingDraft: true };
+  }
+  return { filters: appliedFilters, hasPendingDraft: false };
+}
+
 export function toggleDashboardFilterValue(
   filters: DashboardFilters,
   field: DashboardFilterKey,

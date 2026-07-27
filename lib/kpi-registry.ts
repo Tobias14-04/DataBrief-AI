@@ -222,6 +222,19 @@ export type KpiDataProfile = {
   rows: Array<{ values: Partial<Record<KpiDataField, unknown>> }>;
 };
 
+type NormalizedKpiSourceSchema = {
+  columns: string[];
+  matchedColumns: Partial<Record<KpiDataField, string[]>>;
+};
+
+type NormalizedKpiSourceRow = {
+  schema: NormalizedKpiSourceSchema;
+  rawValues: Partial<Record<KpiDataField, unknown[]>>;
+  numericValues: Partial<Record<KpiDataField, number[]>>;
+  values: Partial<Record<KpiDataField, unknown>>;
+  hasValues: boolean;
+};
+
 type KpiCalculationResult = {
   value: number | string;
   detail: string;
@@ -244,6 +257,17 @@ const normalizedFieldAliases = Object.fromEntries(
   ]),
 ) as Record<KpiDataField, Set<string>>;
 
+const normalizedFieldLookup = new Map<string, KpiDataField>();
+(Object.keys(kpiFieldRegistry) as KpiDataField[]).forEach((field) => {
+  normalizedFieldAliases[field].forEach((alias) => {
+    if (!normalizedFieldLookup.has(alias)) normalizedFieldLookup.set(alias, field);
+  });
+});
+
+const normalizedSourceRowCache = new WeakMap<Record<string, unknown>, NormalizedKpiSourceRow>();
+const normalizedSourceSchemaCache = new Map<string, NormalizedKpiSourceSchema>();
+const MAX_CACHED_SOURCE_SCHEMAS = 64;
+
 function toNumericValue(value: unknown) {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (typeof value !== "string") return null;
@@ -262,15 +286,57 @@ function toNumericValue(value: unknown) {
 }
 
 export function matchKpiField(column: string): KpiDataField | null {
-  const normalized = normalizeColumnName(column);
-  const match = (Object.keys(kpiFieldRegistry) as KpiDataField[]).find((field) =>
-    normalizedFieldAliases[field].has(normalized),
-  );
-  return match ?? null;
+  return normalizedFieldLookup.get(normalizeColumnName(column)) ?? null;
 }
 
 export function scoreKpiHeaders(headers: string[]) {
   return new Set(headers.map(matchKpiField).filter(Boolean)).size;
+}
+
+function normalizeKpiSourceRow(sourceValues: Record<string, unknown>): NormalizedKpiSourceRow {
+  const cached = normalizedSourceRowCache.get(sourceValues);
+  if (cached) return cached;
+
+  const columns = Object.keys(sourceValues).filter((column) => !column.startsWith("__"));
+  const schemaKey = JSON.stringify(columns);
+  let schema = normalizedSourceSchemaCache.get(schemaKey);
+  if (!schema) {
+    if (normalizedSourceSchemaCache.size >= MAX_CACHED_SOURCE_SCHEMAS) {
+      normalizedSourceSchemaCache.clear();
+    }
+    const matchedColumns: Partial<Record<KpiDataField, string[]>> = {};
+    columns.forEach((column) => {
+      const field = matchKpiField(column);
+      if (field) (matchedColumns[field] ??= []).push(column);
+    });
+    schema = { columns, matchedColumns };
+    normalizedSourceSchemaCache.set(schemaKey, schema);
+  }
+
+  const normalized: NormalizedKpiSourceRow = {
+    schema,
+    rawValues: {},
+    numericValues: {},
+    values: {},
+    hasValues: false,
+  };
+
+  (Object.entries(schema.matchedColumns) as Array<[KpiDataField, string[]]>).forEach(([field, fieldColumns]) => {
+    fieldColumns.forEach((column) => {
+      const value = sourceValues[column];
+      if (value === "" || value === null || value === undefined) return;
+      (normalized.rawValues[field] ??= []).push(value);
+      const numericValue = toNumericValue(value);
+      if (numericValue !== null) (normalized.numericValues[field] ??= []).push(numericValue);
+      if (!(field in normalized.values)) {
+        normalized.values[field] = value;
+        normalized.hasValues = true;
+      }
+    });
+  });
+
+  normalizedSourceRowCache.set(sourceValues, normalized);
+  return normalized;
 }
 
 export function buildKpiDataProfile(
@@ -278,48 +344,37 @@ export function buildKpiDataProfile(
   virtualValues: Partial<Record<KpiDataField, unknown[]>> = {},
 ): KpiDataProfile {
   const columnSet = new Set<string>();
-  rows.forEach((row) => {
-    Object.keys(row.sourceValues).forEach((column) => {
-      if (!column.startsWith("__")) columnSet.add(column);
-    });
-  });
-
-  const columns = Array.from(columnSet);
-  const matchedColumns: Partial<Record<KpiDataField, string[]>> = {};
+  const matchedColumnSets: Partial<Record<KpiDataField, Set<string>>> = {};
   const rawValues: Partial<Record<KpiDataField, unknown[]>> = {};
   const numericValues: Partial<Record<KpiDataField, number[]>> = {};
   const fields = Object.keys(kpiFieldRegistry) as KpiDataField[];
-
-  columns.forEach((column) => {
-    const field = matchKpiField(column);
-    if (!field) return;
-    matchedColumns[field] = [...(matchedColumns[field] ?? []), column];
-  });
-
   const profileRows: KpiDataProfile["rows"] = [];
+  const seenSchemas = new Set<NormalizedKpiSourceSchema>();
+
   rows.forEach((row) => {
-    const rowValues: Partial<Record<KpiDataField, unknown>> = {};
-    let hasProfileValue = false;
-
-    fields.forEach((field) => {
-      const fieldColumns = matchedColumns[field] ?? [];
-      fieldColumns.forEach((column) => {
-        const value = row.sourceValues[column];
-        if (value === "" || value === null || value === undefined) return;
-
-        (rawValues[field] ??= []).push(value);
-        const numericValue = toNumericValue(value);
-        if (numericValue !== null) (numericValues[field] ??= []).push(numericValue);
-
-        if (!(field in rowValues)) {
-          rowValues[field] = value;
-          hasProfileValue = true;
-        }
+    const normalized = normalizeKpiSourceRow(row.sourceValues);
+    if (!seenSchemas.has(normalized.schema)) {
+      seenSchemas.add(normalized.schema);
+      normalized.schema.columns.forEach((column) => columnSet.add(column));
+      (Object.entries(normalized.schema.matchedColumns) as Array<[KpiDataField, string[]]>).forEach(([field, fieldColumns]) => {
+        fieldColumns.forEach((column) => {
+          (matchedColumnSets[field] ??= new Set()).add(column);
+        });
       });
+    }
+    (Object.entries(normalized.rawValues) as Array<[KpiDataField, unknown[]]>).forEach(([field, values]) => {
+      (rawValues[field] ??= []).push(...values);
     });
-
-    if (hasProfileValue) profileRows.push({ values: rowValues });
+    (Object.entries(normalized.numericValues) as Array<[KpiDataField, number[]]>).forEach(([field, values]) => {
+      (numericValues[field] ??= []).push(...values);
+    });
+    if (normalized.hasValues) profileRows.push({ values: normalized.values });
   });
+
+  const columns = Array.from(columnSet);
+  const matchedColumns = Object.fromEntries(
+    Object.entries(matchedColumnSets).map(([field, values]) => [field, Array.from(values)]),
+  ) as Partial<Record<KpiDataField, string[]>>;
 
   fields.forEach((field) => {
     const values = virtualValues[field] ?? [];
@@ -346,12 +401,74 @@ function hasField(profile: KpiDataProfile, field: KpiDataField) {
   return Boolean(profile.rawValues[field]?.length);
 }
 
+type PeriodUnit = "day" | "week" | "month" | "quarter" | "year";
+type RankedValue = { name: string; value: number };
+type PeriodRevenueValue = RankedValue & {
+  key: string;
+  label: string;
+  order: number;
+};
+
+type KpiProfileAnalysisCache = {
+  sums: Map<KpiDataField, number>;
+  uniqueCounts: Map<KpiDataField, number>;
+  groupedSums: Map<string, RankedValue[]>;
+  groupedCounts: Map<KpiDataField, RankedValue[]>;
+  groupedRatios: Map<string, RankedValue[]>;
+  groupedGrowth: Map<KpiDataField, RankedValue[]>;
+  periodRevenue: Map<PeriodUnit, PeriodRevenueValue[]>;
+  periodGrowthRates: Map<PeriodUnit, RankedValue[]>;
+  parsedDates: WeakMap<KpiDataProfile["rows"][number], Date | null>;
+};
+
+const profileAnalysisCaches = new WeakMap<KpiDataProfile, KpiProfileAnalysisCache>();
+const dayFormatter = new Intl.DateTimeFormat("da-DK", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+const monthFormatter = new Intl.DateTimeFormat("da-DK", {
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+function getProfileAnalysisCache(profile: KpiDataProfile) {
+  const existing = profileAnalysisCaches.get(profile);
+  if (existing) return existing;
+
+  const cache: KpiProfileAnalysisCache = {
+    sums: new Map(),
+    uniqueCounts: new Map(),
+    groupedSums: new Map(),
+    groupedCounts: new Map(),
+    groupedRatios: new Map(),
+    groupedGrowth: new Map(),
+    periodRevenue: new Map(),
+    periodGrowthRates: new Map(),
+    parsedDates: new WeakMap(),
+  };
+  profileAnalysisCaches.set(profile, cache);
+  return cache;
+}
+
 function sum(profile: KpiDataProfile, field: KpiDataField) {
-  return (profile.numericValues[field] ?? []).reduce((total, value) => total + value, 0);
+  const cache = getProfileAnalysisCache(profile);
+  const cached = cache.sums.get(field);
+  if (cached !== undefined) return cached;
+  const value = (profile.numericValues[field] ?? []).reduce((total, item) => total + item, 0);
+  cache.sums.set(field, value);
+  return value;
 }
 
 function uniqueCount(profile: KpiDataProfile, field: KpiDataField) {
-  return new Set((profile.rawValues[field] ?? []).map((value) => String(value).trim()).filter(Boolean)).size;
+  const cache = getProfileAnalysisCache(profile);
+  const cached = cache.uniqueCounts.get(field);
+  if (cached !== undefined) return cached;
+  const value = new Set((profile.rawValues[field] ?? []).map((item) => String(item).trim()).filter(Boolean)).size;
+  cache.uniqueCounts.set(field, value);
+  return value;
 }
 
 function ratio(numerator: number, denominator: number, label: string) {
@@ -374,6 +491,11 @@ function rowText(row: KpiDataProfile["rows"][number], field: KpiDataField) {
 }
 
 function groupedSums(profile: KpiDataProfile, groupField: KpiDataField, valueField: KpiDataField) {
+  const cache = getProfileAnalysisCache(profile);
+  const cacheKey = `${groupField}:${valueField}`;
+  const cached = cache.groupedSums.get(cacheKey);
+  if (cached) return cached;
+
   const groups = new Map<string, number>();
   profile.rows.forEach((row) => {
     const group = rowText(row, groupField);
@@ -381,7 +503,9 @@ function groupedSums(profile: KpiDataProfile, groupField: KpiDataField, valueFie
     if (!group || value === null) return;
     groups.set(group, (groups.get(group) ?? 0) + value);
   });
-  return Array.from(groups, ([name, value]) => ({ name, value }));
+  const result = Array.from(groups, ([name, value]) => ({ name, value }));
+  cache.groupedSums.set(cacheKey, result);
+  return result;
 }
 
 function rankedGroup<T extends { name: string; value: number }>(
@@ -414,8 +538,6 @@ function parseProfileDate(value: unknown) {
   return Number.isFinite(date.getTime()) ? date : null;
 }
 
-type PeriodUnit = "day" | "week" | "month" | "quarter" | "year";
-
 function isoWeek(date: Date) {
   const working = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
   working.setUTCDate(working.getUTCDate() + 4 - (working.getUTCDay() || 7));
@@ -430,20 +552,31 @@ function datePeriod(date: Date, unit: PeriodUnit) {
   const year = date.getUTCFullYear();
   if (unit === "day") {
     const key = date.toISOString().slice(0, 10);
-    return { key, label: new Intl.DateTimeFormat("da-DK", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(date) };
+    return { key, label: dayFormatter.format(date) };
   }
   if (unit === "week") {
     const value = isoWeek(date);
     return { key: `${value.year}-${String(value.week).padStart(2, "0")}`, label: `Uge ${value.week}, ${value.year}` };
   }
   if (unit === "month") {
-    return { key: `${year}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`, label: new Intl.DateTimeFormat("da-DK", { month: "short", year: "numeric", timeZone: "UTC" }).format(date) };
+    return { key: `${year}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`, label: monthFormatter.format(date) };
   }
   if (unit === "quarter") {
     const quarter = Math.floor(date.getUTCMonth() / 3) + 1;
     return { key: `${year}-Q${quarter}`, label: `${quarter}. kvt. ${year}` };
   }
   return { key: String(year), label: String(year) };
+}
+
+function profileRowDate(
+  profile: KpiDataProfile,
+  row: KpiDataProfile["rows"][number],
+) {
+  const cache = getProfileAnalysisCache(profile).parsedDates;
+  if (cache.has(row)) return cache.get(row) ?? null;
+  const date = parseProfileDate(row.values.date);
+  cache.set(row, date);
+  return date;
 }
 
 function fallbackPeriod(row: KpiDataProfile["rows"][number], unit: PeriodUnit) {
@@ -454,27 +587,38 @@ function fallbackPeriod(row: KpiDataProfile["rows"][number], unit: PeriodUnit) {
 }
 
 function periodRevenue(profile: KpiDataProfile, unit: PeriodUnit) {
+  const cache = getProfileAnalysisCache(profile);
+  const cached = cache.periodRevenue.get(unit);
+  if (cached) return cached;
+
   const groups = new Map<string, { label: string; value: number; order: number }>();
   profile.rows.forEach((row, index) => {
     const revenue = rowNumber(row, "revenue");
     if (revenue === null) return;
-    const date = parseProfileDate(row.values.date);
+    const date = profileRowDate(profile, row);
     const period = date ? datePeriod(date, unit) : fallbackPeriod(row, unit);
     if (!period) return;
     const current = groups.get(period.key);
     groups.set(period.key, { label: period.label, value: (current?.value ?? 0) + revenue, order: current?.order ?? index });
   });
-  return Array.from(groups.entries())
+  const result = Array.from(groups.entries())
     .map(([key, value]) => ({ key, name: value.label, ...value }))
     .sort((a, b) => a.key.localeCompare(b.key, "da") || a.order - b.order);
+  cache.periodRevenue.set(unit, result);
+  return result;
 }
 
 function periodGrowthRates(profile: KpiDataProfile, unit: PeriodUnit) {
+  const cache = getProfileAnalysisCache(profile);
+  const cached = cache.periodGrowthRates.get(unit);
+  if (cached) return cached;
   const periods = periodRevenue(profile, unit);
-  return periods.slice(1).map((period, index) => ({
+  const result = periods.slice(1).map((period, index) => ({
     name: period.label,
     value: ratio(period.value - periods[index].value, periods[index].value, "Periodevækst"),
   }));
+  cache.periodGrowthRates.set(unit, result);
+  return result;
 }
 
 function groupedRatio(
@@ -483,49 +627,65 @@ function groupedRatio(
   numeratorField: KpiDataField,
   denominatorField: KpiDataField,
 ) {
+  const cache = getProfileAnalysisCache(profile);
+  const cacheKey = `${groupField}:${numeratorField}:${denominatorField}`;
+  const cached = cache.groupedRatios.get(cacheKey);
+  if (cached) return cached;
   const numerators = new Map(groupedSums(profile, groupField, numeratorField).map((group) => [group.name, group.value]));
   const denominators = new Map(groupedSums(profile, groupField, denominatorField).map((group) => [group.name, group.value]));
-  return Array.from(numerators, ([name, numerator]) => ({
+  const result = Array.from(numerators, ([name, numerator]) => ({
     name,
     value: ratio(numerator, denominators.get(name) ?? 0, name),
   }));
+  cache.groupedRatios.set(cacheKey, result);
+  return result;
 }
 
 function groupedCounts(profile: KpiDataProfile, groupField: KpiDataField) {
+  const cache = getProfileAnalysisCache(profile);
+  const cached = cache.groupedCounts.get(groupField);
+  if (cached) return cached;
   const groups = new Map<string, number>();
   profile.rows.forEach((row) => {
     const group = rowText(row, groupField);
     if (group) groups.set(group, (groups.get(group) ?? 0) + 1);
   });
-  return Array.from(groups, ([name, value]) => ({ name, value }));
+  const result = Array.from(groups, ([name, value]) => ({ name, value }));
+  cache.groupedCounts.set(groupField, result);
+  return result;
 }
 
 function groupedGrowth(profile: KpiDataProfile, groupField: KpiDataField) {
+  const cache = getProfileAnalysisCache(profile);
+  const cached = cache.groupedGrowth.get(groupField);
+  if (cached) return cached;
   const groups = new Map<string, Map<string, number>>();
   profile.rows.forEach((row) => {
     const group = rowText(row, groupField);
     const revenue = rowNumber(row, "revenue");
-    const date = parseProfileDate(row.values.date);
+    const date = profileRowDate(profile, row);
     const period = date ? datePeriod(date, "month") : fallbackPeriod(row, "month");
     if (!group || revenue === null || !period) return;
     const values = groups.get(group) ?? new Map<string, number>();
     values.set(period.key, (values.get(period.key) ?? 0) + revenue);
     groups.set(group, values);
   });
-  return Array.from(groups, ([name, values]) => {
+  const result = Array.from(groups, ([name, values]) => {
     const periods = Array.from(values.entries()).sort(([a], [b]) => a.localeCompare(b, "da"));
     if (periods.length < 2) return null;
     const first = periods[0][1];
     const last = periods.at(-1)![1];
     return { name, value: ratio(last - first, first, `${name}s vækst`) };
   }).filter((item): item is { name: string; value: number } => item !== null);
+  cache.groupedGrowth.set(groupField, result);
+  return result;
 }
 
 function newCustomersInLatestMonth(profile: KpiDataProfile) {
   const firstPurchase = new Map<string, Date>();
   profile.rows.forEach((row) => {
     const customer = rowText(row, "customerId") ?? rowText(row, "customerName");
-    const date = parseProfileDate(row.values.date);
+    const date = profileRowDate(profile, row);
     if (!customer || !date) return;
     const current = firstPurchase.get(customer);
     if (!current || date < current) firstPurchase.set(customer, date);
@@ -667,6 +827,10 @@ export const standardKpiDefinitions: RegisteredKpiDefinition[] = [
   defineKpi({ id: "highest-inventory", name: "Højeste lager", description: "Den højeste registrerede lagerbeholdning", category: "Lager", format: "integer", icon: "units", color: "navy", requirements: requirements(["inventoryQuantity"]), calculate: ({ profile }) => ({ value: Math.max(...(profile.numericValues.inventoryQuantity ?? [])), detail: "Højeste registrerede lagerantal" }) }),
 ];
 
+const standardKpiDefinitionMap = new Map(
+  standardKpiDefinitions.map((definition) => [definition.id, definition]),
+);
+
 function requirementStatus(definition: RegisteredKpiDefinition, profile: KpiDataProfile) {
   const missing: string[] = [];
   const matched = new Set<string>();
@@ -691,7 +855,7 @@ export function evaluateRegisteredKpi(
   context: StandardKpiContext,
   profile: KpiDataProfile,
 ): KpiEvaluation {
-  const definition = standardKpiDefinitions.find((item) => item.id === id);
+  const definition = standardKpiDefinitionMap.get(id);
   if (!definition) return { available: false, value: null, detail: "Ukendt nøgletal", reason: "Ukendt nøgletal" };
   const status = requirementStatus(definition, profile);
   if (status.missing.length) {
@@ -707,6 +871,18 @@ export function evaluateRegisteredKpi(
     const reason = error instanceof Error ? error.message : "Beregningen kunne ikke udføres.";
     return { available: false, value: null, detail: reason, reason, missingFields: [], matchedFields: status.matched };
   }
+}
+
+export function evaluateRegisteredKpis(
+  ids: Iterable<string>,
+  context: StandardKpiContext,
+  profile: KpiDataProfile,
+) {
+  const evaluations: Record<string, KpiEvaluation> = {};
+  new Set(ids).forEach((id) => {
+    evaluations[id] = evaluateRegisteredKpi(id, context, profile);
+  });
+  return evaluations;
 }
 
 export function relevantKpiCategories(

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   applyDashboardFilters,
+  reconcileDashboardFilterDraft,
   rowMatchesDashboardFilters,
   toggleDashboardFilterValue,
 } from "../lib/dashboard-filtering.ts";
@@ -32,6 +33,27 @@ test("hurtige multivalg bevarer alle valgte kategorier", () => {
   const withSandwiches = toggleDashboardFilterValue(withDrinks, "category", "Sandwich");
 
   assert.deepEqual(withSandwiches.category, ["Bagværk", "Drikke", "Sandwich"]);
+});
+
+test("en forældet dashboardopdatering overskriver ikke nyere filtervalg", () => {
+  const firstSelection = toggleDashboardFilterValue(emptyFilters, "category", "Bagværk");
+  const latestDraft = toggleDashboardFilterValue(firstSelection, "category", "Drikke");
+  const reconciled = reconcileDashboardFilterDraft(firstSelection, latestDraft, true);
+
+  assert.equal(reconciled.filters, latestDraft);
+  assert.equal(reconciled.hasPendingDraft, true);
+  assert.deepEqual(reconciled.filters.category, ["Bagværk", "Drikke"]);
+});
+
+test("den seneste anvendte filterstate afslutter den ventende opdatering", () => {
+  const latestDraft = {
+    ...emptyFilters,
+    category: ["Bagværk", "Drikke", "Sandwich"],
+  };
+  const reconciled = reconcileDashboardFilterDraft(latestDraft, latestDraft, true);
+
+  assert.equal(reconciled.filters, latestDraft);
+  assert.equal(reconciled.hasPendingDraft, false);
 });
 
 test("dashboardfiltre anvender flere felter på den samme rækkevisning", () => {

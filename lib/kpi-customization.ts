@@ -1,5 +1,6 @@
 import {
   evaluateRegisteredKpi,
+  evaluateRegisteredKpis,
   type KpiCategory,
   type KpiDataProfile,
 } from "./kpi-registry.ts";
@@ -115,6 +116,14 @@ export function evaluateStandardKpi(
   profile: KpiDataProfile,
 ): KpiEvaluation {
   return evaluateRegisteredKpi(id, context, profile);
+}
+
+export function evaluateStandardKpis(
+  ids: Iterable<string>,
+  context: StandardKpiContext,
+  profile: KpiDataProfile,
+) {
+  return evaluateRegisteredKpis(ids, context, profile);
 }
 
 function toNumericValue(value: unknown) {

@@ -11,7 +11,10 @@ import {
   X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { toggleDashboardFilterValue } from "@/lib/dashboard-filtering";
+import {
+  reconcileDashboardFilterDraft,
+  toggleDashboardFilterValue,
+} from "@/lib/dashboard-filtering";
 
 export type DashboardControlKey = "month" | "product" | "category" | "channel" | "region";
 export type DashboardControlValues = Record<DashboardControlKey, string[]>;
@@ -33,7 +36,7 @@ const allLabels: Record<DashboardControlKey, string> = {
   region: "Alle regioner",
 };
 
-const largeDatasetCommitDelayMs = 350;
+const largeDatasetCommitDelayMs = 120;
 
 const FilterMenu = memo(function FilterMenu({
   field,
@@ -160,6 +163,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
   options,
   filteredRows,
   totalRows,
+  datasetIdentity,
   isPending = false,
   onChange,
   variant = "default",
@@ -168,6 +172,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
   options: DashboardControlOptions;
   filteredRows: number;
   totalRows: number;
+  datasetIdentity: object;
   isPending?: boolean;
   onChange: (filters: DashboardControlValues) => void;
   variant?: "default" | "overview";
@@ -179,7 +184,10 @@ export const DashboardControlBar = memo(function DashboardControlBar({
   const [isDashboardUpdatePending, startDashboardUpdate] = useTransition();
   const rootRef = useRef<HTMLDivElement>(null);
   const draftFiltersRef = useRef(filters);
+  const hasPendingDraftRef = useRef(false);
   const updateTimerRef = useRef<number | null>(null);
+  const previousTotalRowsRef = useRef(totalRows);
+  const previousDatasetRef = useRef(datasetIdentity);
   const primaryFields = (["month", "category", "product"] as DashboardControlKey[]).filter((field) => options[field].length);
   const moreFields = (["channel", "region"] as DashboardControlKey[]).filter((field) => options[field].length);
   const activeEntries = (Object.entries(draftFilters) as Array<[DashboardControlKey, string[]]>).flatMap(([field, values]) =>
@@ -193,6 +201,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
   }, []);
   const queueDashboardUpdate = useCallback((nextFilters: DashboardControlValues) => {
     draftFiltersRef.current = nextFilters;
+    hasPendingDraftRef.current = true;
     setDraftFilters(nextFilters);
 
     if (updateTimerRef.current) {
@@ -203,7 +212,6 @@ export const DashboardControlBar = memo(function DashboardControlBar({
     const commit = () => {
       updateTimerRef.current = null;
       startDashboardUpdate(() => onChange(nextFilters));
-      setIsUpdateQueued(false);
     };
 
     if (totalRows >= 3000) {
@@ -230,14 +238,37 @@ export const DashboardControlBar = memo(function DashboardControlBar({
   }, [queueDashboardUpdate]);
 
   useEffect(() => {
-    if (filters !== draftFiltersRef.current && updateTimerRef.current) {
-      window.clearTimeout(updateTimerRef.current);
-      updateTimerRef.current = null;
+    const reconciled = reconcileDashboardFilterDraft(
+      filters,
+      draftFiltersRef.current,
+      hasPendingDraftRef.current,
+    );
+    hasPendingDraftRef.current = reconciled.hasPendingDraft;
+    if (reconciled.filters !== draftFiltersRef.current) {
+      draftFiltersRef.current = reconciled.filters;
+      setDraftFilters(reconciled.filters);
+    }
+    if (!reconciled.hasPendingDraft) {
       setIsUpdateQueued(false);
     }
+  }, [filters]);
+
+  useEffect(() => {
+    if (
+      previousTotalRowsRef.current === totalRows
+      && previousDatasetRef.current === datasetIdentity
+    ) return;
+    previousTotalRowsRef.current = totalRows;
+    previousDatasetRef.current = datasetIdentity;
+    if (updateTimerRef.current) {
+      window.clearTimeout(updateTimerRef.current);
+      updateTimerRef.current = null;
+    }
+    hasPendingDraftRef.current = false;
     draftFiltersRef.current = filters;
     setDraftFilters(filters);
-  }, [filters]);
+    setIsUpdateQueued(false);
+  }, [datasetIdentity, filters, totalRows]);
 
   useEffect(() => () => {
     if (updateTimerRef.current) window.clearTimeout(updateTimerRef.current);

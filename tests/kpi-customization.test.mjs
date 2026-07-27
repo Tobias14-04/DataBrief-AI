@@ -6,6 +6,7 @@ import {
   defaultKpiConfiguration,
   evaluateFormula,
   evaluateStandardKpi,
+  evaluateStandardKpis,
   formatNumber,
   formulaToDanishText,
   getNumericColumns,
@@ -49,6 +50,81 @@ const salesProfile = buildKpiDataProfile(rows, {
 test("standard-KPI beregnes fra den givne kontekst", () => {
   assert.deepEqual(evaluateStandardKpi("total-revenue", context, salesProfile).value, 1000);
   assert.deepEqual(evaluateStandardKpi("gross-margin", context, salesProfile).value, 0.6);
+});
+
+test("dashboardet kan evaluere kun de valgte KPI'er", () => {
+  const evaluations = evaluateStandardKpis(
+    ["total-revenue", "gross-margin", "best-product"],
+    context,
+    salesProfile,
+  );
+
+  assert.deepEqual(Object.keys(evaluations), ["total-revenue", "gross-margin", "best-product"]);
+  assert.equal(evaluations["total-revenue"].value, 1000);
+  assert.equal(evaluations["gross-margin"].value, 0.6);
+});
+
+test("det centrale KPI-register håndterer 7.500 normaliserede rækker uden lang beregning", () => {
+  const products = ["Café latte", "Croissant", "Salat bowl", "Sandwich"];
+  const categories = ["Drikke", "Bagværk", "Salat", "Sandwich"];
+  const largeRows = Array.from({ length: 7500 }, (_, index) => ({
+    sourceValues: {
+      Dato: 45292 + (index % 900),
+      Måned: `202${4 + Math.floor((index % 900) / 365)}-${String((index % 12) + 1).padStart(2, "0")}`,
+      Produkt: products[index % products.length],
+      Kategori: categories[index % categories.length],
+      Antal: (index % 8) + 1,
+      Nettoomsætning: 25 + (index % 120),
+      Dækningsbidrag: 15 + (index % 80),
+      Dækningsgrad: 0.62,
+    },
+  }));
+  const totalRevenue = largeRows.reduce((sum, row) => sum + row.sourceValues.Nettoomsætning, 0);
+  const totalUnits = largeRows.reduce((sum, row) => sum + row.sourceValues.Antal, 0);
+  const totalGrossProfit = largeRows.reduce((sum, row) => sum + row.sourceValues.Dækningsbidrag, 0);
+  const largeContext = {
+    ...context,
+    totalRevenue,
+    totalUnits,
+    totalGrossProfit,
+    grossMargin: totalGrossProfit / totalRevenue,
+    totalCosts: totalRevenue - totalGrossProfit,
+    actualResult: totalGrossProfit,
+    rowCount: largeRows.length,
+    monthlyRevenue: [],
+  };
+
+  const startedAt = performance.now();
+  const profile = buildKpiDataProfile(largeRows);
+  const evaluations = evaluateStandardKpis(
+    standardKpiDefinitions.map((definition) => definition.id),
+    largeContext,
+    profile,
+  );
+  const duration = performance.now() - startedAt;
+
+  assert.equal(evaluations["revenue-per-day"].available, true);
+  assert.equal(evaluations["revenue-per-month"].available, true);
+  assert.equal(evaluations["fastest-growing-product"].available, true);
+  assert.ok(duration < 1000, `KPI-evalueringen tog ${duration.toFixed(1)} ms`);
+});
+
+test("en ny fil med samme kolonner og rækkeantal genbruger ikke gamle KPI-værdier", () => {
+  const firstFileRows = [
+    { sourceValues: { Nettoomsætning: 100, Antal: 2 } },
+    { sourceValues: { Nettoomsætning: 200, Antal: 4 } },
+  ];
+  const secondFileRows = [
+    { sourceValues: { Nettoomsætning: 900, Antal: 9 } },
+    { sourceValues: { Nettoomsætning: 1100, Antal: 11 } },
+  ];
+
+  const firstProfile = buildKpiDataProfile(firstFileRows);
+  const secondProfile = buildKpiDataProfile(secondFileRows);
+
+  assert.equal(firstProfile.numericValues.revenue.reduce((sum, value) => sum + value, 0), 300);
+  assert.equal(secondProfile.numericValues.revenue.reduce((sum, value) => sum + value, 0), 2000);
+  assert.equal(secondProfile.numericValues.units.reduce((sum, value) => sum + value, 0), 20);
 });
 
 test("KPI-registeret genkender danske og engelske kolonnesynonymer", () => {

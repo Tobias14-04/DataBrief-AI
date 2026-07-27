@@ -91,7 +91,7 @@ import {
   buildKpiDataProfile,
   defaultKpiConfiguration,
   evaluateFormula,
-  evaluateStandardKpi,
+  evaluateStandardKpis,
   formatNumber,
   getNumericColumns,
   normalizeKpiConfiguration,
@@ -144,6 +144,7 @@ import {
   type DashboardFilterKey,
   type DashboardFilters,
 } from "@/lib/dashboard-filtering";
+import { calculateDashboardMetrics } from "@/lib/dashboard-metrics";
 import type { DashboardView } from "@/lib/dashboard-navigation";
 
 type SaleRow = {
@@ -1157,61 +1158,7 @@ function calculateMetrics(
   feedback?: MappingFeedback,
   options: { useWorkbookTotals?: boolean; budgetScale?: number } = {},
 ) {
-  const totalRevenue = rows.reduce((sum, row) => sum + row.revenue, 0);
-  const totalUnits = rows.reduce((sum, row) => sum + row.units, 0);
-  const totalGrossProfit = rows.reduce((sum, row) => sum + (row.grossProfit ?? 0), 0);
-  const hasGrossProfit = rows.some((row) => row.grossProfit !== null);
-  const hasGrossMargin = rows.some((row) => row.grossMargin !== null);
-  const weightedGrossMargin = totalRevenue ? totalGrossProfit / totalRevenue : 0;
-  const averageGrossMargin =
-    rows.reduce((sum, row) => sum + (row.grossMargin ?? 0), 0) / Math.max(rows.filter((row) => row.grossMargin !== null).length, 1);
-  const hasRowCosts = rows.some((row) => row.cost !== null || row.grossProfit !== null);
-  const rowCosts = rows.reduce(
-    (sum, row) => sum + (row.grossProfit !== null ? row.revenue - row.grossProfit : (row.cost ?? 0)),
-    0,
-  );
-  const totalCosts = options.useWorkbookTotals !== false && feedback?.costs ? feedback.costs.total : rowCosts;
-  const actualResult = totalRevenue - totalCosts;
-  const products = groupRows(rows, (row) => row.product);
-  const productsByRevenue = [...products].sort((a, b) => b.revenue - a.revenue);
-  const productsByUnits = [...products].sort((a, b) => b.units - a.units);
-  const categories = groupRows(rows, (row) => row.category).sort((a, b) => b.revenue - a.revenue);
-  const grossProfitByCategory = categories.filter((category) => category.grossProfit !== 0).sort((a, b) => b.grossProfit - a.grossProfit);
-  const grossMarginByCategory = categories
-    .filter((category) => category.grossMargin !== undefined)
-    .sort((a, b) => (b.grossMargin ?? 0) - (a.grossMargin ?? 0));
-  const costsByCategory = categories.filter((category) => category.cost !== 0).sort((a, b) => b.cost - a.cost);
-  const monthly = groupRowsByMonth(rows);
-  const monthsByRevenue = [...monthly].sort((a, b) => b.revenue - a.revenue);
-  const budgetScale = options.budgetScale ?? 1;
-  const budgetRevenue = (feedback?.budget?.revenue ?? 0) * budgetScale;
-  const budgetCosts = (feedback?.budget?.costs ?? 0) * budgetScale;
-
-  return {
-    totalRevenue,
-    totalUnits,
-    totalGrossProfit,
-    grossMargin: hasGrossProfit ? weightedGrossMargin : averageGrossMargin,
-    hasGrossProfit,
-    hasGrossMargin,
-    hasCosts: Boolean((options.useWorkbookTotals !== false && feedback?.costs) || hasRowCosts),
-    totalCosts,
-    actualResult,
-    budgetRevenue,
-    budgetCosts,
-    budgetResult: budgetRevenue - budgetCosts,
-    revenueVsBudget: feedback?.budget ? totalRevenue - budgetRevenue : 0,
-    bestProduct: productsByRevenue[0],
-    bestCategory: categories[0],
-    bestMonth: monthsByRevenue[0],
-    monthly,
-    productsByUnits: productsByUnits.slice(0, 8),
-    categories: categories.slice(0, 8),
-    grossProfitByCategory: grossProfitByCategory.slice(0, 8),
-    grossMarginByCategory: grossMarginByCategory.slice(0, 8),
-    costsByCategory: costsByCategory.slice(0, 8),
-    rowCount: rows.length,
-  };
+  return calculateDashboardMetrics(rows, feedback, options);
 }
 
 function buildExecutiveSummary(
@@ -2503,7 +2450,10 @@ export default function UploadDashboard() {
   const activeFilters = useMemo(() => getActiveFilters(deferredFilters), [deferredFilters]);
   const activeFilterLabels = useMemo(() => activeFilters.map((filter) => filter.value), [activeFilters]);
   const isFiltered = activeFilterLabels.length > 0;
-  const filteredRows = useMemo(() => applyDashboardFilters(allRows, deferredFilters), [allRows, deferredFilters]);
+  const filteredRows = useMemo(
+    () => applyDashboardFilters(allRows, deferredFilters),
+    [allRows, deferredFilters],
+  );
   const budgetScale = allRows.length && isFiltered ? filteredRows.length / allRows.length : 1;
   const baseMetrics = useMemo(() => calculateMetrics(allRows, data?.feedback), [allRows, data?.feedback]);
   const metrics = useMemo(
@@ -2624,12 +2574,12 @@ export default function UploadDashboard() {
     () => defaultKpiConfiguration(baseKpiContext),
     [baseKpiContext],
   );
-  const standardKpiEvaluations = useMemo(
-    () => Object.fromEntries(standardKpiDefinitions.map((definition) => [definition.id, evaluateStandardKpi(definition.id, currentKpiContext, currentKpiDataProfile)])) as Record<string, KpiEvaluation>,
-    [currentKpiContext, currentKpiDataProfile],
-  );
   const baseStandardKpiEvaluations = useMemo(
-    () => Object.fromEntries(standardKpiDefinitions.map((definition) => [definition.id, evaluateStandardKpi(definition.id, baseKpiContext, baseKpiDataProfile)])) as Record<string, KpiEvaluation>,
+    () => evaluateStandardKpis(
+      standardKpiDefinitions.map((definition) => definition.id),
+      baseKpiContext,
+      baseKpiDataProfile,
+    ),
     [baseKpiContext, baseKpiDataProfile],
   );
   const numericColumns = useMemo(() => {
@@ -2639,6 +2589,31 @@ export default function UploadDashboard() {
     );
     return getNumericColumns(allRows).map((name) => ({ name, typeLabel: mappedTypes.get(name) }));
   }, [allRows, data?.feedback.mappedColumns, data?.feedback.optionalColumns]);
+  const standardKpiEvaluationIds = useMemo(
+    () => isKpiCustomizerOpen
+      ? standardKpiDefinitions.map((definition) => definition.id)
+      : [
+          ...kpiConfiguration.primaryKpis,
+          ...kpiConfiguration.secondaryKpis,
+          ...defaultKpis.primaryKpis,
+          ...defaultKpis.secondaryKpis,
+        ].filter((id) => !id.startsWith("custom-")),
+    [
+      defaultKpis.primaryKpis,
+      defaultKpis.secondaryKpis,
+      isKpiCustomizerOpen,
+      kpiConfiguration.primaryKpis,
+      kpiConfiguration.secondaryKpis,
+    ],
+  );
+  const standardKpiEvaluations = useMemo(
+    () => evaluateStandardKpis(
+      standardKpiEvaluationIds,
+      currentKpiContext,
+      currentKpiDataProfile,
+    ),
+    [currentKpiContext, currentKpiDataProfile, standardKpiEvaluationIds],
+  );
   const allKpiDefinitions = useMemo(
     () => [...standardKpiDefinitions, ...kpiConfiguration.customKpis],
     [kpiConfiguration.customKpis],
@@ -3118,6 +3093,7 @@ export default function UploadDashboard() {
                 options={filterOptions}
                 filteredRows={metrics.rowCount}
                 totalRows={allRows.length}
+                datasetIdentity={allRows}
                 isPending={isFilterUpdatePending}
                 onChange={commitDashboardFilters}
                 variant={activeView === "overview" ? "overview" : "default"}
