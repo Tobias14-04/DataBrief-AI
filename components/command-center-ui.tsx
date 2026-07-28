@@ -239,7 +239,7 @@ export const DatasetCommandCenter = memo(function DatasetCommandCenter({
             </span>
           </div>
           <p className={`mt-1 text-slate-500 ${isOverview || isAnalysis ? "text-[13px]" : "text-[10px]"}`}>
-            {rowCount.toLocaleString("da-DK")} rækker · Ark: {sheetName}
+            {rowCount.toLocaleString("da-DK")} rÃ¦kker Â· Ark: {sheetName}
           </p>
           {warning ? <p className={`mt-1 truncate text-amber-700 ${isOverview || isAnalysis ? "text-xs" : "text-[9px]"}`} title={warning}>{warning}</p> : null}
         </div>
@@ -292,7 +292,7 @@ export function CommandPanel({
   const isAnalysis = variant === "analysis";
 
   return (
-    <section className={`${isAnalysis ? "analysis-panel overflow-hidden rounded-xl" : commandCardClass} ${className}`} data-testid={testId}>
+    <section className={`${isAnalysis ? "analysis-panel min-w-0 rounded-xl" : commandCardClass} ${className}`} data-testid={testId}>
       <header className={`flex items-center justify-between gap-4 border-b border-[#e5ecef] ${
         isAnalysis ? "min-h-[88px] px-5 py-4 sm:px-6" : "min-h-[66px] px-4 py-3"
       }`}>
@@ -384,3 +384,4 @@ export function CommandEmptyState({
     </div>
   );
 }
+
