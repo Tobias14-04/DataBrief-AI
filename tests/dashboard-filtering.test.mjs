@@ -86,3 +86,26 @@ test("månedsrapporten kan ignorere månedsfilteret uden at ignorere øvrige fil
   assert.equal(rowMatchesDashboardFilters(rows[2], filters, "month"), true);
   assert.equal(rowMatchesDashboardFilters(rows[0], filters, "month"), false);
 });
+
+test("filtre matcher Unicode-labels via intern nøgle uden at ændre den synlige værdi", () => {
+  const unicodeRows = [
+    { month: "juli 2026", product: "Månedsløn", category: "Løn", channel: "Café", region: "København" },
+    { month: "juli 2026", product: "MÅNEDSLØN", category: "løn", channel: "CAFÉ", region: "KØBENHAVN" },
+    { month: "juli 2026", product: "Råvarer", category: "Råvarer", channel: "Butik", region: "München" },
+  ];
+  const filtered = applyDashboardFilters(unicodeRows, {
+    ...emptyFilters,
+    product: ["månedsløn"],
+    category: ["LØN"],
+    channel: ["cafe"],
+    region: ["Kobenhavn"],
+  });
+
+  assert.equal(filtered.length, 2);
+  assert.equal(filtered[0].category, "Løn");
+  assert.equal(filtered[0].region, "København");
+
+  const selected = toggleDashboardFilterValue(emptyFilters, "category", "Løn");
+  const deselected = toggleDashboardFilterValue(selected, "category", "LØN");
+  assert.deepEqual(deselected.category, []);
+});

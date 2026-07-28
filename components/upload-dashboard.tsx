@@ -146,6 +146,13 @@ import {
 } from "@/lib/dashboard-filtering";
 import { calculateDashboardMetrics } from "@/lib/dashboard-metrics";
 import { buildCostIntelligence } from "@/lib/cost-intelligence";
+import {
+  chooseRepresentativeLabel,
+  comparableLabel,
+  displayLabel,
+  normalizeForComparison,
+} from "@/lib/data-labels";
+import { demoOperatingCostDefinitions } from "@/lib/demo-dataset";
 import type { DashboardView } from "@/lib/dashboard-navigation";
 
 type SaleRow = {
@@ -743,10 +750,10 @@ function parseSalesRows(candidate: SheetCandidate, mappings = candidate.mappings
       const date = toDate(rawDate);
       const mappedMonth = cleanMonth(getCell(row, mappings, "month"));
       const month = mappedMonth !== "Ukendt måned" ? mappedMonth : date ? monthLabel(date) : mappedMonth;
-      const product = String(getCell(row, mappings, "product") ?? "").trim();
-      const category = String(getCell(row, mappings, "category") ?? "").trim();
-      const channel = String(getCell(row, mappings, "channel") ?? "").trim();
-      const region = String(getCell(row, mappings, "region") ?? "").trim();
+      const product = displayLabel(getCell(row, mappings, "product"), "");
+      const category = displayLabel(getCell(row, mappings, "category"), "");
+      const channel = displayLabel(getCell(row, mappings, "channel"), "");
+      const region = displayLabel(getCell(row, mappings, "region"), "");
       const units = toNumber(getCell(row, mappings, "units"));
       const revenue = getRevenue(row, mappings);
       const grossProfit = toNumber(getCell(row, mappings, "grossProfit"));
@@ -864,9 +871,9 @@ function groupRows(rows: SaleRow[], keyGetter: (row: SaleRow) => string) {
   const groups = new Map<string, GroupedValue & { grossMarginTotal: number; grossMarginCount: number }>();
 
   rows.forEach((row) => {
-    const key = keyGetter(row) || "Ukategoriseret";
-    const current = groups.get(key) ?? {
-      name: key,
+    const identity = comparableLabel(keyGetter(row));
+    const current = groups.get(identity.key) ?? {
+      name: identity.label,
       revenue: 0,
       units: 0,
       grossProfit: 0,
@@ -874,6 +881,7 @@ function groupRows(rows: SaleRow[], keyGetter: (row: SaleRow) => string) {
       grossMarginTotal: 0,
       grossMarginCount: 0,
     };
+    current.name = chooseRepresentativeLabel(current.name, identity.label);
     current.revenue += row.revenue;
     current.units += row.units;
     current.grossProfit += row.grossProfit ?? 0;
@@ -882,7 +890,7 @@ function groupRows(rows: SaleRow[], keyGetter: (row: SaleRow) => string) {
       current.grossMarginTotal += row.grossMargin;
       current.grossMarginCount += 1;
     }
-    groups.set(key, current);
+    groups.set(identity.key, current);
   });
 
   return Array.from(groups.values()).map(({ grossMarginTotal, grossMarginCount, ...group }) => ({
@@ -896,7 +904,16 @@ function uniqueValues(rows: SaleRow[], field: DashboardFilterKey) {
     return groupRowsByMonth(rows).map((month) => month.name);
   }
 
-  return Array.from(new Set(rows.map((row) => row[field]).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const labels = new Map<string, string>();
+  rows.forEach((row) => {
+    if (!row[field]) return;
+    const identity = comparableLabel(row[field]);
+    labels.set(
+      identity.key,
+      chooseRepresentativeLabel(labels.get(identity.key) ?? identity.label, identity.label),
+    );
+  });
+  return Array.from(labels.values()).sort((a, b) => a.localeCompare(b, "da"));
 }
 
 function getActiveFilters(filters: DashboardFilters): ActiveFilter[] {
@@ -960,10 +977,18 @@ function parseCostSheet(workbook: ParsedWorkbookRows) {
       return;
     }
 
-    const category = categoryHeader ? String(row[categoryHeader] ?? "Omkostninger").trim() || "Omkostninger" : "Omkostninger";
-    const current = groups.get(category) ?? { name: category, revenue: 0, units: 0, grossProfit: 0, cost: 0 };
+    const rawCategory = categoryHeader ? row[categoryHeader] : "Omkostninger";
+    const identity = comparableLabel(rawCategory, "Omkostninger");
+    const current = groups.get(identity.key) ?? {
+      name: identity.label,
+      revenue: 0,
+      units: 0,
+      grossProfit: 0,
+      cost: 0,
+    };
+    current.name = chooseRepresentativeLabel(current.name, identity.label);
     current.cost += Math.abs(value);
-    groups.set(category, current);
+    groups.set(identity.key, current);
     total += Math.abs(value);
   });
 
@@ -1205,13 +1230,10 @@ function buildExecutiveSummary(
 function createSampleWorkbook() {
   const workbook = XLSX.utils.book_new();
   const totalRevenue = sampleRows.reduce((sum, row) => sum + row["Nettooms\u00e6tning"], 0);
-  const operatingCosts = [
-    { Kategori: "Lon", Omkostninger: Math.round(totalRevenue * 0.22) },
-    { Kategori: "Raavarer", Omkostninger: Math.round(totalRevenue * 0.18) },
-    { Kategori: "Lokale", Omkostninger: Math.round(totalRevenue * 0.09) },
-    { Kategori: "Marketing", Omkostninger: Math.round(totalRevenue * 0.035) },
-    { Kategori: "Drift", Omkostninger: Math.round(totalRevenue * 0.045) },
-  ];
+  const operatingCosts = demoOperatingCostDefinitions.map((definition) => ({
+    Kategori: definition.category,
+    Omkostninger: Math.round(totalRevenue * definition.revenueShare),
+  }));
   const totalCosts = operatingCosts.reduce((sum, row) => sum + row.Omkostninger, 0);
 
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(sampleRows), "Salgsdata");
@@ -1814,9 +1836,9 @@ export function AnalysisFilterPanel({
   const activeMonthYear = monthOptions.find((option) => filters.month.includes(option.value))?.year;
   const visibleYear = activeMonthYear ?? (years.includes(selectedYear) ? selectedYear : years.at(-1) ?? "");
   const visibleMonths = monthOptions.filter((option) => option.year === visibleYear);
-  const normalizedProductSearch = productSearch.trim().toLocaleLowerCase("da-DK");
+  const normalizedProductSearch = normalizeForComparison(productSearch);
   const matchingProducts = productOptions
-    .filter((product) => !normalizedProductSearch || product.toLocaleLowerCase("da-DK").includes(normalizedProductSearch))
+    .filter((product) => !normalizedProductSearch || normalizeForComparison(product).includes(normalizedProductSearch))
     .slice(0, 6);
 
   useEffect(() => {

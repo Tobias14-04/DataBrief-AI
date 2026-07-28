@@ -49,11 +49,16 @@ import {
   formatDanishNumber as number,
   formatDanishPercent as percent,
 } from "@/lib/dashboard-insights";
-import type {
-  CostChangeDriver,
-  CostDetailRow,
-  CostIntelligence,
+import {
+  buildCostInsightSummary,
+  type CostChangeDriver,
+  type CostDetailRow,
+  type CostIntelligence,
 } from "@/lib/cost-intelligence";
+import {
+  buildExcelCompatibleCsv,
+  normalizeForComparison,
+} from "@/lib/data-labels";
 
 type CostChartMetric = "cost" | "costShare" | "result" | "grossProfit";
 type CostSortKey = "name" | "current" | "change" | "share";
@@ -489,51 +494,8 @@ function CostBudgetPanel({ analysis }: { analysis: CostIntelligence }) {
   );
 }
 
-function buildCostInsights(analysis: CostIntelligence) {
-  const insights: string[] = [];
-  const topDriver = analysis.distribution[0];
-  if (topDriver) {
-    insights.push(`${topDriver.name} er den største omkostningsdriver med ${currency(topDriver.cost)} og ${percent(topDriver.share)} af de registrerede omkostninger.`);
-  }
-  if (analysis.budget) {
-    const direction = analysis.budget.variance <= 0 ? "under" : "over";
-    insights.push(`Omkostningerne ligger ${currency(Math.abs(analysis.budget.variance))} ${direction} omkostningsbudgettet.`);
-  }
-  if (analysis.comparison) {
-    const costDirection = analysis.comparison.costChange >= 0 ? "steg" : "faldt";
-    const revenueDirection = (analysis.comparison.revenueChangePercent ?? 0) >= 0 ? "steg" : "faldt";
-    const costChange = signedPercent(analysis.comparison.costChangePercent);
-    if (analysis.comparison.revenueChangePercent !== null) {
-      insights.push(`Fra ${analysis.comparison.previousPeriod} til ${analysis.comparison.currentPeriod} ${costDirection} omkostningerne ${costChange}, mens omsætningen ${revenueDirection} ${signedPercent(analysis.comparison.revenueChangePercent)}.`);
-    } else {
-      insights.push(`Fra ${analysis.comparison.previousPeriod} til ${analysis.comparison.currentPeriod} ${costDirection} omkostningerne med ${signedCurrency(analysis.comparison.costChange)}.`);
-    }
-  }
-  if (analysis.costShare !== null) {
-    insights.push(`Hver omsætningskrone anvender aktuelt ${currency(analysis.costShare)} på registrerede omkostninger.`);
-  }
-  const lowest = analysis.profitability[0];
-  if (lowest && lowest.margin !== null) {
-    insights.push(`${lowest.name} har den laveste robuste rentabilitet i analysen med en dækningsgrad på ${percent(lowest.margin)}.`);
-  }
-
-  const leadingChanges = analysis.changeDrivers.slice(0, 2).map((item) => item.name);
-  let recommendation: string | null = null;
-  if (leadingChanges.length && analysis.comparison?.costChange && analysis.comparison.costChange > 0) {
-    recommendation = `Undersøg ${leadingChanges.join(" og ")} først; de står for den største absolutte bevægelse i den seneste omkostningsændring.`;
-  } else if (analysis.budget && analysis.budget.variance > 0 && topDriver) {
-    recommendation = `Start budgetopfølgningen med ${topDriver.name}, som er den største registrerede omkostningsdriver.`;
-  } else if (lowest && lowest.margin !== null) {
-    recommendation = `Gennemgå pris og registrerede omkostninger for ${lowest.name}, som har den laveste robuste dækningsgrad i den aktuelle visning.`;
-  } else if (topDriver) {
-    recommendation = `Følg udviklingen i ${topDriver.name}; området har størst økonomisk vægt i den aktuelle visning.`;
-  }
-
-  return { insights: insights.slice(0, 5), recommendation };
-}
-
 function CostInsightsPanel({ analysis }: { analysis: CostIntelligence }) {
-  const summary = useMemo(() => buildCostInsights(analysis), [analysis]);
+  const summary = useMemo(() => buildCostInsightSummary(analysis), [analysis]);
   return (
     <section className="premium-panel-dark overflow-hidden rounded-xl text-white" data-testid="cost-insights-panel">
       <header className="flex items-start justify-between gap-4 border-b border-cyan-100/10 px-5 py-5">
@@ -586,7 +548,9 @@ function CostDistributionPanel({ analysis }: { analysis: CostIntelligence }) {
   const items = useMemo(() => visibleDistribution(analysis), [analysis]);
   const maxValue = Math.max(...items.map((item) => Math.abs(item.cost)), 1);
   const comparisonByName = useMemo(
-    () => new Map(analysis.detailRows.map((item) => [item.name, item])),
+    () => new Map(
+      analysis.detailRows.map((item) => [normalizeForComparison(item.name), item]),
+    ),
     [analysis.detailRows],
   );
 
@@ -602,7 +566,7 @@ function CostDistributionPanel({ analysis }: { analysis: CostIntelligence }) {
     >
       <div className="space-y-4 p-5">
         {items.map((item) => {
-          const comparison = comparisonByName.get(item.name);
+          const comparison = comparisonByName.get(normalizeForComparison(item.name));
           return (
             <div key={item.name}>
               <div className="mb-1.5 flex items-start justify-between gap-4">
@@ -914,9 +878,8 @@ function downloadCostCsv(rows: CostDetailRow[], includeComparison: boolean) {
       : []),
     (row.share * 100).toFixed(2),
   ]);
-  const escapeCell = (value: string) => `"${value.replace(/"/g, "\"\"")}"`;
-  const csv = [headers, ...csvRows].map((row) => row.map((cell) => escapeCell(String(cell))).join(";")).join("\r\n");
-  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+  const csv = buildExcelCompatibleCsv([headers, ...csvRows]);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -934,9 +897,9 @@ function CostDetailTable({ analysis }: { analysis: CostIntelligence }) {
   });
   const includeComparison = analysis.detailRows.some((row) => row.previous !== null);
   const visibleRows = useMemo(() => {
-    const normalizedQuery = deferredQuery.trim().toLocaleLowerCase("da-DK");
+    const normalizedQuery = normalizeForComparison(deferredQuery);
     const rows = normalizedQuery
-      ? analysis.detailRows.filter((row) => row.name.toLocaleLowerCase("da-DK").includes(normalizedQuery))
+      ? analysis.detailRows.filter((row) => normalizeForComparison(row.name).includes(normalizedQuery))
       : analysis.detailRows;
     const sorted = [...rows].sort((a, b) => {
       if (sort.key === "name") return a.name.localeCompare(b.name, "da-DK");

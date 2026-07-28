@@ -74,3 +74,19 @@ test("budget og workbook-omkostninger skaleres som før ved en filtreret visning
   assert.equal(filteredMetrics.budgetCosts, 100);
   assert.equal(filteredMetrics.revenueVsBudget, -150);
 });
+
+test("dashboardgrupper bruger intern sammenligningsnøgle og original Unicode-label", () => {
+  const variants = [
+    { ...rows[0], product: "CAFÉ", category: "LØN" },
+    { ...rows[0], product: "café", category: "løn" },
+    { ...rows[0], product: "Café", category: "Løn" },
+  ];
+  const metrics = calculateDashboardMetrics(variants);
+
+  assert.equal(metrics.categories.length, 1);
+  assert.equal(metrics.categories[0].name, "Løn");
+  assert.equal(metrics.categories[0].revenue, 300);
+  assert.equal(metrics.costsByCategory[0].name, "Løn");
+  assert.equal(metrics.bestProduct.name, "Café");
+  assert.equal(metrics.bestProduct.name.includes("Cafe"), false);
+});

@@ -1,3 +1,5 @@
+import { normalizeForComparison } from "./data-labels.ts";
+
 export const dashboardFilterKeys = [
   "month",
   "product",
@@ -30,17 +32,24 @@ export function toggleDashboardFilterValue(
   field: DashboardFilterKey,
   value: string,
 ): DashboardFilters {
+  const comparisonKey = normalizeForComparison(value);
+  const isSelected = filters[field].some(
+    (selected) => normalizeForComparison(selected) === comparisonKey,
+  );
+
   if (field === "month") {
     return {
       ...filters,
-      month: filters.month.includes(value) ? [] : [value],
+      month: isSelected ? [] : [value],
     };
   }
 
   return {
     ...filters,
-    [field]: filters[field].includes(value)
-      ? filters[field].filter((selected) => selected !== value)
+    [field]: isSelected
+      ? filters[field].filter(
+          (selected) => normalizeForComparison(selected) !== comparisonKey,
+        )
       : [...filters[field], value],
   };
 }
@@ -53,7 +62,8 @@ export function rowMatchesDashboardFilters(
   for (const field of dashboardFilterKeys) {
     const values = filters[field];
     if (field === ignoredField || !values.length) continue;
-    if (values.length === 1 ? row[field] !== values[0] : !values.includes(row[field])) {
+    const rowKey = normalizeForComparison(row[field]);
+    if (!values.some((value) => normalizeForComparison(value) === rowKey)) {
       return false;
     }
   }
@@ -70,12 +80,12 @@ export function applyDashboardFilters<T extends DashboardFilterRow>(
     .filter((field) => field !== ignoredField && filters[field].length)
     .map((field) => ({
       field,
-      values: new Set(filters[field]),
+      values: new Set(filters[field].map(normalizeForComparison)),
     }));
 
   if (!activeFields.length) return rows;
 
   return rows.filter((row) =>
-    activeFields.every(({ field, values }) => values.has(row[field])),
+    activeFields.every(({ field, values }) => values.has(normalizeForComparison(row[field]))),
   );
 }

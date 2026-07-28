@@ -1,4 +1,8 @@
 import { formatDanishMonth, monthSortKey } from "./dashboard-insights.ts";
+import {
+  chooseRepresentativeLabel,
+  comparableLabel,
+} from "./data-labels.ts";
 
 export type DashboardMetricRow = {
   date: Date | null;
@@ -54,9 +58,9 @@ export function calculateDashboardMetrics(
   let hasRowCosts = false;
 
   function addGroup(groups: Map<string, GroupAccumulator>, rawKey: string, row: DashboardMetricRow) {
-    const key = rawKey || "Ukategoriseret";
-    const current = groups.get(key) ?? {
-      name: key,
+    const identity = comparableLabel(rawKey);
+    const current = groups.get(identity.key) ?? {
+      name: identity.label,
       revenue: 0,
       units: 0,
       grossProfit: 0,
@@ -64,6 +68,7 @@ export function calculateDashboardMetrics(
       grossMarginTotal: 0,
       grossMarginCount: 0,
     };
+    current.name = chooseRepresentativeLabel(current.name, identity.label);
     current.revenue += row.revenue;
     current.units += row.units;
     current.grossProfit += row.grossProfit ?? 0;
@@ -72,7 +77,7 @@ export function calculateDashboardMetrics(
       current.grossMarginTotal += row.grossMargin;
       current.grossMarginCount += 1;
     }
-    groups.set(key, current);
+    groups.set(identity.key, current);
   }
 
   rows.forEach((row, index) => {

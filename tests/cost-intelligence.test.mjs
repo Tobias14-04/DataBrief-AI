@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   buildCostIntelligence,
+  buildCostInsightSummary,
   calculateCostBudgetVariance,
   resolveRegisteredCost,
   safeRatio,
@@ -229,4 +230,37 @@ test("dækningsbidrag bruges som dokumenteret fallback for registreret omkostnin
   assert.equal(analysis.totalCosts, 75);
   assert.equal(analysis.totalGrossProfit, 125);
   assert.equal(analysis.hasGrossProfit, true);
+});
+
+test("Omkostninger-sidens KPI, fordeling, insights og tabel viser Løn med ø", () => {
+  const analysis = buildCostIntelligence([
+    row({ category: "LØN", product: "Månedsløn", cost: 70 }),
+    row({ category: "løn", product: "MÅNEDSLØN", cost: 30 }),
+    row({ category: "Råvarer", product: "Café", cost: 10 }),
+    row({
+      date: new Date(2026, 1, 5),
+      month: "februar 2026",
+      category: "Løn",
+      product: "Månedsløn",
+      cost: 120,
+    }),
+  ], {
+    totalCosts: 240,
+    distribution: [
+      { name: "Lon", cost: 20 },
+      { name: "LØN", cost: 80 },
+      { name: "løn", cost: 120 },
+      { name: "Løn", cost: 20 },
+    ],
+  });
+  const summary = buildCostInsightSummary(analysis);
+
+  assert.equal(analysis.distribution.length, 1);
+  assert.equal(analysis.distribution[0].name, "Løn");
+  assert.equal(analysis.distribution[0].cost, 240);
+  assert.equal(analysis.detailRows[0].name, "Løn");
+  assert.equal(analysis.changeDrivers[0].name, "Månedsløn");
+  assert.equal(analysis.profitability[0].name, "Månedsløn");
+  assert.equal(summary.insights[0].startsWith("Løn er den største omkostningsdriver"), true);
+  assert.equal(summary.insights.some((insight) => insight.includes("Lon")), false);
 });

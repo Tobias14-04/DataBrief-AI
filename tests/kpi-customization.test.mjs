@@ -137,6 +137,19 @@ test("KPI-registeret genkender danske og engelske kolonnesynonymer", () => {
   assert.deepEqual(profile.matchedColumns.assets, ["Total Assets"]);
 });
 
+test("grupperede KPI'er bevarer den repræsentative originale Unicode-label", () => {
+  const profile = buildKpiDataProfile([
+    { sourceValues: { Produkt: "MÅNEDSLØN", Nettoomsætning: 100 } },
+    { sourceValues: { Produkt: "månedsløn", Nettoomsætning: 150 } },
+    { sourceValues: { Produkt: "Månedsløn", Nettoomsætning: 200 } },
+    { sourceValues: { Produkt: "Café", Nettoomsætning: 50 } },
+  ]);
+  const evaluation = evaluateStandardKpi("highest-revenue-product", context, profile);
+
+  assert.equal(evaluation.value, "Månedsløn");
+  assert.equal(String(evaluation.value).includes("Manedslon"), false);
+});
+
 test("KPI-registeret er omfattende, unikt og fuldt konfigurationsbaseret", () => {
   assert.ok(standardKpiDefinitions.length >= 70);
   assert.ok(standardKpiDefinitions.length <= 100);

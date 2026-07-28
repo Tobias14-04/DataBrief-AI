@@ -1,4 +1,14 @@
-import { formatDanishMonth, monthSortKey } from "./dashboard-insights.ts";
+import {
+  formatDanishCurrency,
+  formatDanishMonth,
+  formatDanishPercent,
+  monthSortKey,
+} from "./dashboard-insights.ts";
+import {
+  chooseRepresentativeLabel,
+  comparableLabel,
+  normalizeForComparison,
+} from "./data-labels.ts";
 
 export const COST_BUDGET_THRESHOLDS = {
   materialOverrun: 0.08,
@@ -130,21 +140,22 @@ function addDimension(
   rawName: string,
   values: Pick<DimensionAccumulator, "revenue" | "cost" | "grossProfit" | "units">,
 ) {
-  const name = rawName.trim() || "Ukategoriseret";
-  const current = dimensions.get(name) ?? {
-    name,
+  const identity = comparableLabel(rawName);
+  const current = dimensions.get(identity.key) ?? {
+    name: identity.label,
     revenue: 0,
     cost: 0,
     grossProfit: 0,
     units: 0,
     rowCount: 0,
   };
+  current.name = chooseRepresentativeLabel(current.name, identity.label);
   current.revenue += values.revenue;
   current.cost += values.cost;
   current.grossProfit += values.grossProfit;
   current.units += values.units;
   current.rowCount += 1;
-  dimensions.set(name, current);
+  dimensions.set(identity.key, current);
 }
 
 function periodIdentity(row: CostIntelligenceRow, index: number) {
@@ -174,9 +185,14 @@ function buildChangeDrivers(
   comparisonTotal: number,
 ) {
   const names = new Set([...current.keys(), ...previous.keys()]);
-  const changes = Array.from(names, (name) => {
-    const currentCost = current.get(name)?.cost ?? 0;
-    const previousCost = previous.get(name)?.cost ?? 0;
+  const changes = Array.from(names, (key) => {
+    const currentGroup = current.get(key);
+    const previousGroup = previous.get(key);
+    const currentCost = currentGroup?.cost ?? 0;
+    const previousCost = previousGroup?.cost ?? 0;
+    const name = currentGroup && previousGroup
+      ? chooseRepresentativeLabel(currentGroup.name, previousGroup.name)
+      : currentGroup?.name ?? previousGroup?.name ?? key;
     return {
       name,
       current: currentCost,
@@ -297,9 +313,19 @@ export function buildCostIntelligence(
   const totalCosts = providedTotal ?? trackedCosts;
   const actualResult = hasRevenue ? totalRevenue - totalCosts : null;
   const costShare = hasRevenue ? safeRatio(totalCosts, totalRevenue) : null;
-  const providedDistribution = (options.distribution ?? [])
-    .filter((item) => item.name.trim() && Number.isFinite(item.cost) && item.cost !== 0)
-    .map((item) => ({ name: item.name.trim(), cost: item.cost }));
+  const providedDistributionGroups = new Map<string, CostDistributionInput>();
+  (options.distribution ?? []).forEach((item) => {
+    if (!item.name.trim() || !Number.isFinite(item.cost) || item.cost === 0) return;
+    const identity = comparableLabel(item.name);
+    const current = providedDistributionGroups.get(identity.key) ?? {
+      name: identity.label,
+      cost: 0,
+    };
+    current.name = chooseRepresentativeLabel(current.name, identity.label);
+    current.cost += item.cost;
+    providedDistributionGroups.set(identity.key, current);
+  });
+  const providedDistribution = Array.from(providedDistributionGroups.values());
   const rawDistribution = providedDistribution.length
     ? providedDistribution
     : dimensionValues(categories)
@@ -351,7 +377,8 @@ export function buildCostIntelligence(
     ? buildChangeDrivers(currentChangeDimension, previousChangeDimension, comparison.previousCost)
     : [];
 
-  const hasProductDimension = products.size > 1 && !products.has("Ukategoriseret");
+  const hasProductDimension = products.size > 1
+    && !products.has(normalizeForComparison("Ukategoriseret"));
   const profitabilityDimension = hasProductDimension ? "product" : "category";
   const profitability = buildProfitability(
     hasProductDimension ? products : categories,
@@ -378,9 +405,14 @@ export function buildCostIntelligence(
           ...latestAccumulator.categories.keys(),
           ...previousAccumulator.categories.keys(),
         ]))
-          .map<CostDetailRow>((name) => {
-            const current = latestAccumulator.categories.get(name)?.cost ?? 0;
-            const previous = previousAccumulator.categories.get(name)?.cost ?? 0;
+          .map<CostDetailRow>((key) => {
+            const currentGroup = latestAccumulator.categories.get(key);
+            const previousGroup = previousAccumulator.categories.get(key);
+            const name = currentGroup && previousGroup
+              ? chooseRepresentativeLabel(currentGroup.name, previousGroup.name)
+              : currentGroup?.name ?? previousGroup?.name ?? key;
+            const current = currentGroup?.cost ?? 0;
+            const previous = previousGroup?.cost ?? 0;
             const change = current - previous;
             return {
               name,
@@ -440,3 +472,57 @@ export function buildCostIntelligence(
 }
 
 export type CostIntelligence = ReturnType<typeof buildCostIntelligence>;
+
+function signedCurrency(value: number) {
+  if (value === 0) return formatDanishCurrency(0);
+  return `${value > 0 ? "+" : "−"}${formatDanishCurrency(Math.abs(value))}`;
+}
+
+function signedPercent(value: number | null) {
+  if (value === null) return "Ikke retvisende";
+  if (value === 0) return formatDanishPercent(0);
+  return `${value > 0 ? "+" : "−"}${formatDanishPercent(Math.abs(value))}`;
+}
+
+export function buildCostInsightSummary(analysis: CostIntelligence) {
+  const insights: string[] = [];
+  const topDriver = analysis.distribution[0];
+  if (topDriver) {
+    insights.push(`${topDriver.name} er den største omkostningsdriver med ${formatDanishCurrency(topDriver.cost)} og ${formatDanishPercent(topDriver.share)} af de registrerede omkostninger.`);
+  }
+  if (analysis.budget) {
+    const direction = analysis.budget.variance <= 0 ? "under" : "over";
+    insights.push(`Omkostningerne ligger ${formatDanishCurrency(Math.abs(analysis.budget.variance))} ${direction} omkostningsbudgettet.`);
+  }
+  if (analysis.comparison) {
+    const costDirection = analysis.comparison.costChange >= 0 ? "steg" : "faldt";
+    const revenueDirection = (analysis.comparison.revenueChangePercent ?? 0) >= 0 ? "steg" : "faldt";
+    const costChange = signedPercent(analysis.comparison.costChangePercent);
+    if (analysis.comparison.revenueChangePercent !== null) {
+      insights.push(`Fra ${analysis.comparison.previousPeriod} til ${analysis.comparison.currentPeriod} ${costDirection} omkostningerne ${costChange}, mens omsætningen ${revenueDirection} ${signedPercent(analysis.comparison.revenueChangePercent)}.`);
+    } else {
+      insights.push(`Fra ${analysis.comparison.previousPeriod} til ${analysis.comparison.currentPeriod} ${costDirection} omkostningerne med ${signedCurrency(analysis.comparison.costChange)}.`);
+    }
+  }
+  if (analysis.costShare !== null) {
+    insights.push(`Hver omsætningskrone anvender aktuelt ${formatDanishCurrency(analysis.costShare)} på registrerede omkostninger.`);
+  }
+  const lowest = analysis.profitability[0];
+  if (lowest && lowest.margin !== null) {
+    insights.push(`${lowest.name} har den laveste robuste rentabilitet i analysen med en dækningsgrad på ${formatDanishPercent(lowest.margin)}.`);
+  }
+
+  const leadingChanges = analysis.changeDrivers.slice(0, 2).map((item) => item.name);
+  let recommendation: string | null = null;
+  if (leadingChanges.length && analysis.comparison?.costChange && analysis.comparison.costChange > 0) {
+    recommendation = `Undersøg ${leadingChanges.join(" og ")} først; de står for den største absolutte bevægelse i den seneste omkostningsændring.`;
+  } else if (analysis.budget && analysis.budget.variance > 0 && topDriver) {
+    recommendation = `Start budgetopfølgningen med ${topDriver.name}, som er den største registrerede omkostningsdriver.`;
+  } else if (lowest && lowest.margin !== null) {
+    recommendation = `Gennemgå pris og registrerede omkostninger for ${lowest.name}, som har den laveste robuste dækningsgrad i den aktuelle visning.`;
+  } else if (topDriver) {
+    recommendation = `Følg udviklingen i ${topDriver.name}; området har størst økonomisk vægt i den aktuelle visning.`;
+  }
+
+  return { insights: insights.slice(0, 5), recommendation };
+}

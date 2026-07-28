@@ -10,6 +10,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
+import { normalizeForComparison } from "@/lib/data-labels";
 
 export type PremiumSelectOption = {
   value: string;
@@ -45,12 +46,12 @@ export const PremiumSelect = memo(function PremiumSelect({
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const listboxId = useId();
   const selectedOption = options.find((option) => option.value === value) ?? options[0];
-  const normalizedSearch = search.trim().toLocaleLowerCase("da-DK");
+  const normalizedSearch = normalizeForComparison(search);
   const visibleOptions = useMemo(
     () => options.filter((option) => (
       !normalizedSearch
-      || option.label.toLocaleLowerCase("da-DK").includes(normalizedSearch)
-      || option.description?.toLocaleLowerCase("da-DK").includes(normalizedSearch)
+      || normalizeForComparison(option.label).includes(normalizedSearch)
+      || normalizeForComparison(option.description).includes(normalizedSearch)
     )),
     [normalizedSearch, options],
   );

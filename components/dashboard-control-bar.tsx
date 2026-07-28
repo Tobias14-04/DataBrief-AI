@@ -15,6 +15,7 @@ import {
   reconcileDashboardFilterDraft,
   toggleDashboardFilterValue,
 } from "@/lib/dashboard-filtering";
+import { normalizeForComparison } from "@/lib/data-labels";
 
 export type DashboardControlKey = "month" | "product" | "category" | "channel" | "region";
 export type DashboardControlValues = Record<DashboardControlKey, string[]>;
@@ -58,9 +59,11 @@ const FilterMenu = memo(function FilterMenu({
 }) {
   const [search, setSearch] = useState("");
   const searchable = field === "month" || field === "product" || options.length > 10;
-  const normalizedSearch = search.trim().toLocaleLowerCase("da-DK");
+  const normalizedSearch = normalizeForComparison(search);
   const visibleOptions = useMemo(
-    () => options.filter((option) => !normalizedSearch || option.toLocaleLowerCase("da-DK").includes(normalizedSearch)),
+    () => options.filter(
+      (option) => !normalizedSearch || normalizeForComparison(option).includes(normalizedSearch),
+    ),
     [normalizedSearch, options],
   );
   const summary = values.length === 0

@@ -8,6 +8,11 @@ import type {
   KpiSourceRow,
   StandardKpiContext,
 } from "./kpi-customization";
+import {
+  chooseRepresentativeLabel,
+  comparableLabel,
+  normalizeForComparison,
+} from "./data-labels.ts";
 import { normalizeColumnHeader, salesColumnAliases } from "./spreadsheet-fields.ts";
 
 export type KpiCategory =
@@ -402,7 +407,7 @@ function hasField(profile: KpiDataProfile, field: KpiDataField) {
 }
 
 type PeriodUnit = "day" | "week" | "month" | "quarter" | "year";
-type RankedValue = { name: string; value: number };
+type RankedValue = { key?: string; name: string; value: number };
 type PeriodRevenueValue = RankedValue & {
   key: string;
   label: string;
@@ -466,7 +471,11 @@ function uniqueCount(profile: KpiDataProfile, field: KpiDataField) {
   const cache = getProfileAnalysisCache(profile);
   const cached = cache.uniqueCounts.get(field);
   if (cached !== undefined) return cached;
-  const value = new Set((profile.rawValues[field] ?? []).map((item) => String(item).trim()).filter(Boolean)).size;
+  const value = new Set(
+    (profile.rawValues[field] ?? [])
+      .map((item) => normalizeForComparison(item))
+      .filter(Boolean),
+  ).size;
   cache.uniqueCounts.set(field, value);
   return value;
 }
@@ -496,14 +505,18 @@ function groupedSums(profile: KpiDataProfile, groupField: KpiDataField, valueFie
   const cached = cache.groupedSums.get(cacheKey);
   if (cached) return cached;
 
-  const groups = new Map<string, number>();
+  const groups = new Map<string, { name: string; value: number }>();
   profile.rows.forEach((row) => {
     const group = rowText(row, groupField);
     const value = rowNumber(row, valueField);
     if (!group || value === null) return;
-    groups.set(group, (groups.get(group) ?? 0) + value);
+    const identity = comparableLabel(group);
+    const current = groups.get(identity.key) ?? { name: identity.label, value: 0 };
+    current.name = chooseRepresentativeLabel(current.name, identity.label);
+    current.value += value;
+    groups.set(identity.key, current);
   });
-  const result = Array.from(groups, ([name, value]) => ({ name, value }));
+  const result = Array.from(groups, ([key, value]) => ({ key, ...value }));
   cache.groupedSums.set(cacheKey, result);
   return result;
 }
@@ -631,11 +644,16 @@ function groupedRatio(
   const cacheKey = `${groupField}:${numeratorField}:${denominatorField}`;
   const cached = cache.groupedRatios.get(cacheKey);
   if (cached) return cached;
-  const numerators = new Map(groupedSums(profile, groupField, numeratorField).map((group) => [group.name, group.value]));
-  const denominators = new Map(groupedSums(profile, groupField, denominatorField).map((group) => [group.name, group.value]));
-  const result = Array.from(numerators, ([name, numerator]) => ({
-    name,
-    value: ratio(numerator, denominators.get(name) ?? 0, name),
+  const numeratorGroups = groupedSums(profile, groupField, numeratorField);
+  const numerators = new Map(numeratorGroups.map((group) => [group.key ?? normalizeForComparison(group.name), group]));
+  const denominators = new Map(
+    groupedSums(profile, groupField, denominatorField)
+      .map((group) => [group.key ?? normalizeForComparison(group.name), group.value]),
+  );
+  const result = Array.from(numerators, ([key, group]) => ({
+    key,
+    name: group.name,
+    value: ratio(group.value, denominators.get(key) ?? 0, group.name),
   }));
   cache.groupedRatios.set(cacheKey, result);
   return result;
@@ -645,12 +663,17 @@ function groupedCounts(profile: KpiDataProfile, groupField: KpiDataField) {
   const cache = getProfileAnalysisCache(profile);
   const cached = cache.groupedCounts.get(groupField);
   if (cached) return cached;
-  const groups = new Map<string, number>();
+  const groups = new Map<string, { name: string; value: number }>();
   profile.rows.forEach((row) => {
     const group = rowText(row, groupField);
-    if (group) groups.set(group, (groups.get(group) ?? 0) + 1);
+    if (!group) return;
+    const identity = comparableLabel(group);
+    const current = groups.get(identity.key) ?? { name: identity.label, value: 0 };
+    current.name = chooseRepresentativeLabel(current.name, identity.label);
+    current.value += 1;
+    groups.set(identity.key, current);
   });
-  const result = Array.from(groups, ([name, value]) => ({ name, value }));
+  const result = Array.from(groups, ([key, value]) => ({ key, ...value }));
   cache.groupedCounts.set(groupField, result);
   return result;
 }
@@ -659,24 +682,29 @@ function groupedGrowth(profile: KpiDataProfile, groupField: KpiDataField) {
   const cache = getProfileAnalysisCache(profile);
   const cached = cache.groupedGrowth.get(groupField);
   if (cached) return cached;
-  const groups = new Map<string, Map<string, number>>();
+  const groups = new Map<string, { name: string; periods: Map<string, number> }>();
   profile.rows.forEach((row) => {
     const group = rowText(row, groupField);
     const revenue = rowNumber(row, "revenue");
     const date = profileRowDate(profile, row);
     const period = date ? datePeriod(date, "month") : fallbackPeriod(row, "month");
     if (!group || revenue === null || !period) return;
-    const values = groups.get(group) ?? new Map<string, number>();
-    values.set(period.key, (values.get(period.key) ?? 0) + revenue);
-    groups.set(group, values);
+    const identity = comparableLabel(group);
+    const current = groups.get(identity.key) ?? {
+      name: identity.label,
+      periods: new Map<string, number>(),
+    };
+    current.name = chooseRepresentativeLabel(current.name, identity.label);
+    current.periods.set(period.key, (current.periods.get(period.key) ?? 0) + revenue);
+    groups.set(identity.key, current);
   });
-  const result = Array.from(groups, ([name, values]) => {
-    const periods = Array.from(values.entries()).sort(([a], [b]) => a.localeCompare(b, "da"));
+  const result = Array.from(groups, ([key, group]) => {
+    const periods = Array.from(group.periods.entries()).sort(([a], [b]) => a.localeCompare(b, "da"));
     if (periods.length < 2) return null;
     const first = periods[0][1];
     const last = periods.at(-1)![1];
-    return { name, value: ratio(last - first, first, `${name}s vækst`) };
-  }).filter((item): item is { name: string; value: number } => item !== null);
+    return { key, name: group.name, value: ratio(last - first, first, `${group.name}s vækst`) };
+  }).filter((item): item is { key: string; name: string; value: number } => item !== null);
   cache.groupedGrowth.set(groupField, result);
   return result;
 }
@@ -687,8 +715,9 @@ function newCustomersInLatestMonth(profile: KpiDataProfile) {
     const customer = rowText(row, "customerId") ?? rowText(row, "customerName");
     const date = profileRowDate(profile, row);
     if (!customer || !date) return;
-    const current = firstPurchase.get(customer);
-    if (!current || date < current) firstPurchase.set(customer, date);
+    const customerKey = normalizeForComparison(customer);
+    const current = firstPurchase.get(customerKey);
+    if (!current || date < current) firstPurchase.set(customerKey, date);
   });
   const dates = Array.from(firstPurchase.values());
   if (!dates.length) throw new Error("Nye kunder kræver gyldige kunde- og datoværdier.");
