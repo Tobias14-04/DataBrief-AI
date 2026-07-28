@@ -27,6 +27,7 @@ import {
   type KpiSourceRow,
 } from "@/lib/kpi-customization";
 import { KpiMiniCard, kpiColorStyles } from "@/components/kpi-customization/kpi-ui";
+import { PremiumSelect } from "@/components/premium-select";
 
 type FormulaTerm = {
   id: string;
@@ -336,16 +337,14 @@ export function CustomKpiBuilder({
                     className="mt-1.5 w-full resize-none rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
                   />
                 </label>
-                <label>
-                  <span className="text-xs font-semibold text-slate-700">Format</span>
-                  <select
-                    value={draft.format}
-                    onChange={(event) => setDraft((current) => ({ ...current, format: event.target.value as CustomDraft["format"] }))}
-                    className="mt-1.5 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-                  >
-                    {formatOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                </label>
+                <PremiumSelect
+                  value={draft.format}
+                  options={formatOptions}
+                  onChange={(format) => setDraft((current) => ({ ...current, format: format as CustomDraft["format"] }))}
+                  label="Format"
+                  ariaLabel="Vælg format til nøgletallet"
+                  align="left"
+                />
                 <fieldset>
                   <legend className="text-xs font-semibold text-slate-700">Antal decimaler</legend>
                   <div className="mt-1.5 grid h-11 grid-cols-3 rounded-lg border border-slate-200 bg-white p-1">
@@ -428,56 +427,54 @@ export function CustomKpiBuilder({
                 {draft.terms.map((term, index) => (
                   <div key={term.id} className="rounded-lg border border-slate-200 bg-white p-3.5">
                     {index > 0 ? (
-                      <label className="mb-3 block">
-                        <span className="text-[11px] font-semibold uppercase text-slate-500">Operator</span>
-                        <select
-                          value={term.operator}
-                          onChange={(event) => updateTerm(term.id, { operator: event.target.value as FormulaOperator })}
-                          className="mt-1.5 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-                        >
-                          {operatorOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                        </select>
-                      </label>
+                      <PremiumSelect
+                        value={term.operator}
+                        options={operatorOptions}
+                        onChange={(operator) => updateTerm(term.id, { operator: operator as FormulaOperator })}
+                        label="Operator"
+                        ariaLabel={`Vælg operator til beregningsled ${index + 1}`}
+                        align="left"
+                        className="mb-3"
+                      />
                     ) : null}
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-[130px_150px_minmax(0,1fr)_auto] sm:items-end">
-                      <label>
-                        <span className="text-[11px] font-semibold uppercase text-slate-500">Ledtype</span>
-                        <select
-                          value={term.kind}
-                          onChange={(event) => updateTerm(term.id, { kind: event.target.value as FormulaTerm["kind"] })}
-                          className="mt-1.5 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-                        >
-                          <option value="aggregate">Kolonne</option>
-                          <option value="number">Fast tal</option>
-                        </select>
-                      </label>
+                      <PremiumSelect
+                        value={term.kind}
+                        options={[
+                          { value: "aggregate", label: "Kolonne" },
+                          { value: "number", label: "Fast tal" },
+                        ]}
+                        onChange={(kind) => updateTerm(term.id, { kind: kind as FormulaTerm["kind"] })}
+                        label="Ledtype"
+                        ariaLabel={`Vælg ledtype til beregningsled ${index + 1}`}
+                        align="left"
+                      />
                       {term.kind === "aggregate" ? (
                         <>
-                          <label>
-                            <span className="text-[11px] font-semibold uppercase text-slate-500">Funktion</span>
-                            <select
-                              value={term.aggregate}
-                              onChange={(event) => updateTerm(term.id, { aggregate: event.target.value as AggregateFunction })}
-                              className="mt-1.5 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-                            >
-                              {aggregateOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                            </select>
-                          </label>
-                          <label>
-                            <span className="text-[11px] font-semibold uppercase text-slate-500">Kolonne</span>
-                            <select
-                              value={term.column}
-                              onChange={(event) => updateTerm(term.id, { column: event.target.value })}
-                              className="mt-1.5 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-                            >
-                              <option value="">Vælg talkolonne</option>
-                              {numericColumns.map((column) => (
-                                <option key={column.name} value={column.name}>
-                                  {column.name}{column.typeLabel ? ` · ${column.typeLabel}` : ""}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
+                          <PremiumSelect
+                            value={term.aggregate}
+                            options={aggregateOptions}
+                            onChange={(aggregate) => updateTerm(term.id, { aggregate: aggregate as AggregateFunction })}
+                            label="Funktion"
+                            ariaLabel={`Vælg funktion til beregningsled ${index + 1}`}
+                            align="left"
+                          />
+                          <PremiumSelect
+                            value={term.column}
+                            options={[
+                              { value: "", label: "Vælg talkolonne" },
+                              ...numericColumns.map((column) => ({
+                                value: column.name,
+                                label: column.name,
+                                description: column.typeLabel,
+                              })),
+                            ]}
+                            onChange={(column) => updateTerm(term.id, { column })}
+                            label="Kolonne"
+                            ariaLabel={`Vælg talkolonne til beregningsled ${index + 1}`}
+                            searchable={numericColumns.length > 10}
+                            align="right"
+                          />
                         </>
                       ) : (
                         <label className="sm:col-span-2">
