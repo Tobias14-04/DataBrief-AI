@@ -65,36 +65,33 @@ function ProcessingStep({
 export function ExcelProcessingView({ fileName, status }: ExcelProcessingViewProps) {
   return (
     <main
-      className="relative isolate min-h-screen overflow-hidden bg-[linear-gradient(135deg,#f8fbfc_0%,#f1fbfc_46%,#fff8f3_100%)]"
+      className="app-workspace relative isolate min-h-screen overflow-x-clip"
       aria-busy="true"
       data-testid="excel-processing-view"
       data-import-status={status}
     >
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_78%_18%,rgba(8,145,178,0.14),transparent_28%),radial-gradient(circle_at_10%_85%,rgba(249,115,22,0.09),transparent_24%)]" />
-      <div className="pointer-events-none absolute inset-0 -z-10 opacity-40 [background-image:linear-gradient(rgba(16,32,51,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(16,32,51,0.035)_1px,transparent_1px)] [background-size:48px_48px]" />
-
-      <aside className="fixed inset-y-0 left-0 hidden w-[72px] border-r border-white/[0.06] bg-[#071625] lg:flex lg:flex-col xl:w-[220px]">
-        <div className="flex h-16 items-center justify-center border-b border-white/[0.07] px-3 xl:justify-start xl:gap-2.5 xl:px-4">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-cyan-300/20 bg-cyan-300/10 text-cyan-200">
+      <aside className="app-sidebar fixed inset-y-0 left-0 hidden w-[76px] border-r border-white/[0.06] shadow-[12px_0_38px_rgba(5,18,30,0.14)] lg:flex lg:flex-col xl:w-[228px]">
+        <div className="flex h-[76px] items-center justify-center border-b border-white/[0.07] px-3 xl:justify-start xl:gap-3 xl:px-4">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 text-cyan-200">
             <FileSpreadsheet className="h-[18px] w-[18px]" aria-hidden="true" />
           </span>
           <div className="hidden xl:block">
             <p className="text-sm font-semibold text-white">DataBrief AI</p>
-            <p className="text-[10px] text-slate-500">Behandler regneark</p>
+            <p className="mt-0.5 text-xs text-slate-400">Behandler regneark</p>
           </div>
         </div>
         <div className="hidden px-4 py-5 xl:block">
-          <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-slate-600">Importflow</p>
-          <p className="mt-2 text-xs leading-5 text-slate-400">Regnearket klargøres til dit kommandocenter.</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-slate-500">Importflow</p>
+          <p className="mt-2 text-[13px] leading-5 text-slate-300">Regnearket klargøres til dit kommandocenter.</p>
         </div>
       </aside>
 
-      <div className="min-h-screen lg:pl-[72px] xl:pl-[220px]">
-      <header className="border-b border-white/[0.07] bg-[#0b1c2d]/95 text-white shadow-[0_8px_30px_rgba(7,22,37,0.12)] backdrop-blur-xl">
-        <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-5">
+      <div className="min-h-screen lg:pl-[76px] xl:pl-[228px]">
+      <header className="app-topbar border-b text-white">
+        <div className="flex min-h-[76px] items-center justify-between px-4 sm:px-6 lg:px-5 xl:px-7">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 rounded-md px-2 py-2 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-slate-200 transition duration-200 hover:bg-white/[0.07] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Forside
@@ -108,9 +105,9 @@ export function ExcelProcessingView({ fileName, status }: ExcelProcessingViewPro
         </div>
       </header>
 
-      <section className="mx-auto flex min-h-[calc(100vh-73px)] w-full max-w-3xl items-center px-5 py-10 sm:px-6 lg:px-8">
+      <section className="mx-auto flex min-h-[calc(100vh-76px)] w-full max-w-3xl items-center px-4 py-10 sm:px-6 lg:px-8">
         <div
-          className="w-full overflow-hidden rounded-lg border border-white/90 bg-white/95 shadow-[0_28px_80px_rgba(16,32,51,0.14),0_6px_20px_rgba(16,32,51,0.06)] backdrop-blur"
+          className="premium-panel-primary w-full overflow-hidden rounded-xl"
           role="status"
           aria-live="polite"
         >
