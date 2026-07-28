@@ -2,7 +2,6 @@
 
 import {
   BarChart3,
-  ChevronDown,
   CircleDollarSign,
   Info,
   TrendingUp,
@@ -23,6 +22,7 @@ import {
   type CommandTone,
 } from "@/components/command-center-ui";
 import { ViewAction } from "@/components/dashboard-command-shell";
+import { PremiumSelect } from "@/components/premium-select";
 import { SmoothMetricValue } from "@/components/smooth-metric-value";
 import {
   formatDanishCurrency,
@@ -134,7 +134,7 @@ const OverviewTrendChart = memo(function OverviewTrendChart({
 }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={data} margin={{ top: 24, right: 22, bottom: 14, left: 6 }}>
+      <AreaChart data={data} margin={{ top: 24, right: 22, bottom: 28, left: 6 }}>
         <defs>
           <linearGradient id="overviewTrendFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={metricColor} stopOpacity={0.24} />
@@ -222,11 +222,11 @@ export const OverviewTrendPanel = memo(function OverviewTrendPanel({
 }) {
   return (
     <section
-      className="overview-card-primary min-w-0 overflow-hidden rounded-xl"
+      className="overview-card-primary min-w-0 overflow-visible rounded-xl"
       data-testid="revenue-chart"
       aria-busy={isPending}
     >
-      <header className="flex min-h-[112px] flex-col gap-4 border-b border-slate-200/80 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <header className="flex min-h-[112px] flex-col gap-4 rounded-t-xl border-b border-slate-200/80 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <p className={`${overviewEyebrowClass} text-brand-700`}>Primær udvikling</p>
@@ -247,25 +247,18 @@ export const OverviewTrendPanel = memo(function OverviewTrendPanel({
           <p className="mt-2 text-sm leading-5 text-slate-600">Månedlig udvikling i den aktuelle visning</p>
         </div>
 
-        <label className="relative block w-full min-w-[190px] sm:w-auto">
-          <span className="sr-only">Vælg nøgletal til grafen</span>
-          <select
-            value={metric}
-            onChange={(event) => onMetricChange(event.target.value as OverviewTrendMetric)}
-            className="h-11 w-full appearance-none rounded-lg border border-slate-300 bg-white py-1 pl-3.5 pr-10 text-[13px] font-semibold text-slate-700 shadow-sm outline-none transition hover:border-brand-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-          >
-            {metricOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-          <ChevronDown
-            className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-            aria-hidden="true"
-          />
-        </label>
+        <PremiumSelect
+          value={metric}
+          options={metricOptions}
+          onChange={(nextMetric) => onMetricChange(nextMetric as OverviewTrendMetric)}
+          label="Vis nøgletal"
+          ariaLabel="Vælg nøgletal til grafen"
+          align="right"
+          className="w-full sm:w-[210px]"
+        />
       </header>
 
-      <div className="px-3 pb-4 pt-3 sm:px-6 sm:pb-6">
+      <div className="overflow-visible px-3 pb-5 pt-3 sm:px-6 sm:pb-7">
         {data.length ? (
           <div className="h-[340px] sm:h-[380px] xl:h-[410px]">
             <OverviewTrendChart
