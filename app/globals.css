@@ -95,6 +95,17 @@ input {
     background-size: auto, auto, 42px 42px, 42px 42px;
   }
 
+  .analysis-sidebar {
+    background: linear-gradient(180deg, #102b3d 0%, #0b2232 100%);
+  }
+
+  .analysis-topbar {
+    border-color: rgba(207, 250, 254, 0.12);
+    background: linear-gradient(90deg, rgba(15, 42, 59, 0.98), rgba(18, 52, 69, 0.97));
+    box-shadow: 0 7px 24px rgba(7, 22, 37, 0.12);
+    color: #ffffff;
+  }
+
   .analysis-panel {
     border: 1px solid var(--analysis-border);
     background:
@@ -188,3 +199,4 @@ input {
     }
   }
 }
+
