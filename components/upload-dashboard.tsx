@@ -50,6 +50,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { CostIntelligenceDashboard } from "@/components/cost-intelligence-dashboard";
 import { ExcelProcessingView } from "@/components/excel-processing-view";
 import { KpiCustomizer } from "@/components/kpi-customizer";
 import { PremiumSelect } from "@/components/premium-select";
@@ -144,6 +145,7 @@ import {
   type DashboardFilters,
 } from "@/lib/dashboard-filtering";
 import { calculateDashboardMetrics } from "@/lib/dashboard-metrics";
+import { buildCostIntelligence } from "@/lib/cost-intelligence";
 import type { DashboardView } from "@/lib/dashboard-navigation";
 
 type SaleRow = {
@@ -2434,6 +2436,26 @@ export default function UploadDashboard() {
       : [],
     [activeView, filteredRows],
   );
+  const costIntelligence = useMemo(
+    () => activeView === "costs"
+      ? buildCostIntelligence(filteredRows, {
+          totalCosts: metrics.totalCosts,
+          distribution: !isFiltered && data?.feedback.costs
+            ? data.feedback.costs.byCategory.map((item) => ({ name: item.name, cost: item.cost }))
+            : undefined,
+          budgetCosts: data?.feedback.budget?.costs ? metrics.budgetCosts : null,
+        })
+      : null,
+    [
+      activeView,
+      data?.feedback.budget?.costs,
+      data?.feedback.costs,
+      filteredRows,
+      isFiltered,
+      metrics.budgetCosts,
+      metrics.totalCosts,
+    ],
+  );
   const shouldShowManualMapping = shouldShowColumnReview({
     hasWorkbookAnalysis: Boolean(analysis),
     hasDashboardData: Boolean(data),
@@ -3417,41 +3439,11 @@ export default function UploadDashboard() {
               <CommandPageIntro
                 eyebrow="Omkostningsstyring"
                 title="Omkostninger"
-                description="Registrerede omkostninger i den aktuelle filtrerede visning."
+                description="Beslutningsorienteret analyse af omkostninger, budget, udvikling og rentabilitet i den aktuelle filtrerede visning."
                 tone="warning"
               />
-              {showCosts ? (
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-                  <CommandPanel
-                    title="Omkostninger pr. kategori"
-                    description="Kategorier rangeret efter omkostninger"
-                    icon={WalletCards}
-                    tone="warning"
-                  >
-                    <RankedMetricList
-                      items={costsByCategory.map((category) => ({ name: category.name, value: category.cost }))}
-                      valueFormatter={currency}
-                      tone="warning"
-                      limit={12}
-                    />
-                  </CommandPanel>
-                  <div className="space-y-3">
-                    <CompactKpiCard
-                      label="Samlede omkostninger"
-                      value={currency(metrics.totalCosts)}
-                      detail="Beregnet ud fra omkostningsdata"
-                      icon={WalletCards}
-                      tone="warning"
-                    />
-                    <CompactKpiCard
-                      label="Resultat"
-                      value={currency(metrics.actualResult)}
-                      detail="Omsætning minus omkostninger"
-                      icon={TrendingUp}
-                      tone={metrics.actualResult >= 0 ? "positive" : "warning"}
-                    />
-                  </div>
-                </div>
+              {showCosts && costIntelligence ? (
+                <CostIntelligenceDashboard analysis={costIntelligence} />
               ) : (
                 <CommandPanel title="Omkostningsdata" icon={WalletCards} tone="warning">
                   <CommandEmptyState
