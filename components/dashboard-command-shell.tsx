@@ -130,7 +130,7 @@ function ShellSidebar({
   }
 
   return (
-    <div className={`flex h-full min-h-0 flex-col text-white ${softened ? "bg-[linear-gradient(180deg,#102b3d_0%,#0b2232_100%)]" : "bg-[#071625]"}`}>
+    <div className={`flex h-full min-h-0 flex-col text-white ${softened ? "analysis-sidebar" : "bg-[#071625]"}`}>
       <div className={`flex shrink-0 items-center border-b border-white/[0.07] ${softened ? "h-[72px]" : "h-16"} ${navigationCollapsed ? "justify-center px-2" : "justify-between px-4"}`}>
         <div className={`flex min-w-0 items-center ${navigationCollapsed ? "" : "gap-2.5"}`}>
           <span className={`grid shrink-0 place-items-center border border-cyan-300/20 bg-cyan-300/10 text-cyan-200 ${softened ? "h-10 w-10 rounded-lg shadow-[0_7px_18px_rgba(0,0,0,0.12)]" : "h-9 w-9 rounded-md"}`}>
@@ -268,7 +268,7 @@ export function DashboardCommandShell({
   const activeDefinition = mappingMode
     ? {
         title: "Kolonnetilknytning",
-        description: "Kontrollér datagrundlaget, før dashboardet vises.",
+        description: "KontrollÃ©r datagrundlaget, fÃ¸r dashboardet vises.",
       }
     : getDashboardView(activeView);
   const isOverview = activeView === "overview" && !mappingMode;
@@ -332,7 +332,7 @@ export function DashboardCommandShell({
       <div className={`min-h-screen transition-[padding] duration-200 ${sidebarCollapsed ? "lg:pl-[72px]" : "lg:pl-[220px]"}`}>
         <header className={`sticky top-0 z-30 border-b text-white backdrop-blur-xl ${
           isAnalysis
-            ? "h-[72px] border-cyan-100/10 bg-[#112c3d]/94 shadow-[0_7px_24px_rgba(7,22,37,0.09)]"
+            ? "analysis-topbar h-[72px]"
             : `border-white/[0.07] bg-[#0b1c2d]/95 shadow-[0_8px_30px_rgba(7,22,37,0.12)] ${isOverview ? "h-[72px]" : "h-16"}`
         }`}>
           <div className={`flex h-full items-center justify-between gap-3 px-4 sm:px-5 ${isOverview || isAnalysis ? "xl:px-7" : "xl:px-6"}`}>
@@ -341,7 +341,7 @@ export function DashboardCommandShell({
                 type="button"
                 onClick={() => setMobileNavigationOpen(true)}
                 className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-white/10 text-slate-300 transition hover:bg-white/[0.06] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 lg:hidden"
-                aria-label="Åbn navigation"
+                aria-label="Ã…bn navigation"
               >
                 <Menu className="h-5 w-5" aria-hidden="true" />
               </button>
@@ -356,19 +356,19 @@ export function DashboardCommandShell({
                 type="button"
                 onClick={() => onViewChange("dataset")}
                 className={`group hidden min-w-0 items-center border border-white/[0.08] bg-white/[0.045] text-left transition hover:border-cyan-300/20 hover:bg-white/[0.075] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 md:flex ${isOverview || isAnalysis ? "gap-2.5 rounded-lg px-3.5 py-2.5" : "gap-2 rounded-md px-3 py-2"}`}
-                aria-label={`Åbn datasættet ${fileName}`}
-                title="Åbn datasæt"
+                aria-label={`Ã…bn datasÃ¦ttet ${fileName}`}
+                title="Ã…bn datasÃ¦t"
               >
                 <FileSpreadsheet className={`${isOverview || isAnalysis ? "h-[18px] w-[18px]" : "h-4 w-4"} shrink-0 text-cyan-300`} aria-hidden="true" />
                 <div className="min-w-0">
                   <p className={`max-w-[250px] truncate font-semibold text-slate-200 group-hover:text-white ${isOverview || isAnalysis ? "text-xs" : "text-[11px]"}`} title={fileName}>{fileName}</p>
-                  <p className={`${isAnalysis ? "text-slate-400" : "text-slate-500"} ${isOverview || isAnalysis ? "text-[10px]" : "text-[9px]"}`}>{rowCount.toLocaleString("da-DK")} rækker · {statusLabel}</p>
+                  <p className={`${isAnalysis ? "text-slate-400" : "text-slate-500"} ${isOverview || isAnalysis ? "text-[10px]" : "text-[9px]"}`}>{rowCount.toLocaleString("da-DK")} rÃ¦kker Â· {statusLabel}</p>
                 </div>
               </button>
               <Link
                 href="/"
                 className="grid h-9 w-9 place-items-center rounded-md border border-white/10 text-slate-400 transition hover:bg-white/[0.06] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50"
-                aria-label="Gå til forsiden"
+                aria-label="GÃ¥ til forsiden"
                 title="Forside"
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -405,3 +405,4 @@ export function ViewAction({
     </button>
   );
 }
+
