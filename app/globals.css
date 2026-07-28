@@ -4,140 +4,200 @@
 
 :root {
   color: #102033;
-  background: #f7fafc;
-  --overview-workspace: #eaf2f6;
-  --overview-surface: #f7fbfc;
-  --overview-surface-elevated: #ffffff;
-  --overview-surface-muted: #eef6f8;
-  --overview-contrast: #0b1c2d;
-  --overview-border: #cfdee5;
-  --overview-border-strong: #bfd3dc;
-  --overview-text: #0b1c2d;
-  --overview-text-muted: #526779;
-  --overview-cyan: #0891b2;
-  --overview-green: #10b981;
-  --overview-orange: #f97316;
-  --analysis-workspace: #edf5f7;
-  --analysis-surface: #ffffff;
-  --analysis-border: #cbdde4;
-  --analysis-text-muted: #526779;
+  background: #eaf1f5;
+  --app-workspace: #eaf1f5;
+  --app-surface: #ffffff;
+  --app-surface-muted: #f4f8fa;
+  --app-surface-soft: #edf4f7;
+  --app-sidebar: #061523;
+  --app-sidebar-raised: #0a2031;
+  --app-topbar: #102f43;
+  --app-topbar-raised: #153b50;
+  --app-border: #cedde4;
+  --app-border-strong: #b9ced8;
+  --app-text: #0b1c2d;
+  --app-text-muted: #526779;
+  --app-cyan: #0891b2;
+  --app-green: #10b981;
+  --app-orange: #f97316;
+  --app-radius: 14px;
+  --app-shadow:
+    0 12px 32px rgba(13, 35, 55, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  --app-shadow-primary:
+    0 20px 48px rgba(13, 35, 55, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+
+  /* Existing view-specific classes now inherit the global design system. */
+  --overview-workspace: var(--app-workspace);
+  --overview-surface: var(--app-surface-muted);
+  --overview-surface-elevated: var(--app-surface);
+  --overview-surface-muted: var(--app-surface-soft);
+  --overview-contrast: var(--app-text);
+  --overview-border: var(--app-border);
+  --overview-border-strong: var(--app-border-strong);
+  --overview-text: var(--app-text);
+  --overview-text-muted: var(--app-text-muted);
+  --overview-cyan: var(--app-cyan);
+  --overview-green: var(--app-green);
+  --overview-orange: var(--app-orange);
+  --analysis-workspace: var(--app-workspace);
+  --analysis-surface: var(--app-surface);
+  --analysis-border: var(--app-border);
+  --analysis-text-muted: var(--app-text-muted);
 }
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  min-width: 320px;
+  background: var(--app-workspace);
+}
+
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    linear-gradient(180deg, rgba(236, 254, 255, 0.82) 0%, rgba(247, 250, 252, 0) 38%),
-    #f7fafc;
+  overflow-x: hidden;
+  background: var(--app-workspace);
   color: #102033;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  text-rendering: optimizeLegibility;
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
 @layer components {
-  .overview-workspace {
-    background-color: var(--overview-workspace);
-    background-image:
-      radial-gradient(circle at 42% -8%, rgba(8, 145, 178, 0.13), transparent 34rem),
-      linear-gradient(rgba(15, 63, 82, 0.015) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(15, 63, 82, 0.015) 1px, transparent 1px);
-    background-size: auto, 40px 40px, 40px 40px;
-  }
-
-  .overview-section-surface {
-    border: 1px solid rgba(207, 222, 229, 0.88);
-    background: rgba(247, 251, 252, 0.76);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
-  }
-
-  .overview-card {
-    border: 1px solid var(--overview-border);
-    background: var(--overview-surface-elevated);
-    box-shadow:
-      0 12px 32px rgba(13, 35, 55, 0.075),
-      inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  }
-
-  .overview-card-primary {
-    border: 1px solid var(--overview-border-strong);
-    background:
-      radial-gradient(circle at 88% 10%, rgba(8, 145, 178, 0.08), transparent 9rem),
-      var(--overview-surface-elevated);
-    box-shadow:
-      0 20px 48px rgba(13, 35, 55, 0.105),
-      inset 0 1px 0 rgba(255, 255, 255, 0.94);
-  }
-
-  .overview-card-muted {
-    border: 1px solid var(--overview-border);
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(238, 246, 248, 0.9));
-    box-shadow:
-      0 10px 26px rgba(13, 35, 55, 0.065),
-      inset 0 1px 0 rgba(255, 255, 255, 0.92);
-  }
-
+  .app-workspace,
+  .overview-workspace,
   .analysis-workspace {
-    background-color: var(--analysis-workspace);
+    background-color: var(--app-workspace);
     background-image:
-      radial-gradient(circle at 78% -12%, rgba(8, 145, 178, 0.12), transparent 32rem),
-      radial-gradient(circle at 6% 42%, rgba(16, 185, 129, 0.045), transparent 26rem),
-      linear-gradient(rgba(15, 63, 82, 0.018) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(15, 63, 82, 0.018) 1px, transparent 1px);
+      radial-gradient(circle at 82% -9%, rgba(8, 145, 178, 0.115), transparent 34rem),
+      radial-gradient(circle at 4% 58%, rgba(16, 185, 129, 0.035), transparent 27rem),
+      linear-gradient(rgba(15, 63, 82, 0.016) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(15, 63, 82, 0.016) 1px, transparent 1px);
+    background-attachment: fixed;
     background-size: auto, auto, 42px 42px, 42px 42px;
   }
 
+  .app-sidebar,
   .analysis-sidebar {
-    background: linear-gradient(180deg, #102b3d 0%, #0b2232 100%);
+    background:
+      radial-gradient(circle at 50% -8%, rgba(34, 211, 238, 0.09), transparent 15rem),
+      linear-gradient(180deg, var(--app-sidebar-raised) 0%, var(--app-sidebar) 100%);
   }
 
+  .app-topbar,
   .analysis-topbar {
     border-color: rgba(207, 250, 254, 0.12);
-    background: linear-gradient(90deg, rgba(15, 42, 59, 0.98), rgba(18, 52, 69, 0.97));
-    box-shadow: 0 7px 24px rgba(7, 22, 37, 0.12);
+    background:
+      linear-gradient(100deg, rgba(16, 47, 67, 0.985), rgba(21, 59, 80, 0.975)),
+      var(--app-topbar);
+    box-shadow:
+      0 8px 28px rgba(5, 18, 30, 0.15),
+      inset 0 -1px 0 rgba(103, 232, 249, 0.055);
     color: #ffffff;
+    backdrop-filter: blur(16px);
   }
 
+  .app-workspace-content {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .premium-panel,
   .analysis-panel {
-    border: 1px solid var(--analysis-border);
+    border: 1px solid var(--app-border);
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(252, 254, 255, 0.98));
+      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(251, 253, 254, 0.985));
+    box-shadow: var(--app-shadow);
+  }
+
+  .premium-panel-primary,
+  .analysis-panel-primary {
+    border: 1px solid var(--app-border-strong);
+    background:
+      radial-gradient(circle at 90% 0%, rgba(8, 145, 178, 0.075), transparent 16rem),
+      #ffffff;
+    box-shadow: var(--app-shadow-primary);
+  }
+
+  .premium-panel-secondary {
+    border: 1px solid rgba(206, 221, 228, 0.92);
+    background: rgba(255, 255, 255, 0.94);
     box-shadow:
-      0 14px 36px rgba(13, 35, 55, 0.075),
+      0 8px 24px rgba(13, 35, 55, 0.052),
       inset 0 1px 0 rgba(255, 255, 255, 0.94);
   }
 
-  .analysis-panel-primary {
-    border: 1px solid #bdd3dc;
+  .premium-panel-dark {
+    border: 1px solid #1a4059;
     background:
-      radial-gradient(circle at 88% 0%, rgba(8, 145, 178, 0.075), transparent 15rem),
-      #ffffff;
-    box-shadow:
-      0 20px 48px rgba(13, 35, 55, 0.1),
-      inset 0 1px 0 rgba(255, 255, 255, 0.96);
+      radial-gradient(circle at 88% 4%, rgba(34, 211, 238, 0.08), transparent 14rem),
+      linear-gradient(145deg, #102b40, #0b2134);
+    box-shadow: 0 18px 42px rgba(5, 18, 30, 0.18);
   }
 
+  .premium-filter-bar,
   .analysis-filter-bar {
-    border: 1px solid rgba(197, 217, 225, 0.94);
-    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid rgba(197, 217, 225, 0.96);
+    background: rgba(255, 255, 255, 0.9);
     box-shadow:
-      0 10px 28px rgba(13, 35, 55, 0.065),
+      0 10px 28px rgba(13, 35, 55, 0.058),
       inset 0 1px 0 rgba(255, 255, 255, 0.96);
     backdrop-filter: blur(14px);
   }
 
-  .analysis-table-numbers {
-    font-variant-numeric: tabular-nums;
+  .premium-popover {
+    transform-origin: top right;
   }
 
+  .overview-section-surface {
+    border: 1px solid rgba(207, 222, 229, 0.9);
+    background: rgba(247, 251, 252, 0.78);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+
+  .overview-card {
+    border: 1px solid var(--app-border);
+    background: var(--app-surface);
+    box-shadow: var(--app-shadow);
+  }
+
+  .overview-card-primary {
+    border: 1px solid var(--app-border-strong);
+    background:
+      radial-gradient(circle at 88% 8%, rgba(8, 145, 178, 0.08), transparent 10rem),
+      var(--app-surface);
+    box-shadow: var(--app-shadow-primary);
+  }
+
+  .overview-card-muted {
+    border: 1px solid var(--app-border);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(238, 246, 248, 0.92));
+    box-shadow:
+      0 9px 25px rgba(13, 35, 55, 0.058),
+      inset 0 1px 0 rgba(255, 255, 255, 0.94);
+  }
+
+  .analysis-table-numbers,
+  .tabular-nums,
   .smooth-metric-value {
     font-variant-numeric: tabular-nums;
   }
@@ -174,8 +234,27 @@ input {
     }
   }
 
+  @keyframes premium-popover-in {
+    from {
+      opacity: 0;
+      transform: translateY(-3px) scale(0.99);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
   @media (prefers-reduced-motion: no-preference) {
-    .overview-interactive-card {
+    .premium-popover {
+      animation: premium-popover-in 180ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+    }
+
+    .overview-interactive-card,
+    .premium-panel,
+    .premium-panel-primary,
+    .premium-panel-secondary {
       transition:
         transform 180ms ease,
         border-color 180ms ease,
@@ -184,17 +263,25 @@ input {
 
     .overview-interactive-card:hover {
       transform: translateY(-2px);
-      border-color: var(--overview-border-strong);
+      border-color: var(--app-border-strong);
       box-shadow:
-        0 18px 42px rgba(13, 35, 55, 0.1),
+        0 18px 42px rgba(13, 35, 55, 0.095),
         inset 0 1px 0 rgba(255, 255, 255, 0.94);
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      scroll-behavior: auto !important;
+      transition-duration: 1ms !important;
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+    }
+
     .smooth-metric-value-in,
     .smooth-metric-value-out {
-      animation-duration: 1ms;
       transform: none;
     }
   }
