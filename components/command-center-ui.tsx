@@ -239,7 +239,7 @@ export const DatasetCommandCenter = memo(function DatasetCommandCenter({
             </span>
           </div>
           <p className={`mt-1 text-slate-500 ${isOverview || isAnalysis ? "text-[13px]" : "text-[10px]"}`}>
-            {rowCount.toLocaleString("da-DK")} rÃ¦kker Â· Ark: {sheetName}
+            {rowCount.toLocaleString("da-DK")} rækker · Ark: {sheetName}
           </p>
           {warning ? <p className={`mt-1 truncate text-amber-700 ${isOverview || isAnalysis ? "text-xs" : "text-[9px]"}`} title={warning}>{warning}</p> : null}
         </div>
@@ -384,4 +384,3 @@ export function CommandEmptyState({
     </div>
   );
 }
-
