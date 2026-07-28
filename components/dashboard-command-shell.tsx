@@ -268,7 +268,7 @@ export function DashboardCommandShell({
   const activeDefinition = mappingMode
     ? {
         title: "Kolonnetilknytning",
-        description: "KontrollÃ©r datagrundlaget, fÃ¸r dashboardet vises.",
+        description: "Kontrollér datagrundlaget, før dashboardet vises.",
       }
     : getDashboardView(activeView);
   const isOverview = activeView === "overview" && !mappingMode;
@@ -341,7 +341,7 @@ export function DashboardCommandShell({
                 type="button"
                 onClick={() => setMobileNavigationOpen(true)}
                 className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-white/10 text-slate-300 transition hover:bg-white/[0.06] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 lg:hidden"
-                aria-label="Ã…bn navigation"
+                aria-label="Åbn navigation"
               >
                 <Menu className="h-5 w-5" aria-hidden="true" />
               </button>
@@ -356,19 +356,19 @@ export function DashboardCommandShell({
                 type="button"
                 onClick={() => onViewChange("dataset")}
                 className={`group hidden min-w-0 items-center border border-white/[0.08] bg-white/[0.045] text-left transition hover:border-cyan-300/20 hover:bg-white/[0.075] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 md:flex ${isOverview || isAnalysis ? "gap-2.5 rounded-lg px-3.5 py-2.5" : "gap-2 rounded-md px-3 py-2"}`}
-                aria-label={`Ã…bn datasÃ¦ttet ${fileName}`}
-                title="Ã…bn datasÃ¦t"
+                aria-label={`Åbn datasættet ${fileName}`}
+                title="Åbn datasæt"
               >
                 <FileSpreadsheet className={`${isOverview || isAnalysis ? "h-[18px] w-[18px]" : "h-4 w-4"} shrink-0 text-cyan-300`} aria-hidden="true" />
                 <div className="min-w-0">
                   <p className={`max-w-[250px] truncate font-semibold text-slate-200 group-hover:text-white ${isOverview || isAnalysis ? "text-xs" : "text-[11px]"}`} title={fileName}>{fileName}</p>
-                  <p className={`${isAnalysis ? "text-slate-400" : "text-slate-500"} ${isOverview || isAnalysis ? "text-[10px]" : "text-[9px]"}`}>{rowCount.toLocaleString("da-DK")} rÃ¦kker Â· {statusLabel}</p>
+                  <p className={`${isAnalysis ? "text-slate-400" : "text-slate-500"} ${isOverview || isAnalysis ? "text-[10px]" : "text-[9px]"}`}>{rowCount.toLocaleString("da-DK")} rækker · {statusLabel}</p>
                 </div>
               </button>
               <Link
                 href="/"
                 className="grid h-9 w-9 place-items-center rounded-md border border-white/10 text-slate-400 transition hover:bg-white/[0.06] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50"
-                aria-label="GÃ¥ til forsiden"
+                aria-label="Gå til forsiden"
                 title="Forside"
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -405,4 +405,3 @@ export function ViewAction({
     </button>
   );
 }
-
