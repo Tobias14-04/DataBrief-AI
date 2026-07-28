@@ -61,10 +61,10 @@ import {
 } from "@/components/dashboard-control-bar";
 import {
   CommandEmptyState,
+  CommandPageIntro,
   CommandPanel,
   CompactKpiCard,
   CompactSecondaryMetric,
-  DatasetCommandCenter,
   RankedMetricList,
   commandCardClass,
   commandSectionLabelClass,
@@ -75,11 +75,9 @@ import {
   OverviewTrendPanel,
 } from "@/components/overview-dashboard";
 import {
-  dashboardCardClass,
   dashboardEyebrowClass,
   dashboardIconClass,
   dashboardUtilityCardClass,
-  DatasetHeader,
   ExecutiveSummaryCard,
 } from "@/components/dashboard-ui";
 import {
@@ -1250,55 +1248,6 @@ function kpiTone(color: KpiColor): "brand" | "positive" | "warning" | "neutral" 
   return "brand";
 }
 
-function StatusBox({ feedback, analysis }: { feedback?: MappingFeedback; analysis?: WorkbookAnalysis | null }) {
-  const status = feedback?.status ?? (analysis ? "manual" : undefined);
-  if (!status) {
-    return null;
-  }
-
-  const manualReviewRequired = status === "manual" && !feedback;
-  const label =
-    status === "success"
-      ? "Kolonner registreret automatisk"
-      : status === "warning"
-        ? "Kolonner registreret med forbehold"
-        : manualReviewRequired
-          ? "Kolonnerne skal kontrolleres"
-          : "Kolonner manuelt kontrolleret";
-  const styles =
-    status === "success"
-      ? {
-          panel: "border-emerald-300/25 bg-emerald-300/10 text-emerald-100",
-          icon: "border-emerald-300/20 bg-emerald-300/15 text-emerald-200",
-        }
-      : status === "warning" || manualReviewRequired
-        ? {
-            panel: "border-amber-300/30 bg-amber-300/10 text-amber-100",
-            icon: "border-amber-300/25 bg-amber-300/15 text-amber-200",
-          }
-        : {
-            panel: "border-cyan-300/25 bg-cyan-300/10 text-cyan-100",
-            icon: "border-cyan-300/20 bg-cyan-300/15 text-cyan-200",
-          };
-
-  return (
-    <div className={`inline-flex max-w-full items-start gap-2.5 rounded-md border px-3 py-2.5 text-xs shadow-[0_8px_24px_rgba(0,0,0,0.08)] ${styles.panel}`}>
-      <span className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border ${styles.icon}`}>
-        {status === "success" || (status === "manual" && feedback) ? (
-          <Check className="h-3 w-3" strokeWidth={2.75} aria-hidden="true" />
-        ) : (
-          <Info className="h-3 w-3" aria-hidden="true" />
-        )}
-      </span>
-      <div className="min-w-0">
-        <p className="font-semibold leading-5">{label}</p>
-        {feedback?.warnings.length ? <p className="mt-0.5 max-w-md leading-5 opacity-80">{feedback.warnings.join(" ")}</p> : null}
-        {!feedback && analysis ? <p className="mt-0.5 max-w-md leading-5 opacity-80">Vælg et ark, og tilknyt de obligatoriske kolonner nedenfor.</p> : null}
-      </div>
-    </div>
-  );
-}
-
 function getMappingStatusLabel(feedback?: MappingFeedback, analysis?: WorkbookAnalysis | null) {
   if (feedback?.status === "success") return "Registreret automatisk";
   if (feedback?.status === "warning") return "Registreret med forbehold";
@@ -1432,12 +1381,26 @@ function MappingFieldSelect({
   const availableHeaders = remainingHeaders.filter((header) => !usedByOtherField(header));
   const unavailableHeaders = remainingHeaders.filter((header) => usedByOtherField(header));
   const currentIsRecommended = Boolean(currentValue && currentValue === recommendedValue);
+  const selectOptions = [
+    ...preferredHeaders.map((header) => ({
+      value: header,
+      label: `${header}${header === recommendedValue ? " (anbefalet)" : ""}`,
+      disabled: usedByOtherField(header),
+    })),
+    ...availableHeaders.map((header) => ({ value: header, label: header })),
+    ...unavailableHeaders.map((header) => ({
+      value: header,
+      label: `${header} (allerede valgt)`,
+      disabled: true,
+    })),
+    { value: "", label: "Ikke tilknyttet" },
+  ];
 
   return (
-    <label className={`block min-w-0 rounded-lg border transition-colors ${
+    <div className={`block min-w-0 rounded-xl border transition-colors ${
       field.required
-        ? "border-slate-200 bg-white p-3.5 shadow-[0_6px_18px_rgba(16,32,51,0.045)]"
-        : "border-slate-200/80 bg-slate-50/75 p-3"
+        ? "border-slate-200 bg-white p-4 shadow-[0_6px_18px_rgba(16,32,51,0.045)]"
+        : "border-slate-200/80 bg-slate-50/75 p-3.5"
     }`}>
       <span className="flex items-center justify-between gap-3">
         <span className="text-sm font-semibold text-ink">{field.label}</span>
@@ -1446,47 +1409,15 @@ function MappingFieldSelect({
         ) : null}
       </span>
       <span className={`mt-0.5 block text-xs leading-4 text-slate-500 ${field.required ? "min-h-8" : "min-h-4"}`}>{field.helper}</span>
-      <span className="relative mt-1.5 block">
-        <select
-          value={currentValue}
-          onChange={(event) => onChange(field.key, event.target.value)}
-          className={`h-10 w-full appearance-none rounded-md border bg-slate-50 py-1.5 pl-3 pr-9 text-sm font-medium text-ink outline-none transition hover:bg-white focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100 ${
-            hasError ? "border-red-300" : currentValue ? "border-brand-200" : "border-slate-200"
-          }`}
-        >
-          {preferredHeaders.length ? (
-            <optgroup label="Valgt og anbefalet">
-              {preferredHeaders.map((header) => (
-                <option key={header} value={header} disabled={usedByOtherField(header)}>
-                  {header}{header === recommendedValue ? " (anbefalet)" : ""}
-                </option>
-              ))}
-            </optgroup>
-          ) : null}
-          {availableHeaders.length ? (
-            <optgroup label="Tilgængelige kolonner">
-              {availableHeaders.map((header) => (
-                <option key={header} value={header}>
-                  {header}
-                </option>
-              ))}
-            </optgroup>
-          ) : null}
-          {unavailableHeaders.length ? (
-            <optgroup label="Allerede brugt">
-              {unavailableHeaders.map((header) => (
-                <option key={header} value={header} disabled>
-                  {header} (allerede valgt)
-                </option>
-              ))}
-            </optgroup>
-          ) : null}
-          <optgroup label="Ingen tilknytning">
-            <option value="">Ikke tilknyttet</option>
-          </optgroup>
-        </select>
-        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-      </span>
+      <PremiumSelect
+        value={currentValue}
+        options={selectOptions}
+        onChange={(column) => onChange(field.key, column)}
+        ariaLabel={`Vælg kolonne til ${field.label}`}
+        searchable={candidate.headers.length > 10}
+        align="left"
+        className="mt-2"
+      />
       <span className={`mt-1.5 inline-flex min-h-5 items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium ${
         hasError
           ? "border border-red-100 bg-red-50 text-red-700"
@@ -1506,7 +1437,7 @@ function MappingFieldSelect({
           <>Ikke tilknyttet</>
         )}
       </span>
-    </label>
+    </div>
   );
 }
 
@@ -1572,14 +1503,15 @@ function ManualMappingPanel({
 
   return (
     <section
-      className="mx-auto w-full max-w-5xl rounded-lg border border-slate-200 bg-[#f8fbfc] shadow-[0_20px_48px_rgba(16,32,51,0.09)]"
+      className="premium-panel mx-auto w-full max-w-5xl rounded-xl"
       aria-labelledby="mapping-title"
     >
-      <div className="rounded-t-lg border-b border-slate-200 bg-white/80 px-5 py-4 sm:px-6">
+      <div className="rounded-t-xl border-b border-slate-200 bg-white/85 px-5 py-5 sm:px-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p id="mapping-title" className={`${dashboardEyebrowClass} text-brand-700`}>Kontrollér kolonner</p>
-            <p className="mt-1.5 max-w-2xl text-sm leading-5 text-slate-600">
+            <p className={`${dashboardEyebrowClass} text-brand-700`}>Datagrundlag</p>
+            <h2 id="mapping-title" className="mt-1.5 text-2xl font-semibold leading-tight text-ink sm:text-[28px]">Kontrollér kolonner</h2>
+            <p className="mt-2 max-w-2xl text-[15px] leading-6 text-slate-600">
               Vi har automatisk fundet de vigtigste kolonner. Kontrollér dem herunder.
             </p>
           </div>
@@ -1589,7 +1521,7 @@ function ManualMappingPanel({
           </div>
         </div>
 
-        <ol className="mt-3 grid gap-2 text-[11px] font-semibold text-slate-600 sm:grid-cols-4">
+        <ol className="mt-4 grid gap-2 text-xs font-semibold text-slate-600 sm:grid-cols-4">
           {["Vælg datakilde", "Match nødvendige", "Tilføj valgfrie", "Kontrollér og fortsæt"].map((step, index) => (
             <li key={step} className="flex items-center gap-2 rounded-md border border-slate-200/80 bg-slate-50/80 px-2.5 py-2">
               <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md border border-brand-100 bg-brand-50 text-[10px] text-brand-700">{index + 1}</span>
@@ -1605,33 +1537,25 @@ function ManualMappingPanel({
         ) : null}
       </div>
 
-      <div className="space-y-3 bg-[#f3f7f8] p-3 pb-24 sm:p-4 sm:pb-20">
-        <section className="rounded-lg border border-slate-200 bg-[#edf4f6] p-3.5 sm:p-4" aria-labelledby="mapping-step-source">
+      <div className="space-y-4 bg-[#f3f7f8] p-3 pb-24 sm:p-5 sm:pb-20">
+        <section className="rounded-xl border border-slate-200 bg-[#edf4f6] p-4 sm:p-5" aria-labelledby="mapping-step-source">
           <div className="flex items-center gap-3 border-b border-slate-200/80 pb-2.5">
             <span className="grid h-7 w-7 place-items-center rounded-md border border-brand-100 bg-brand-50 text-xs font-semibold text-brand-700">1</span>
             <div>
-              <h4 id="mapping-step-source" className="text-sm font-semibold text-ink">Vælg regneark og kontrollér overskriftsrækken</h4>
-              <p className="mt-0.5 text-xs text-slate-500">Vi har fundet den mest sandsynlige overskriftsrække i hvert ark.</p>
+              <h4 id="mapping-step-source" className="text-base font-semibold text-ink">Vælg regneark og kontrollér overskriftsrækken</h4>
+              <p className="mt-0.5 text-[13px] leading-5 text-slate-500">Vi har fundet den mest sandsynlige overskriftsrække i hvert ark.</p>
             </div>
           </div>
           <div className="mt-3 grid gap-2.5 sm:grid-cols-[minmax(0,1fr)_220px]">
-            <label className="block text-xs font-semibold text-slate-600">
-              Regneark
-              <span className="relative mt-1.5 block">
-                <select
-                  value={selectedSheet}
-                  onChange={(event) => onSheetChange(event.target.value)}
-                  className="h-10 w-full appearance-none rounded-md border border-slate-200 bg-slate-50 py-1.5 pl-3 pr-9 text-sm font-semibold text-ink outline-none transition hover:border-brand-200 hover:bg-white focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100"
-                >
-                  {analysis.candidates.map((sheet) => (
-                    <option key={sheet.name} value={sheet.name}>
-                      {sheet.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-              </span>
-            </label>
+            <PremiumSelect
+              value={selectedSheet}
+              options={analysis.candidates.map((sheet) => ({ value: sheet.name, label: sheet.name }))}
+              onChange={onSheetChange}
+              label="Regneark"
+              ariaLabel="Vælg regneark"
+              searchable={analysis.candidates.length > 10}
+              align="left"
+            />
             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Overskriftsrække</p>
               <p className="mt-1 text-sm font-semibold text-ink">Række {candidate.headerIndex + 1}</p>
@@ -1640,12 +1564,12 @@ function ManualMappingPanel({
           </div>
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-[0_8px_24px_rgba(16,32,51,0.04)] sm:p-4" aria-labelledby="mapping-step-required">
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(16,32,51,0.04)] sm:p-5" aria-labelledby="mapping-step-required">
           <div className="flex items-center gap-3 border-b border-slate-100 pb-2.5">
             <span className="grid h-7 w-7 place-items-center rounded-md border border-brand-100 bg-brand-50 text-xs font-semibold text-brand-700">2</span>
             <div>
-              <h4 id="mapping-step-required" className="text-sm font-semibold text-ink">Match nødvendige kolonner</h4>
-              <p className="mt-0.5 text-xs text-slate-500">Alle fem områder skal være dækket, før dashboardet kan oprettes.</p>
+              <h4 id="mapping-step-required" className="text-base font-semibold text-ink">Match nødvendige kolonner</h4>
+              <p className="mt-0.5 text-[13px] leading-5 text-slate-500">Alle fem områder skal være dækket, før dashboardet kan oprettes.</p>
             </div>
           </div>
           <div className="mt-3 grid gap-2.5 md:grid-cols-2">
@@ -1663,13 +1587,13 @@ function ManualMappingPanel({
           </div>
         </section>
 
-        <details className="group rounded-lg border border-slate-200 bg-[#eef3f5] p-3.5 sm:p-4" open={!requiredMappingsValid ? true : undefined}>
+        <details className="group rounded-xl border border-slate-200 bg-[#eef3f5] p-4 sm:p-5" open={!requiredMappingsValid ? true : undefined}>
           <summary className="flex cursor-pointer list-none flex-col items-stretch justify-between gap-3 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-100 sm:flex-row sm:items-center sm:gap-4">
             <span className="flex min-w-0 items-center gap-3">
               <span className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-700">3</span>
               <span>
-                <span className="block text-sm font-semibold text-ink">Match valgfrie kolonner</span>
-                <span className="mt-0.5 block text-xs text-slate-500">Tilføj flere dimensioner og økonomiske nøgletal, hvis de findes.</span>
+                <span className="block text-base font-semibold text-ink">Match valgfrie kolonner</span>
+                <span className="mt-0.5 block text-[13px] leading-5 text-slate-500">Tilføj flere dimensioner og økonomiske nøgletal, hvis de findes.</span>
               </span>
             </span>
             <span className="flex w-full shrink-0 items-center justify-between gap-3 border-t border-slate-200/80 pt-3 text-left text-[11px] font-medium text-slate-600 sm:w-auto sm:justify-start sm:border-0 sm:pt-0 sm:text-right">
@@ -1692,12 +1616,12 @@ function ManualMappingPanel({
           </div>
         </details>
 
-        <section className="rounded-lg border border-brand-100 bg-[#edf7f7] p-3.5 sm:p-4" aria-labelledby="mapping-step-review">
+        <section className="rounded-xl border border-brand-100 bg-[#edf7f7] p-4 sm:p-5" aria-labelledby="mapping-step-review">
           <div className="flex items-center gap-3 border-b border-brand-100/80 pb-2.5">
             <span className="grid h-7 w-7 place-items-center rounded-md border border-brand-200 bg-white text-xs font-semibold text-brand-700">4</span>
             <div>
-              <h4 id="mapping-step-review" className="text-sm font-semibold text-ink">Kontrollér og fortsæt</h4>
-              <p className="mt-0.5 text-xs text-slate-500">Se opsætningen igennem, før dashboardet opdateres.</p>
+              <h4 id="mapping-step-review" className="text-base font-semibold text-ink">Kontrollér og fortsæt</h4>
+              <p className="mt-0.5 text-[13px] leading-5 text-slate-500">Se opsætningen igennem, før dashboardet opdateres.</p>
             </div>
           </div>
 
@@ -1732,8 +1656,8 @@ function ManualMappingPanel({
         </section>
       </div>
 
-      <div className="sticky bottom-0 z-20 flex flex-col gap-2.5 rounded-b-lg border-t border-slate-200 bg-[#f8fbfc]/95 px-4 py-3 shadow-[0_-10px_24px_rgba(16,32,51,0.065)] backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between sm:px-5">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-slate-600">
+      <div className="sticky bottom-0 z-20 flex flex-col gap-2.5 rounded-b-xl border-t border-slate-200 bg-[#f8fbfc]/95 px-4 py-3 shadow-[0_-10px_24px_rgba(16,32,51,0.065)] backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] font-medium text-slate-600">
           <span className="inline-flex items-center gap-1.5">
             {canApply ? <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" /> : <Info className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />}
             {requiredMappingFields.length - missingRequiredFields.length}/{requiredMappingFields.length} nødvendige felter matchet
@@ -1991,16 +1915,14 @@ export function AnalysisFilterPanel({
               <div className="mb-2 flex items-center justify-between gap-2">
                 <span className="text-[11px] font-medium text-slate-500">År</span>
                 {years.length > 1 ? (
-                  <span className="relative block min-w-24">
-                    <select
-                      value={visibleYear}
-                      onChange={(event) => setSelectedYear(event.target.value)}
-                      className="h-8 w-full appearance-none rounded-md border border-slate-200 bg-slate-50 py-1 pl-2.5 pr-7 text-[11px] font-semibold text-ink outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                    >
-                      {years.map((year) => <option key={year} value={year}>{year}</option>)}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-                  </span>
+                  <PremiumSelect
+                    value={visibleYear}
+                    options={years.map((year) => ({ value: year, label: year }))}
+                    onChange={setSelectedYear}
+                    ariaLabel="Vælg år"
+                    align="right"
+                    className="min-w-28"
+                  />
                 ) : (
                   <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">{visibleYear}</span>
                 )}
@@ -2237,31 +2159,22 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
   const metricGridClass = report.metrics.length === 4
     ? "grid-cols-2"
     : report.metrics.length === 3
-      ? "grid-cols-3"
+      ? "grid-cols-2 sm:grid-cols-3"
       : "grid-cols-2";
-  const isOverview = variant === "overview";
-  const isAnalysis = variant === "analysis";
-  const isPremium = isOverview || isAnalysis;
-
   return (
     <section
-      className={
-        isOverview
-          ? "overview-card overflow-hidden rounded-xl"
-          : isAnalysis
-            ? "analysis-panel flex min-w-0 flex-col self-start overflow-hidden rounded-xl"
-            : dashboardCardClass
-      }
+      className="premium-panel flex min-w-0 flex-col self-start overflow-visible rounded-xl"
       data-testid="monthly-report"
+      data-variant={variant}
     >
-      <div className={`flex flex-wrap items-end justify-between border-b border-[#e8eef1] ${isAnalysis ? "bg-[linear-gradient(135deg,#ffffff_55%,#f0fafc)]" : "bg-white"} ${isPremium ? "gap-4 px-5 py-5" : "gap-3 px-4 py-3"}`}>
+      <div className="flex flex-wrap items-end justify-between gap-4 rounded-t-xl border-b border-[#e8eef1] bg-[linear-gradient(135deg,#ffffff_55%,#f0fafc)] px-5 py-5">
         <div className="flex items-center gap-3">
-          <span className={isPremium ? "grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 shadow-sm" : dashboardIconClass}>
-            <CalendarRange className={isPremium ? "h-5 w-5" : "h-[18px] w-[18px]"} aria-hidden="true" />
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 shadow-sm">
+            <CalendarRange className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
-            <p className={`${isPremium ? "text-[10px]" : dashboardEyebrowClass} font-semibold uppercase tracking-[0.14em] text-brand-700`}>Periodeanalyse</p>
-            <h2 className={isPremium ? "mt-1 text-lg font-semibold text-ink" : "mt-0.5 text-sm font-semibold text-ink"}>Månedsrapport</h2>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-brand-700">Periodeanalyse</p>
+            <h2 className="mt-1 text-lg font-semibold text-ink">Månedsrapport</h2>
           </div>
         </div>
         <PremiumSelect
@@ -2271,7 +2184,7 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
           label="Rapportmåned"
           ariaLabel="Vælg rapportmåned"
           searchable={monthOptions.length > 10}
-          className={isPremium ? "w-[172px]" : "w-[160px]"}
+          className="w-[178px]"
         />
       </div>
 
@@ -2279,23 +2192,23 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
         {report.metrics.map((metric) => (
           <div
             key={metric.key}
-            className={`flex min-w-0 flex-col bg-white ${isPremium ? "min-h-[108px] px-3.5 py-4" : "min-h-[78px] px-2.5 py-3"}`}
+            className="flex min-h-[108px] min-w-0 flex-col bg-white px-3.5 py-4"
           >
-            <p className={`font-semibold uppercase text-slate-500 ${isPremium ? "min-h-8 text-[10px] leading-4 tracking-[0.1em]" : "min-h-7 text-[8px] leading-3.5 tracking-[0.08em]"}`}>
+            <p className="min-h-8 text-[10px] font-semibold uppercase leading-4 tracking-[0.1em] text-slate-500">
               {metric.label}
             </p>
             <SmoothMetricValue
               value={metric.value}
-              className={`mt-1 min-w-0 break-words font-semibold text-ink ${
-                isPremium ? "whitespace-nowrap text-[18px] leading-6" : "text-sm leading-5"
-              } ${metric.key === "budgetStatus" ? `inline-flex w-fit whitespace-nowrap rounded-md px-2 py-1 ${isPremium ? "text-[11px]" : "text-[9px]"} ${budgetStatusClasses}` : ""}`}
+              className={`mt-1 min-w-0 whitespace-nowrap text-[18px] font-semibold leading-6 tabular-nums text-ink ${
+                metric.key === "budgetStatus" ? `inline-flex w-fit rounded-md px-2 py-1 text-[11px] ${budgetStatusClasses}` : ""
+              }`}
             />
           </div>
         ))}
       </div>
 
-      <div className={`mt-auto border-t border-[#e8eef1] bg-[#f8fbfc] ${isPremium ? "px-5 py-5" : "px-4 py-3"}`}>
-        <p className={`border-l-2 border-brand-500 font-medium text-slate-700 ${isPremium ? "pl-4 text-[13px] leading-6" : "pl-3 text-[11px] leading-5"}`}>
+      <div className="mt-auto rounded-b-xl border-t border-[#e8eef1] bg-[#f8fbfc] px-5 py-5">
+        <p className="border-l-2 border-brand-500 pl-4 text-[13px] font-medium leading-6 text-slate-700">
           {reportRows.length
             ? report.summary
             : `Ingen rækker matcher de aktuelle filtre for ${formatDanishMonth(reportMonth)}.`}
@@ -2876,36 +2789,33 @@ export default function UploadDashboard() {
 
   if (!hasWorkbook) {
     return (
-      <main className="relative isolate min-h-screen overflow-hidden bg-[linear-gradient(135deg,#f8fbfc_0%,#f1fbfc_46%,#fff8f3_100%)]">
-        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_78%_18%,rgba(8,145,178,0.14),transparent_28%),radial-gradient(circle_at_10%_85%,rgba(249,115,22,0.09),transparent_24%)]" />
-        <div className="pointer-events-none absolute inset-0 -z-10 opacity-40 [background-image:linear-gradient(rgba(16,32,51,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(16,32,51,0.035)_1px,transparent_1px)] [background-size:48px_48px]" />
-
-        <header className="border-b border-white/70 bg-white/70 backdrop-blur-xl">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
+      <main className="app-workspace relative isolate min-h-screen overflow-x-clip">
+        <header className="app-topbar border-b text-white">
+          <div className="mx-auto flex min-h-[76px] max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
             <Link
               href="/"
-              className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-slate-600 transition hover:bg-white hover:text-ink"
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-slate-200 transition duration-200 hover:bg-white/[0.07] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               Forside
             </Link>
             <div className="flex items-center gap-3">
-              <span className="grid h-10 w-10 place-items-center rounded-lg bg-ink text-white shadow-[0_10px_24px_rgba(16,32,51,0.18)]">
+              <span className="grid h-10 w-10 place-items-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 text-cyan-200 shadow-[0_10px_24px_rgba(5,18,30,0.2)]">
                 <FileSpreadsheet className="h-5 w-5" aria-hidden="true" />
               </span>
-              <span className="font-semibold text-ink">DataBrief AI</span>
+              <span className="font-semibold text-white">DataBrief AI</span>
             </div>
           </div>
         </header>
 
-        <section className="mx-auto w-full max-w-3xl px-6 py-12 sm:py-16 lg:px-8">
+        <section className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
           <div className="mb-7 text-center">
             <div className="mx-auto mb-4 inline-flex items-center gap-2 rounded-lg border border-brand-100 bg-white/85 px-3 py-1.5 text-xs font-semibold text-brand-700 shadow-sm backdrop-blur">
               <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
               Regnearksanalyse uden opsætning
             </div>
-            <h1 className="text-3xl font-semibold leading-tight text-ink sm:text-4xl">Upload salgsdata</h1>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">
+            <h1 className="text-[clamp(2rem,4vw,2.6rem)] font-semibold leading-tight tracking-[-0.025em] text-ink">Upload salgsdata</h1>
+            <p className="mx-auto mt-3 max-w-xl text-[15px] leading-7 text-slate-600 sm:text-base">
               Vælg en Excel-fil, eller brug demodata til at oprette et dashboard og et ledelsesresume.
             </p>
           </div>
@@ -2925,7 +2835,7 @@ export default function UploadDashboard() {
           </div>
 
           <div className="space-y-5">
-            <div className="overflow-hidden rounded-lg border border-white/90 bg-white/90 shadow-[0_28px_80px_rgba(16,32,51,0.14),0_6px_20px_rgba(16,32,51,0.06)] backdrop-blur">
+            <div className="premium-panel-primary overflow-hidden rounded-xl">
               <div className="flex items-center gap-3 border-b border-slate-200 bg-gradient-to-r from-white via-white to-brand-50/45 px-5 py-4 sm:px-6">
                 <div className="grid h-10 w-10 place-items-center rounded-lg border border-brand-100 bg-brand-50 text-brand-700">
                   <Upload className="h-5 w-5" aria-hidden="true" />
@@ -2937,7 +2847,7 @@ export default function UploadDashboard() {
               </div>
 
               <div className="p-5 sm:p-6">
-                <label className="group flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-[linear-gradient(180deg,#f8fafc_0%,#ffffff_100%)] px-5 py-8 text-center shadow-inner transition hover:border-brand-500 hover:bg-brand-50/35">
+                <label className="group flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-[linear-gradient(180deg,#f7fafb_0%,#ffffff_100%)] px-5 py-8 text-center shadow-inner transition duration-200 hover:border-brand-500 hover:bg-brand-50/35 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100">
                   <span className="grid h-14 w-14 place-items-center rounded-lg border border-brand-100 bg-white text-brand-700 shadow-[0_8px_22px_rgba(8,145,178,0.12)] transition group-hover:-translate-y-0.5 group-hover:shadow-[0_12px_28px_rgba(8,145,178,0.18)]">
                     <Upload className="h-6 w-6" aria-hidden="true" />
                   </span>
@@ -2983,7 +2893,7 @@ export default function UploadDashboard() {
               </div>
             </div>
 
-            <div className="rounded-lg border border-white/90 bg-white/80 p-5 shadow-[0_12px_34px_rgba(16,32,51,0.06)] backdrop-blur sm:p-6">
+            <div className="premium-panel-secondary rounded-xl p-5 sm:p-6">
               <div className="flex items-start gap-4">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-brand-100 bg-brand-50 text-brand-700">
                   <Info className="h-5 w-5" aria-hidden="true" />
@@ -3015,8 +2925,10 @@ export default function UploadDashboard() {
     <DashboardCommandShell
       activeView={activeView}
       fileName={data?.fileName ?? analysis?.fileName ?? "Excel-regneark"}
+      sheetName={data?.feedback.salesSheetName ?? selectedSheet}
       rowCount={detectedRowCount}
       statusLabel={mappingStatusLabel}
+      warning={mappingWarning}
       mappingMode={shouldShowManualMapping}
       onViewChange={setActiveView}
       onUpload={openCommandFilePicker}
@@ -3033,24 +2945,7 @@ export default function UploadDashboard() {
       <section className="min-w-0">
         <section className="min-w-0">
           {shouldShowManualMapping ? (
-            <section className="mx-auto max-w-6xl space-y-4">
-              <DatasetHeader
-                fileName={data?.fileName ?? analysis?.fileName ?? "Ingen fil uploadet endnu"}
-                title={shouldShowManualMapping ? "Tilpas kolonner" : "Salgsdashboard"}
-            description={
-              shouldShowManualMapping
-                ? "Kontrollér datakilden og de foreslåede kolonner, før dashboardet vises."
-                : hasData
-                  ? isFiltered
-                    ? `${number(metrics.rowCount)} af ${number(allRows.length)} rækker vises med de aktuelle filtre.`
-                    : `${number(allRows.length)} rækker er klar til analyse.`
-                  : "Upload en Excel-fil for at udfylde dashboardet."
-            }
-                status={<StatusBox feedback={data?.feedback} analysis={analysis} />}
-                showEditMapping={!shouldShowManualMapping}
-                onEditMapping={openManualMapping}
-              />
-
+            <section className="mx-auto max-w-6xl">
               <ManualMappingPanel
                 analysis={analysis}
                 selectedSheet={selectedSheet}
@@ -3073,20 +2968,7 @@ export default function UploadDashboard() {
           ) : null}
 
           {!shouldShowManualMapping ? (
-          <div className="grid min-w-0 gap-5 min-[1360px]:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="min-w-0 min-[1360px]:col-span-2">
-            <DatasetCommandCenter
-              fileName={data?.fileName ?? analysis?.fileName ?? "Excel-regneark"}
-              sheetName={data?.feedback.salesSheetName ?? selectedSheet}
-              rowCount={detectedRowCount}
-              statusLabel={mappingStatusLabel}
-              warning={mappingWarning}
-              onUpload={openCommandFilePicker}
-              onEditMapping={openManualMapping}
-              variant={activeView === "overview" ? "overview" : activeView === "analysis" ? "analysis" : "default"}
-            />
-          </div>
-
+          <div className="grid min-w-0 gap-6 min-[1360px]:grid-cols-[minmax(0,1fr)_380px]">
           {activeView !== "dataset" ? (
             <div className="min-w-0 min-[1360px]:col-span-2">
               <DashboardControlBar
@@ -3266,17 +3148,11 @@ export default function UploadDashboard() {
           ) : null}
           {activeView === "analysis" ? (
             <section className="min-w-0 space-y-6 min-[1360px]:col-span-2" data-testid="analysis-view">
-              <div className="flex flex-col gap-4 px-1 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-brand-700">Tidsserieanalyse</p>
-                  <h2 className="mt-2 text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[#0b1c2d] sm:text-[32px]">
-                    Udvikling på tværs af perioder
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    Sammenlign udviklingen måned for måned. Alle tal følger de aktive dashboardfiltre.
-                  </p>
-                </div>
-                <PremiumSelect
+              <CommandPageIntro
+                eyebrow="Tidsserieanalyse"
+                title="Udvikling på tværs af perioder"
+                description="Sammenlign udviklingen måned for måned. Alle tal følger de aktive dashboardfiltre."
+                action={<PremiumSelect
                   value={activeTrendMetric}
                   options={trendMetricOptions}
                   onChange={(metric) => setTrendMetric(metric as TrendMetric)}
@@ -3284,8 +3160,8 @@ export default function UploadDashboard() {
                   ariaLabel="Vælg nøgletal til analyse"
                   align="right"
                   className="w-full sm:w-[210px]"
-                />
-              </div>
+                />}
+              />
 
               <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(340px,0.68fr)]">
                 <CommandPanel
@@ -3399,26 +3275,23 @@ export default function UploadDashboard() {
           ) : null}
 
           {activeView === "products" ? (
-            <section className="min-w-0 space-y-4 min-[1360px]:col-span-2" data-testid="products-view">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className={`${commandSectionLabelClass} text-brand-700`}>Produktperformance</p>
-                  <h2 className="mt-1 text-xl font-semibold text-ink">Produkter</h2>
-                  <p className="mt-1 text-xs text-slate-500">{number(productViewData.length)} produkter i den aktuelle visning.</p>
-                </div>
-                <label className="relative block min-w-[180px]">
-                  <span className="sr-only">Sortér produkter</span>
-                  <select
-                    value={productSort}
-                    onChange={(event) => setProductSort(event.target.value as "revenue" | "units")}
-                    className="h-10 w-full appearance-none rounded-md border border-slate-200 bg-white py-1 pl-3 pr-8 text-xs font-semibold text-slate-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                  >
-                    <option value="revenue">Sortér efter omsætning</option>
-                    <option value="units">Sortér efter antal</option>
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-                </label>
-              </div>
+            <section className="min-w-0 space-y-6 min-[1360px]:col-span-2" data-testid="products-view">
+              <CommandPageIntro
+                eyebrow="Produktperformance"
+                title="Produkter"
+                description={`${number(productViewData.length)} produkter i den aktuelle visning.`}
+                action={<PremiumSelect
+                  value={productSort}
+                  options={[
+                    { value: "revenue", label: "Sortér efter omsætning" },
+                    { value: "units", label: "Sortér efter antal" },
+                  ]}
+                  onChange={(sort) => setProductSort(sort as "revenue" | "units")}
+                  ariaLabel="Sortér produkter"
+                  align="right"
+                  className="w-full sm:w-[220px]"
+                />}
+              />
 
               <div className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)]">
                 <CommandPanel
@@ -3445,7 +3318,7 @@ export default function UploadDashboard() {
                 >
                   <div className="max-h-[520px] overflow-auto">
                     <table className="w-full min-w-[620px] text-left">
-                      <thead className="sticky top-0 bg-slate-50 text-[9px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+                      <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
                         <tr>
                           <th className="px-4 py-3">Produkt</th>
                           <th className="px-4 py-3 text-right">Omsætning</th>
@@ -3453,7 +3326,7 @@ export default function UploadDashboard() {
                           <th className="px-4 py-3 text-right">Andel</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 text-xs">
+                      <tbody className="divide-y divide-slate-100 text-sm tabular-nums">
                         {productViewData.map((product) => (
                           <tr key={product.name} className="transition hover:bg-slate-50/70">
                             <td className="px-4 py-3 font-semibold text-ink">{product.name}</td>
@@ -3471,12 +3344,12 @@ export default function UploadDashboard() {
           ) : null}
 
           {activeView === "categories" ? (
-            <section className="min-w-0 space-y-4 min-[1360px]:col-span-2" data-testid="categories-view">
-              <div>
-                <p className={`${commandSectionLabelClass} text-brand-700`}>Kategorifordeling</p>
-                <h2 className="mt-1 text-xl font-semibold text-ink">Kategorier</h2>
-                <p className="mt-1 text-xs text-slate-500">Omsætning, indtjening og omkostninger samlet pr. kategori.</p>
-              </div>
+            <section className="min-w-0 space-y-6 min-[1360px]:col-span-2" data-testid="categories-view">
+              <CommandPageIntro
+                eyebrow="Kategorifordeling"
+                title="Kategorier"
+                description="Omsætning, indtjening og omkostninger samlet pr. kategori."
+              />
               <div className="grid gap-4 lg:grid-cols-2">
                 <CommandPanel title="Omsætning pr. kategori" description="Andel af den samlede omsætning" icon={CircleDollarSign}>
                   <RankedMetricList
@@ -3513,7 +3386,7 @@ export default function UploadDashboard() {
               <CommandPanel title="Kategoritabel" description="Det samlede datagrundlag pr. kategori" icon={Rows3}>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[680px] text-left">
-                    <thead className="bg-slate-50 text-[9px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+                    <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
                       <tr>
                         <th className="px-4 py-3">Kategori</th>
                         <th className="px-4 py-3 text-right">Omsætning</th>
@@ -3522,7 +3395,7 @@ export default function UploadDashboard() {
                         <th className="px-4 py-3 text-right">Omkostninger</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs">
+                    <tbody className="divide-y divide-slate-100 text-sm tabular-nums">
                       {categoryViewData.map((category) => (
                         <tr key={category.name} className="transition hover:bg-slate-50/70">
                           <td className="px-4 py-3 font-semibold text-ink">{category.name}</td>
@@ -3540,12 +3413,13 @@ export default function UploadDashboard() {
           ) : null}
 
           {activeView === "costs" ? (
-            <section className="min-w-0 space-y-4 min-[1360px]:col-span-2" data-testid="costs-view">
-              <div>
-                <p className={`${commandSectionLabelClass} text-orange-700`}>Omkostningsstyring</p>
-                <h2 className="mt-1 text-xl font-semibold text-ink">Omkostninger</h2>
-                <p className="mt-1 text-xs text-slate-500">Registrerede omkostninger i den aktuelle filtrerede visning.</p>
-              </div>
+            <section className="min-w-0 space-y-6 min-[1360px]:col-span-2" data-testid="costs-view">
+              <CommandPageIntro
+                eyebrow="Omkostningsstyring"
+                title="Omkostninger"
+                description="Registrerede omkostninger i den aktuelle filtrerede visning."
+                tone="warning"
+              />
               {showCosts ? (
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                   <CommandPanel
@@ -3591,12 +3465,12 @@ export default function UploadDashboard() {
           ) : null}
 
           {activeView === "insights" ? (
-            <section className="min-w-0 space-y-4 min-[1360px]:col-span-2" data-testid="insights-view">
-              <div>
-                <p className={`${commandSectionLabelClass} text-brand-700`}>Beslutningsgrundlag</p>
-                <h2 className="mt-1 text-xl font-semibold text-ink">Ledelsesindsigter</h2>
-                <p className="mt-1 text-xs text-slate-500">Regelbaserede forklaringer ud fra de registrerede og filtrerede data.</p>
-              </div>
+            <section className="min-w-0 space-y-6 min-[1360px]:col-span-2" data-testid="insights-view">
+              <CommandPageIntro
+                eyebrow="Beslutningsgrundlag"
+                title="Ledelsesindsigter"
+                description="Regelbaserede forklaringer ud fra de registrerede og filtrerede data."
+              />
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
                 <ExecutiveSummaryCard
                   insights={executiveSummary.insights}
@@ -3623,12 +3497,12 @@ export default function UploadDashboard() {
           ) : null}
 
           {activeView === "reports" ? (
-            <section className="min-w-0 space-y-4 min-[1360px]:col-span-2" data-testid="reports-view">
-              <div>
-                <p className={`${commandSectionLabelClass} text-brand-700`}>Aktuel rapport</p>
-                <h2 className="mt-1 text-xl font-semibold text-ink">Rapporter</h2>
-                <p className="mt-1 text-xs text-slate-500">Månedsrapport og ledelsesresume for den valgte visning.</p>
-              </div>
+            <section className="min-w-0 space-y-6 min-[1360px]:col-span-2" data-testid="reports-view">
+              <CommandPageIntro
+                eyebrow="Aktuel rapport"
+                title="Rapporter"
+                description="Månedsrapport og ledelsesresume for den valgte visning."
+              />
               <div className="grid gap-4 xl:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]">
                 <MonthlyReportCard
                   rows={allRows}
@@ -3648,12 +3522,12 @@ export default function UploadDashboard() {
           ) : null}
 
           {activeView === "dataset" ? (
-            <section className="min-w-0 space-y-4 min-[1360px]:col-span-2" data-testid="dataset-view">
-              <div>
-                <p className={`${commandSectionLabelClass} text-brand-700`}>Datakilde</p>
-                <h2 className="mt-1 text-xl font-semibold text-ink">Datasæt og registrering</h2>
-                <p className="mt-1 text-xs text-slate-500">Kontrollér ark, overskriftsrække og de kolonner, der driver dashboardet.</p>
-              </div>
+            <section className="min-w-0 space-y-6 min-[1360px]:col-span-2" data-testid="dataset-view">
+              <CommandPageIntro
+                eyebrow="Datakilde"
+                title="Datasæt og registrering"
+                description="Kontrollér ark, overskriftsrække og de kolonner, der driver dashboardet."
+              />
               <FeedbackPanel feedback={data?.feedback} rowCount={allRows.length} />
               <CommandPanel title="Arbejd med datasættet" description="Skift fil eller brug et kontrolleret eksempel" icon={FileSpreadsheet}>
                 <div className="flex flex-wrap gap-2 p-4">
