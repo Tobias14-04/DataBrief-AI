@@ -526,53 +526,67 @@ function signedPercent(value: number | null) {
   return `${value > 0 ? "+" : "−"}${formatDanishPercent(Math.abs(value))}`;
 }
 
-function movementText(subject: string, value: number) {
-  if (Math.abs(value) < 0.000_000_1) return `${subject} udviklede sig ikke`;
+function movementText(subject: string, value: number, unchangedForm: "uændret" | "uændrede") {
+  if (value === 0) return `${subject} var ${unchangedForm}`;
   return value > 0
     ? `${subject} steg ${formatDanishPercent(value)}`
     : `${subject} faldt ${formatDanishPercent(Math.abs(value))}`;
 }
 
-function formatPercentagePoints(value: number) {
+function roundedPercentTenths(value: number) {
+  const rounded = Math.round(Math.abs(value) * 1_000 + Number.EPSILON) * (value < 0 ? -1 : 1);
+  return rounded === 0 ? 0 : rounded;
+}
+
+function formatPercentagePoints(tenths: number) {
   return `${new Intl.NumberFormat("da-DK", {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
-  }).format(Math.abs(value) * 100)} procentpoint`;
+  }).format(Math.abs(tenths) / 10)} procentpoint`;
 }
 
 export function buildCostComparisonPresentation(comparison: CostComparison) {
-  const percentagePointDifference = comparison.costChangePercent !== null
-    && comparison.revenueChangePercent !== null
-    ? comparison.costChangePercent - comparison.revenueChangePercent
+  const costChangeTenths = comparison.costChangePercent === null
+    ? null
+    : roundedPercentTenths(comparison.costChangePercent);
+  const revenueChangeTenths = comparison.revenueChangePercent === null
+    ? null
+    : roundedPercentTenths(comparison.revenueChangePercent);
+  const percentagePointDifferenceTenths = costChangeTenths !== null
+    && revenueChangeTenths !== null
+    ? costChangeTenths - revenueChangeTenths
     : null;
+  const percentagePointDifference = percentagePointDifferenceTenths === null
+    ? null
+    : percentagePointDifferenceTenths / 1_000;
+  const roundedCostChange = costChangeTenths === null ? null : costChangeTenths / 1_000;
+  const roundedRevenueChange = revenueChangeTenths === null ? null : revenueChangeTenths / 1_000;
   const costMovement = comparison.costChangePercent === null
     ? `Omkostningsændringen var ${signedCurrency(comparison.costChange)}, men procentændringen kan ikke beregnes`
-    : movementText("Omkostningerne", comparison.costChangePercent);
+    : movementText("Omkostningerne", roundedCostChange ?? 0, "uændrede");
   const revenueMovement = comparison.revenueChangePercent === null
     ? "omsætningsændringen kan ikke beregnes i procent"
-    : movementText("omsætningen", comparison.revenueChangePercent).replace(/^omsætningen/, "omsætningen");
+    : movementText("omsætningen", roundedRevenueChange ?? 0, "uændret");
 
   let differenceText: string;
-  if (percentagePointDifference === null) {
+  if (
+    percentagePointDifferenceTenths === null
+    || costChangeTenths === null
+    || revenueChangeTenths === null
+  ) {
     differenceText = "Forskellen i udvikling kan ikke beregnes, fordi en tidligere periode har 0 som sammenligningsgrundlag.";
-  } else if (Math.abs(percentagePointDifference) < 0.0005) {
-    differenceText = "Omkostninger og omsætning udviklede sig med samme procentvise hastighed.";
-  } else if (
-    comparison.costChangePercent !== null
-    && comparison.revenueChangePercent !== null
-    && comparison.costChangePercent >= 0
-    && comparison.revenueChangePercent >= 0
-  ) {
-    differenceText = `Omkostningerne steg ${formatPercentagePoints(percentagePointDifference)} ${percentagePointDifference > 0 ? "hurtigere" : "langsommere"} end omsætningen.`;
-  } else if (
-    comparison.costChangePercent !== null
-    && comparison.revenueChangePercent !== null
-    && comparison.costChangePercent <= 0
-    && comparison.revenueChangePercent <= 0
-  ) {
-    differenceText = `Omkostningerne faldt ${formatPercentagePoints(percentagePointDifference)} ${percentagePointDifference < 0 ? "mere" : "mindre"} end omsætningen.`;
+  } else if (percentagePointDifferenceTenths === 0) {
+    differenceText = costChangeTenths > 0 && revenueChangeTenths > 0
+      ? "Omkostninger og omsætning steg med samme procentvise hastighed."
+      : costChangeTenths < 0 && revenueChangeTenths < 0
+        ? "Omkostninger og omsætning faldt med samme procentvise hastighed."
+        : "Omkostninger og omsætning var uændrede.";
+  } else if (costChangeTenths > 0 && revenueChangeTenths > 0) {
+    differenceText = `Omkostningerne steg ${formatPercentagePoints(percentagePointDifferenceTenths)} ${percentagePointDifferenceTenths > 0 ? "hurtigere" : "langsommere"} end omsætningen.`;
+  } else if (costChangeTenths < 0 && revenueChangeTenths < 0) {
+    differenceText = `Omkostningerne faldt ${formatPercentagePoints(percentagePointDifferenceTenths)} ${percentagePointDifferenceTenths < 0 ? "mere" : "mindre"} end omsætningen.`;
   } else {
-    differenceText = `Forskellen mellem omkostningernes og omsætningens udvikling var ${formatPercentagePoints(percentagePointDifference)}.`;
+    differenceText = `Omkostningernes procentvise udvikling var ${formatPercentagePoints(percentagePointDifferenceTenths)} ${percentagePointDifferenceTenths > 0 ? "højere" : "lavere"} end omsætningens.`;
   }
 
   return {
@@ -586,22 +600,31 @@ export function buildCostComparisonPresentation(comparison: CostComparison) {
 }
 
 export function buildCostInsightSummary(analysis: CostIntelligence) {
-  const insights: string[] = [];
+  const insights: Array<{ priority: number; text: string }> = [];
   const topDriver = analysis.distribution[0];
   const largestAbsoluteChange = analysis.changeDrivers[0];
   const largestPercentageChange = [...analysis.changeDrivers]
     .filter((item) => item.changePercent !== null)
     .sort((a, b) => Math.abs(b.changePercent ?? 0) - Math.abs(a.changePercent ?? 0))[0];
   if (topDriver) {
-    insights.push(`${topDriver.name} er den største omkostningsdriver med ${formatDanishCurrency(topDriver.cost)} og udgør ${formatDanishPercent(topDriver.share)} af de samlede registrerede omkostninger.`);
+    insights.push({
+      priority: 100,
+      text: `${topDriver.name} er den største omkostningsdriver med ${formatDanishCurrency(topDriver.cost)} og udgør ${formatDanishPercent(topDriver.share)} af de samlede registrerede omkostninger.`,
+    });
   }
   if (largestAbsoluteChange) {
     const direction = largestAbsoluteChange.change > 0 ? "stigning" : "fald";
-    insights.push(`${largestAbsoluteChange.name} står for den største absolutte omkostnings${direction} på ${formatDanishCurrency(Math.abs(largestAbsoluteChange.change))}.`);
+    insights.push({
+      priority: 85,
+      text: `${largestAbsoluteChange.name} står for den største absolutte omkostnings${direction} på ${formatDanishCurrency(Math.abs(largestAbsoluteChange.change))}.`,
+    });
   }
   if (largestPercentageChange?.changePercent !== null && largestPercentageChange?.changePercent !== undefined) {
     const direction = largestPercentageChange.changePercent > 0 ? "stigning" : "nedgang";
-    insights.push(`${largestPercentageChange.name} har den største pålidelige procentvise ${direction} på ${formatDanishPercent(Math.abs(largestPercentageChange.changePercent))}.`);
+    insights.push({
+      priority: 75,
+      text: `${largestPercentageChange.name} har den største pålidelige procentvise ${direction} på ${formatDanishPercent(Math.abs(largestPercentageChange.changePercent))}.`,
+    });
   }
   if (analysis.budget) {
     const direction = analysis.budget.variance === 0
@@ -612,18 +635,30 @@ export function buildCostInsightSummary(analysis: CostIntelligence) {
     const amount = analysis.budget.variance === 0
       ? ""
       : `${formatDanishCurrency(Math.abs(analysis.budget.variance))} `;
-    insights.push(`Omkostningerne ligger ${amount}${direction} omkostningsbudgettet.`);
+    insights.push({
+      priority: analysis.budget.variance > 0 ? 95 : 82,
+      text: `Omkostningerne ligger ${amount}${direction} omkostningsbudgettet.`,
+    });
   }
   if (analysis.comparison) {
     const comparison = buildCostComparisonPresentation(analysis.comparison);
-    insights.push(`Fra ${analysis.comparison.previousPeriod} til ${analysis.comparison.currentPeriod}: ${comparison.summary}`);
+    insights.push({
+      priority: 90,
+      text: `Fra ${analysis.comparison.previousPeriod} til ${analysis.comparison.currentPeriod}: ${comparison.summary}`,
+    });
   }
   if (analysis.costShare !== null) {
-    insights.push(`Der anvendes ${formatDanishCurrencyPrecise(analysis.costShare)} i registrerede omkostninger pr. omsætningskrone.`);
+    insights.push({
+      priority: 60,
+      text: `Der anvendes ${formatDanishCurrencyPrecise(analysis.costShare)} i registrerede omkostninger pr. omsætningskrone.`,
+    });
   }
   const lowest = analysis.profitability[0];
   if (lowest && lowest.margin !== null) {
-    insights.push(`${lowest.name} har den laveste robuste rentabilitet i analysen med en resultatgrad på ${formatDanishPercent(lowest.margin)}.`);
+    insights.push({
+      priority: 70,
+      text: `${lowest.name} har den laveste robuste rentabilitet i analysen med en resultatgrad på ${formatDanishPercent(lowest.margin)}.`,
+    });
   }
 
   const leadingIncrease = analysis.changeDrivers.find((item) => item.change > 0);
@@ -641,5 +676,32 @@ export function buildCostInsightSummary(analysis: CostIntelligence) {
     recommendation = `Gennemgå pris og registrerede omkostninger for ${lowest.name}, som har den laveste robuste resultatgrad i den aktuelle visning.`;
   }
 
-  return { insights: insights.slice(0, 7), recommendation };
+  return {
+    insights: insights
+      .sort((left, right) => right.priority - left.priority)
+      .map((insight) => insight.text)
+      .slice(0, 7),
+    recommendation,
+  };
+}
+
+export function buildCostInsightDisclosure(
+  insights: ReadonlyArray<string>,
+  expanded: boolean,
+  previewLimit = 4,
+) {
+  const safePreviewLimit = Math.max(1, Math.floor(previewLimit));
+  const primaryInsights = insights.slice(0, safePreviewLimit);
+  const additionalInsights = insights.slice(safePreviewLimit);
+  const hasToggle = additionalInsights.length > 0;
+
+  return {
+    primaryInsights,
+    additionalInsights,
+    hasToggle,
+    expanded: hasToggle && expanded,
+    buttonLabel: hasToggle
+      ? expanded ? "Vis færre" : `Vis alle ${insights.length} indsigter`
+      : null,
+  };
 }

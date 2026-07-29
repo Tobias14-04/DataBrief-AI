@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   buildCostComparisonPresentation,
   buildCostIntelligence,
+  buildCostInsightDisclosure,
   buildCostInsightSummary,
   calculateCostBudgetVariance,
   PROFITABILITY_RATE_LABEL,
@@ -71,6 +72,11 @@ test("demodata med budget og omkostningskategorier bruger registrerede workbook-
   assert.equal(analysis.distributionSource, "workbook");
   assert.equal(analysis.distribution[0].name, "Løn");
   assert.equal(analysis.budget?.variance, 10);
+
+  const summary = buildCostInsightSummary(analysis);
+  assert.match(summary.insights[0], /^Løn er den største omkostningsdriver/u);
+  assert.match(summary.insights[1], /over omkostningsbudgettet/u);
+  assert.match(summary.insights[2], /^Fra januar 2026 til februar 2026/u);
 });
 
 test("fil 07-lignende datasæt med 7.500 rækker aggregeres i en kompakt pipeline", () => {
@@ -340,7 +346,48 @@ test("ændringspræsentationen sammenholder 7,2 og 7,3 procent med 0,1 procentpo
   );
 });
 
-test("ændringspræsentationen håndterer fald, uændret udvikling og nulgrundlag", () => {
+test("ændringspræsentationen håndterer hurtigere og samme viste væksthastighed uden floating-point-støj", () => {
+  const faster = buildCostComparisonPresentation({
+    currentPeriod: "juni 2026",
+    previousPeriod: "maj 2026",
+    currentCost: 107.31,
+    previousCost: 100,
+    costChange: 7.31,
+    costChangePercent: 0.0731,
+    currentRevenue: 107.19,
+    previousRevenue: 100,
+    revenueChangePercent: 0.0719,
+    costShareChange: null,
+  });
+  const sameAfterUiRounding = buildCostComparisonPresentation({
+    currentPeriod: "juni 2026",
+    previousPeriod: "maj 2026",
+    currentCost: 107.244,
+    previousCost: 100,
+    costChange: 7.244,
+    costChangePercent: 0.07244,
+    currentRevenue: 107.246,
+    previousRevenue: 100,
+    revenueChangePercent: 0.07246,
+    costShareChange: null,
+  });
+
+  assert.equal(
+    faster.differenceText,
+    "Omkostningerne steg 0,1 procentpoint hurtigere end omsætningen.",
+  );
+  assert.equal(faster.costChangeLabel, "+7,3 %");
+  assert.equal(faster.revenueChangeLabel, "+7,2 %");
+  assert.equal(sameAfterUiRounding.costChangeLabel, "+7,2 %");
+  assert.equal(sameAfterUiRounding.revenueChangeLabel, "+7,2 %");
+  assert.equal(sameAfterUiRounding.percentagePointDifference, 0);
+  assert.equal(
+    sameAfterUiRounding.differenceText,
+    "Omkostninger og omsætning steg med samme procentvise hastighed.",
+  );
+});
+
+test("ændringspræsentationen håndterer fald, modsatrettede bevægelser, uændret udvikling og nulgrundlag", () => {
   const falling = buildCostComparisonPresentation({
     currentPeriod: "juni 2026",
     previousPeriod: "maj 2026",
@@ -351,6 +398,30 @@ test("ændringspræsentationen håndterer fald, uændret udvikling og nulgrundla
     currentRevenue: 95,
     previousRevenue: 100,
     revenueChangePercent: -0.05,
+    costShareChange: null,
+  });
+  const fallingLess = buildCostComparisonPresentation({
+    currentPeriod: "juni 2026",
+    previousPeriod: "maj 2026",
+    currentCost: 95,
+    previousCost: 100,
+    costChange: -5,
+    costChangePercent: -0.05,
+    currentRevenue: 90,
+    previousRevenue: 100,
+    revenueChangePercent: -0.1,
+    costShareChange: null,
+  });
+  const mixed = buildCostComparisonPresentation({
+    currentPeriod: "juni 2026",
+    previousPeriod: "maj 2026",
+    currentCost: 102,
+    previousCost: 100,
+    costChange: 2,
+    costChangePercent: 0.02,
+    currentRevenue: 97,
+    previousRevenue: 100,
+    revenueChangePercent: -0.03,
     costShareChange: null,
   });
   const unchanged = buildCostComparisonPresentation({
@@ -382,16 +453,37 @@ test("ændringspræsentationen håndterer fald, uændret udvikling og nulgrundla
     falling.differenceText,
     "Omkostningerne faldt 5,0 procentpoint mere end omsætningen.",
   );
-  assert.match(unchanged.summary, /Omkostningerne udviklede sig ikke, mens omsætningen udviklede sig ikke/);
   assert.equal(
-    unchanged.differenceText,
-    "Omkostninger og omsætning udviklede sig med samme procentvise hastighed.",
+    fallingLess.differenceText,
+    "Omkostningerne faldt 5,0 procentpoint mindre end omsætningen.",
   );
+  assert.equal(
+    mixed.differenceText,
+    "Omkostningernes procentvise udvikling var 5,0 procentpoint højere end omsætningens.",
+  );
+  assert.match(unchanged.summary, /Omkostningerne var uændrede, mens omsætningen var uændret/u);
+  assert.equal(unchanged.differenceText, "Omkostninger og omsætning var uændrede.");
   assert.equal(zeroBasis.costChangeLabel, "Ikke retvisende");
   assert.equal(zeroBasis.revenueChangeLabel, "Ikke retvisende");
   assert.equal(zeroBasis.percentagePointDifference, null);
   assert.match(zeroBasis.differenceText, /0 som sammenligningsgrundlag/);
   assert.doesNotMatch(zeroBasis.summary, /NaN|Infinity/);
+});
+
+test("indsigtspanelet viser fire prioriterede indsigter som standard og skjuler knappen ved fire eller færre", () => {
+  const sevenInsights = Array.from({ length: 7 }, (_, index) => `Indsigt ${index + 1}`);
+  const collapsed = buildCostInsightDisclosure(sevenInsights, false);
+  const expanded = buildCostInsightDisclosure(sevenInsights, true);
+  const exactlyFour = buildCostInsightDisclosure(sevenInsights.slice(0, 4), false);
+
+  assert.deepEqual(collapsed.primaryInsights, sevenInsights.slice(0, 4));
+  assert.deepEqual(collapsed.additionalInsights, sevenInsights.slice(4));
+  assert.equal(collapsed.expanded, false);
+  assert.equal(collapsed.buttonLabel, "Vis alle 7 indsigter");
+  assert.equal(expanded.expanded, true);
+  assert.equal(expanded.buttonLabel, "Vis færre");
+  assert.equal(exactlyFour.hasToggle, false);
+  assert.equal(exactlyFour.buttonLabel, null);
 });
 
 test("budgetanalyse beregner afvigelse, udnyttelse, resterende beløb og statusgrænser", () => {

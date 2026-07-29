@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildBudgetVariancePresentation,
   buildCostDetailCsv,
   compareNullableCostDetailNumbers,
   COST_DETAIL_PRIMARY_COLUMNS,
@@ -136,4 +137,48 @@ test("CSV indeholder kun valgte og tilgængelige kolonner i dansk UTF-8-format",
   assert.equal(csv.includes("Forrige periode"), false);
   assert.equal(csv.includes("undefined"), false);
   assert.equal(csv.includes("NaN"), false);
+});
+
+test("budgetafvigelser forklares som under, over eller præcis på budget med eksisterende alvorstærskler", () => {
+  const underBudget = buildBudgetVariancePresentation(7_883, 10_000);
+  const overBudget = buildBudgetVariancePresentation(10_500, 10_000);
+  const criticalOverrun = buildBudgetVariancePresentation(10_801, 10_000);
+  const exactBudget = buildBudgetVariancePresentation(10_000, 10_000);
+
+  assert.deepEqual(underBudget, {
+    value: -2_117,
+    label: "2.117 kr. under budget",
+    tone: "positive",
+  });
+  assert.deepEqual(overBudget, {
+    value: 500,
+    label: "500 kr. over budget",
+    tone: "warning",
+  });
+  assert.deepEqual(criticalOverrun, {
+    value: 801,
+    label: "801 kr. over budget",
+    tone: "critical",
+  });
+  assert.deepEqual(exactBudget, {
+    value: 0,
+    label: "På budget",
+    tone: "neutral",
+  });
+});
+
+test("CSV bevarer budgetafvigelsen som et numerisk Excel-felt og bruger ikke UI-teksten", () => {
+  const csv = buildCostDetailCsv([
+    detailRow({
+      name: "Løn",
+      current: 7_883,
+      budget: 10_000,
+      budgetVariance: -2_117,
+    }),
+  ], ["budget", "budgetVariance"]);
+
+  assert.match(csv, /"Budget";"Budgetafvigelse";"Andel"\r\n/u);
+  assert.match(csv, /"Løn";"7\.883,00";"10\.000,00";"-2\.117,00";"57,00"/u);
+  assert.equal(csv.includes("under budget"), false);
+  assert.equal(csv.includes("over budget"), false);
 });

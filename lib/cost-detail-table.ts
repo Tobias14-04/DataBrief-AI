@@ -1,4 +1,8 @@
-import type { CostDetailRow } from "./cost-intelligence.ts";
+import {
+  calculateCostBudgetVariance,
+  type CostDetailRow,
+} from "./cost-intelligence.ts";
+import { formatDanishCurrency } from "./dashboard-insights.ts";
 import { buildExcelCompatibleCsv } from "./data-labels.ts";
 
 export const COST_DETAIL_COLUMN_ORDER = [
@@ -33,6 +37,7 @@ export type CostDetailColumnDefinition = {
   key: CostDetailColumnKey;
   label: string;
   numeric: boolean;
+  helpText?: string;
 };
 
 export const COST_DETAIL_COLUMN_DEFINITIONS: Record<
@@ -73,6 +78,7 @@ export const COST_DETAIL_COLUMN_DEFINITIONS: Record<
     key: "budgetVariance",
     label: "Budgetafvigelse",
     numeric: true,
+    helpText: "Afvigelsen viser forskellen mellem faktisk forbrug og budget. Under budget er gunstigt.",
   },
   share: {
     key: "share",
@@ -96,6 +102,31 @@ const danishCsvNumber = new Intl.NumberFormat("da-DK", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
+
+export type BudgetVariancePresentationTone = "positive" | "warning" | "critical" | "neutral";
+
+export function buildBudgetVariancePresentation(actual: number, budget: number) {
+  if (!Number.isFinite(actual) || !Number.isFinite(budget)) return null;
+  const result = calculateCostBudgetVariance(actual, budget);
+
+  if (result.variance === 0) {
+    return {
+      value: result.variance,
+      label: "På budget",
+      tone: "neutral" as BudgetVariancePresentationTone,
+    };
+  }
+
+  return {
+    value: result.variance,
+    label: `${formatDanishCurrency(Math.abs(result.variance))} ${result.variance < 0 ? "under budget" : "over budget"}`,
+    tone: result.status === "critical"
+      ? "critical" as BudgetVariancePresentationTone
+      : result.status === "watch"
+        ? "warning" as BudgetVariancePresentationTone
+        : "positive" as BudgetVariancePresentationTone,
+  };
+}
 
 export function isCostDetailColumnKey(value: unknown): value is CostDetailColumnKey {
   return typeof value === "string" && columnKeySet.has(value);
