@@ -54,6 +54,7 @@ import { CostIntelligenceDashboard } from "@/components/cost-intelligence-dashbo
 import { ExcelProcessingView } from "@/components/excel-processing-view";
 import { KpiCustomizer } from "@/components/kpi-customizer";
 import { PremiumSelect } from "@/components/premium-select";
+import { ProductAnalysisDashboard } from "@/components/product-analysis-dashboard";
 import { SmoothMetricValue } from "@/components/smooth-metric-value";
 import { DashboardCommandShell } from "@/components/dashboard-command-shell";
 import {
@@ -2406,7 +2407,6 @@ export default function UploadDashboard() {
   const [reportMonth, setReportMonth] = useState("");
   const [activeView, setActiveView] = useState<DashboardView>("overview");
   const [trendMetric, setTrendMetric] = useState<TrendMetric>("revenue");
-  const [productSort, setProductSort] = useState<"revenue" | "units">("revenue");
   const [isKpiCustomizerOpen, setIsKpiCustomizerOpen] = useState(false);
   const [kpiConfiguration, setKpiConfiguration] = useState<KpiConfiguration>(initialKpiConfiguration);
   const [kpiConfigurationHydrated, setKpiConfigurationHydrated] = useState(false);
@@ -2479,13 +2479,6 @@ export default function UploadDashboard() {
     [activeTrendMetric, metrics.monthly],
   );
   const trendTotal = metrics.monthly.reduce((sum, month) => sum + month[activeTrendMetric], 0);
-  const productViewData = useMemo(
-    () => activeView === "products"
-      ? groupRows(filteredRows, (row) => row.product)
-        .sort((a, b) => productSort === "revenue" ? b.revenue - a.revenue : b.units - a.units)
-      : [],
-    [activeView, filteredRows, productSort],
-  );
   const categoryViewData = useMemo(
     () => activeView === "categories"
       ? groupRows(filteredRows, (row) => row.category).sort((a, b) => b.revenue - a.revenue)
@@ -3358,72 +3351,12 @@ export default function UploadDashboard() {
           ) : null}
 
           {activeView === "products" ? (
-            <section className="min-w-0 space-y-6 min-[1360px]:col-span-2" data-testid="products-view">
-              <CommandPageIntro
-                eyebrow="Produktperformance"
-                title="Produkter"
-                description={`${number(productViewData.length)} produkter i den aktuelle visning.`}
-                action={<PremiumSelect
-                  value={productSort}
-                  options={[
-                    { value: "revenue", label: "Sortér efter omsætning" },
-                    { value: "units", label: "Sortér efter antal" },
-                  ]}
-                  onChange={(sort) => setProductSort(sort as "revenue" | "units")}
-                  ariaLabel="Sortér produkter"
-                  align="right"
-                  className="w-full sm:w-[220px]"
-                />}
-              />
-
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)]">
-                <CommandPanel
-                  eyebrow="Rangering"
-                  title={productSort === "revenue" ? "Topprodukter efter omsætning" : "Topprodukter efter antal"}
-                  description="De stærkeste produkter i den aktuelle visning"
-                  icon={PackageCheck}
-                >
-                  <RankedMetricList
-                    items={productViewData.map((product) => ({
-                      name: product.name,
-                      value: productSort === "revenue" ? product.revenue : product.units,
-                    }))}
-                    valueFormatter={productSort === "revenue" ? currency : number}
-                    limit={10}
-                  />
-                </CommandPanel>
-
-                <CommandPanel
-                  eyebrow="Produktdata"
-                  title="Omsætning, enheder og andel"
-                  description="Rangeret efter det valgte nøgletal"
-                  icon={Rows3}
-                >
-                  <div className="max-h-[520px] overflow-auto">
-                    <table className="w-full min-w-[620px] text-left">
-                      <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
-                        <tr>
-                          <th className="px-4 py-3">Produkt</th>
-                          <th className="px-4 py-3 text-right">Omsætning</th>
-                          <th className="px-4 py-3 text-right">Enheder</th>
-                          <th className="px-4 py-3 text-right">Andel</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-sm tabular-nums">
-                        {productViewData.map((product) => (
-                          <tr key={product.name} className="transition hover:bg-slate-50/70">
-                            <td className="px-4 py-3 font-semibold text-ink">{product.name}</td>
-                            <td className="px-4 py-3 text-right text-slate-700">{currency(product.revenue)}</td>
-                            <td className="px-4 py-3 text-right text-slate-700">{number(product.units)}</td>
-                            <td className="px-4 py-3 text-right text-slate-700">{percent(metrics.totalRevenue ? product.revenue / metrics.totalRevenue : 0)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CommandPanel>
-              </div>
-            </section>
+            <ProductAnalysisDashboard
+              products={metrics.products}
+              hasSourceProducts={baseMetrics.hasProductData}
+              hasRevenue={baseMetrics.hasRevenueData}
+              hasUnits={baseMetrics.hasUnitsData}
+            />
           ) : null}
 
           {activeView === "categories" ? (

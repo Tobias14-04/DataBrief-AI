@@ -56,6 +56,9 @@ export function calculateDashboardMetrics(
   let hasGrossProfit = false;
   let hasGrossMargin = false;
   let hasRowCosts = false;
+  let hasProductData = false;
+  let hasRevenueData = false;
+  let hasUnitsData = false;
 
   function addGroup(groups: Map<string, GroupAccumulator>, rawKey: string, row: DashboardMetricRow) {
     const identity = comparableLabel(rawKey);
@@ -91,6 +94,9 @@ export function calculateDashboardMetrics(
       grossMarginCount += 1;
     }
     if (row.cost !== null || row.grossProfit !== null) hasRowCosts = true;
+    if (row.product.trim()) hasProductData = true;
+    if (Number.isFinite(row.revenue)) hasRevenueData = true;
+    if (Number.isFinite(row.units)) hasUnitsData = true;
     rowCosts += row.grossProfit !== null ? row.revenue - row.grossProfit : (row.cost ?? 0);
 
     addGroup(products, row.product, row);
@@ -161,6 +167,10 @@ export function calculateDashboardMetrics(
     budgetResult: budgetRevenue - budgetCosts,
     revenueVsBudget: feedback?.budget ? totalRevenue - budgetRevenue : 0,
     bestProduct: productsByRevenue[0],
+    products: productsByRevenue,
+    hasProductData,
+    hasRevenueData,
+    hasUnitsData,
     bestCategory: categoryValues[0],
     bestMonth: monthsByRevenue[0],
     monthly,

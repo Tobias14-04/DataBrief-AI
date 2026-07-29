@@ -48,7 +48,11 @@ test("dashboardets centrale aggregering beregner KPI'er og fordelinger i samme p
   assert.equal(metrics.totalCosts, 122);
   assert.equal(metrics.actualResult, 198);
   assert.equal(metrics.rowCount, 3);
+  assert.equal(metrics.hasProductData, true);
+  assert.equal(metrics.hasRevenueData, true);
+  assert.equal(metrics.hasUnitsData, true);
   assert.equal(metrics.bestProduct.name, "Café latte");
+  assert.deepEqual(metrics.products.map((product) => product.name), ["Café latte", "Croissant"]);
   assert.equal(metrics.bestCategory.name, "Drikke");
   assert.equal(metrics.bestMonth.name, "januar 2026");
   assert.deepEqual(metrics.monthly.map((month) => month.revenue), [180, 140]);
