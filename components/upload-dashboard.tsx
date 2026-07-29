@@ -194,6 +194,7 @@ type BudgetSummary = {
   revenue: number;
   costs: number;
   result: number;
+  byCategory: GroupedValue[];
 };
 
 type TrendMetric = "revenue" | "grossProfit" | "units" | "cost";
@@ -1010,9 +1011,13 @@ function parseBudgetSheet(workbook: ParsedWorkbookRows) {
   const headers = rowToHeaders(rows[headerIndex] ?? []);
   const mappings = buildMappings(headers);
   const records = rowsToRecords(rows, headerIndex, headers);
+  const categoryHeader =
+    findMatchingHeader(headers, "category") ??
+    headers.find((header) => ["type", "omkostningskategori", "costcategory"].includes(normalizeHeader(header)));
 
   let revenue = 0;
   let costs = 0;
+  const categoryBudgets = new Map<string, GroupedValue>();
 
   records.forEach((row) => {
     const rowRevenue =
@@ -1023,6 +1028,20 @@ function parseBudgetSheet(workbook: ParsedWorkbookRows) {
 
     revenue += rowRevenue ?? 0;
     costs += Math.abs(rowCosts ?? 0);
+    const category = categoryHeader ? displayLabel(row[categoryHeader], "") : "";
+    if (category && rowCosts !== null) {
+      const identity = comparableLabel(category);
+      const current = categoryBudgets.get(identity.key) ?? {
+        name: identity.label,
+        revenue: 0,
+        units: 0,
+        grossProfit: 0,
+        cost: 0,
+      };
+      current.name = chooseRepresentativeLabel(current.name, identity.label);
+      current.cost += Math.abs(rowCosts);
+      categoryBudgets.set(identity.key, current);
+    }
   });
 
   if (!revenue && !costs) {
@@ -1034,6 +1053,7 @@ function parseBudgetSheet(workbook: ParsedWorkbookRows) {
     revenue,
     costs,
     result: revenue - costs,
+    byCategory: Array.from(categoryBudgets.values()).sort((a, b) => b.cost - a.cost),
   };
 }
 
@@ -1235,6 +1255,20 @@ function createSampleWorkbook() {
     Omkostninger: Math.round(totalRevenue * definition.revenueShare),
   }));
   const totalCosts = operatingCosts.reduce((sum, row) => sum + row.Omkostninger, 0);
+  const budgetCostTotal = Math.round(totalCosts * 1.03);
+  const budgetCosts = operatingCosts.map((row) => ({
+    Kategori: row.Kategori,
+    Omkostninger: Math.round(row.Omkostninger * 1.03),
+  }));
+  const budgetRoundingDifference = budgetCostTotal - budgetCosts.reduce((sum, row) => sum + row.Omkostninger, 0);
+  if (budgetCosts.length) {
+    budgetCosts[budgetCosts.length - 1].Omkostninger += budgetRoundingDifference;
+  }
+  const budgetRows = budgetCosts.map((row, index) => ({
+    Kategori: row.Kategori,
+    Nettoomsaetning: index === 0 ? Math.round(totalRevenue * 1.04) : 0,
+    Omkostninger: row.Omkostninger,
+  }));
 
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(sampleRows), "Salgsdata");
   XLSX.utils.book_append_sheet(
@@ -1244,7 +1278,7 @@ function createSampleWorkbook() {
   );
   XLSX.utils.book_append_sheet(
     workbook,
-    XLSX.utils.json_to_sheet([{ Nettoomsaetning: Math.round(totalRevenue * 1.04), Omkostninger: Math.round(totalCosts * 1.03) }]),
+    XLSX.utils.json_to_sheet(budgetRows),
     "Budget",
   );
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["Beskrivelse"], ["Eksempelregneark til DataBrief AI"]]), "Beskrivelse");
@@ -2466,10 +2500,15 @@ export default function UploadDashboard() {
             ? data.feedback.costs.byCategory.map((item) => ({ name: item.name, cost: item.cost }))
             : undefined,
           budgetCosts: data?.feedback.budget?.costs ? metrics.budgetCosts : null,
+          budgetDistribution: !isFiltered && data?.feedback.budget?.byCategory.length
+            ? data.feedback.budget.byCategory.map((item) => ({ name: item.name, cost: item.cost }))
+            : undefined,
+          budgetBasis: isFiltered ? "proportional" : "registered",
         })
       : null,
     [
       activeView,
+      data?.feedback.budget?.byCategory,
       data?.feedback.budget?.costs,
       data?.feedback.costs,
       filteredRows,

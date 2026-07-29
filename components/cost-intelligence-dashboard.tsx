@@ -15,6 +15,7 @@ import {
   PackageSearch,
   Rows3,
   Search,
+  Settings2,
   Target,
   TrendingUp,
   WalletCards,
@@ -35,6 +36,8 @@ import {
 import {
   memo,
   useDeferredValue,
+  useEffect,
+  useId,
   useMemo,
   useState,
 } from "react";
@@ -45,24 +48,42 @@ import {
 import { PremiumSelect } from "@/components/premium-select";
 import {
   formatDanishCurrency as currency,
+  formatDanishCurrencyPrecise as preciseCurrency,
+  formatDanishCompactCurrency as compactAxisCurrency,
   formatDanishMonth,
   formatDanishNumber as number,
   formatDanishPercent as percent,
+  formatDanishPercentPrecise as precisePercent,
 } from "@/lib/dashboard-insights";
 import {
+  buildCostComparisonPresentation,
   buildCostInsightSummary,
+  PROFITABILITY_RATE_LABEL,
+  PROFITABILITY_VALUE_LABEL,
   type CostChangeDriver,
   type CostDetailRow,
   type CostIntelligence,
 } from "@/lib/cost-intelligence";
 import {
-  buildExcelCompatibleCsv,
-  normalizeForComparison,
-} from "@/lib/data-labels";
+  buildCostDetailCsv,
+  COST_DETAIL_COLUMN_DEFINITIONS,
+  COST_DETAIL_COLUMN_ORDER,
+  COST_DETAIL_OPTIONAL_COLUMNS,
+  COST_DETAIL_PRIMARY_COLUMNS,
+  getAvailableCostDetailColumns,
+  normalizeCostDetailColumnSelection,
+  parseCostDetailColumnSelection,
+  serializeCostDetailColumnSelection,
+  sortCostDetailRows,
+  type CostDetailColumnKey,
+  type CostDetailSortDirection,
+} from "@/lib/cost-detail-table";
+import { normalizeForComparison } from "@/lib/data-labels";
 
 type CostChartMetric = "cost" | "costShare" | "result" | "grossProfit";
-type CostSortKey = "name" | "current" | "change" | "share";
 type Tone = "warning" | "positive" | "brand" | "neutral";
+
+const COST_DETAIL_COLUMN_SESSION_KEY = "databrief.cost-detail-columns.v1";
 
 const costChartDefinitions: Record<CostChartMetric, {
   label: string;
@@ -133,13 +154,6 @@ const kpiToneClasses: Record<Tone, {
   },
 };
 
-function compactAxisCurrency(value: number) {
-  const absolute = Math.abs(value);
-  if (absolute >= 1_000_000) return `${number(value / 1_000_000)} mio.`;
-  if (absolute >= 1_000) return `${number(value / 1_000)} t.`;
-  return number(value);
-}
-
 function formatMetric(metric: CostChartMetric, value: number) {
   return metric === "costShare" ? percent(value) : currency(value);
 }
@@ -163,18 +177,20 @@ function CostKpiCard({
   label,
   value,
   detail,
+  note,
   icon: Icon,
   tone,
 }: {
   label: string;
   value: string;
   detail: string;
+  note?: string;
   icon: LucideIcon;
   tone: Tone;
 }) {
   const styles = kpiToneClasses[tone];
   return (
-    <article className="premium-panel-secondary relative min-h-[154px] min-w-0 overflow-hidden rounded-xl p-4">
+    <article className="premium-panel-secondary relative min-h-[168px] min-w-0 overflow-hidden rounded-xl p-4">
       <span className={`absolute inset-x-0 top-0 h-20 bg-gradient-to-b ${styles.glow} to-transparent`} aria-hidden="true" />
       <span className={`absolute inset-x-0 top-0 h-0.5 ${styles.accent}`} aria-hidden="true" />
       <div className="relative flex items-start gap-3">
@@ -183,7 +199,7 @@ function CostKpiCard({
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-500">{label}</p>
-          <p className={`mt-2 truncate text-[clamp(1.35rem,1.6vw,1.85rem)] font-semibold leading-none tabular-nums ${styles.value}`} title={value}>
+          <p className={`mt-2 break-words text-[clamp(1.35rem,1.6vw,1.85rem)] font-semibold leading-tight tabular-nums ${styles.value}`} title={value}>
             {value}
           </p>
         </div>
@@ -191,6 +207,11 @@ function CostKpiCard({
       <p className={`relative mt-4 border-t border-slate-100 pt-3 text-xs font-medium leading-5 ${styles.helper}`}>
         {detail}
       </p>
+      {note ? (
+        <p className="relative mt-1 whitespace-pre-line text-[11px] leading-[1.1rem] text-slate-600">
+          {note}
+        </p>
+      ) : null}
     </article>
   );
 }
@@ -198,6 +219,9 @@ function CostKpiCard({
 function CostKpiGrid({ analysis }: { analysis: CostIntelligence }) {
   const largestDriver = analysis.distribution[0];
   const costChange = analysis.comparison?.costChange ?? null;
+  const comparison = analysis.comparison
+    ? buildCostComparisonPresentation(analysis.comparison)
+    : null;
   const cards = [
     {
       label: "Samlede omkostninger",
@@ -229,8 +253,9 @@ function CostKpiGrid({ analysis }: { analysis: CostIntelligence }) {
     analysis.comparison
       ? {
           label: "Ændring",
-          value: signedPercent(analysis.comparison.costChangePercent),
-          detail: `${analysis.comparison.previousPeriod} → ${analysis.comparison.currentPeriod}`,
+          value: comparison?.costChangeLabel ?? "Ikke beregnelig",
+          detail: comparison?.periodLabel ?? "",
+          note: `Omsætning: ${comparison?.revenueChangeLabel ?? "Ikke retvisende"}\n${comparison?.differenceText ?? ""}`,
           icon: costChange !== null && costChange <= 0 ? ArrowDownRight : ArrowUpRight,
           tone: costChange !== null && costChange <= 0 ? "positive" as const : "warning" as const,
         }
@@ -254,6 +279,7 @@ function CostKpiGrid({ analysis }: { analysis: CostIntelligence }) {
 }
 
 function CostTrendChart({ analysis }: { analysis: CostIntelligence }) {
+  const chartId = useId();
   const availableMetrics = useMemo(() => {
     const metrics: CostChartMetric[] = ["cost"];
     if (analysis.hasRevenue) metrics.push("costShare", "result");
@@ -271,7 +297,7 @@ function CostTrendChart({ analysis }: { analysis: CostIntelligence }) {
       return {
         name: formatDanishMonth(period.name, "short"),
         fullName: period.name,
-        value: value ?? 0,
+        value: typeof value === "number" && Number.isFinite(value) ? value : null,
         previous: previousPeriod ? (previousPeriod[activeMetric] ?? null) : null,
       };
     }),
@@ -296,19 +322,34 @@ function CostTrendChart({ analysis }: { analysis: CostIntelligence }) {
       className="premium-panel-primary"
     >
       <div className="px-3 pb-5 pt-4 sm:px-5 sm:pb-6">
-        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium text-slate-600" aria-label="Signaturforklaring">
+            <span className="inline-flex items-center gap-2">
+              <span className="h-0.5 w-7 rounded-full" style={{ backgroundColor: definition.color }} aria-hidden="true" />
+              Aktuel periode
+            </span>
+            {comparisonAvailable ? (
+              <span className={`inline-flex items-center gap-2 transition ${showComparison ? "opacity-100" : "opacity-45"}`}>
+                <span className="w-7 border-t-2 border-dashed border-slate-500" aria-hidden="true" />
+                Forrige periode
+              </span>
+            ) : null}
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           {comparisonAvailable ? (
             <button
               type="button"
               onClick={() => setShowComparison((current) => !current)}
               aria-pressed={showComparison}
-              className={`min-h-11 rounded-lg border px-3 text-xs font-semibold transition sm:w-auto ${
+              aria-controls={chartId}
+              className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 sm:w-auto ${
                 showComparison
-                  ? "border-slate-300 bg-slate-100 text-slate-800"
-                  : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                  ? "border-cyan-700 bg-cyan-800 text-white shadow-sm"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-cyan-400 hover:text-cyan-800"
               }`}
             >
-              Forrige periode
+              <span className={`h-2.5 w-2.5 rounded-full border ${showComparison ? "border-white bg-white" : "border-slate-400 bg-transparent"}`} aria-hidden="true" />
+              Sammenligning: {showComparison ? "Til" : "Fra"}
             </button>
           ) : null}
           <PremiumSelect
@@ -319,10 +360,17 @@ function CostTrendChart({ analysis }: { analysis: CostIntelligence }) {
             align="right"
             className="w-full sm:w-[210px]"
           />
+          </div>
         </div>
-        <div className="h-[310px] min-w-0 sm:h-[350px]" data-testid="cost-trend-chart">
+        <div
+          id={chartId}
+          className="h-[310px] min-w-0 sm:h-[350px]"
+          data-testid="cost-trend-chart"
+          role="img"
+          aria-label={`${definition.label} for ${analysis.periods.length} perioder. ${showComparison && comparisonAvailable ? "Aktuel periode sammenlignes med forrige periode." : "Kun aktuel periode vises."}`}
+        >
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 12, right: 20, bottom: 24, left: 8 }}>
+            <AreaChart data={chartData} margin={{ top: 12, right: 20, bottom: 30, left: 12 }}>
               <defs>
                 <linearGradient id="costTrendFill" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={definition.color} stopOpacity={0.28} />
@@ -422,12 +470,22 @@ function CostBudgetPanel({ analysis }: { analysis: CostIntelligence }) {
     );
   }
 
-  const { actual, budget, variance, variancePercent, status } = analysis.budget;
+  const {
+    actual,
+    budget,
+    variance,
+    variancePercent,
+    utilization,
+    remaining,
+    status,
+  } = analysis.budget;
   const maximum = Math.max(actual, budget, 1);
   const actualWidth = Math.min(100, Math.max(0, (actual / maximum) * 100));
   const budgetPosition = Math.min(100, Math.max(0, (budget / maximum) * 100));
-  const statusLabel = status === "favorable"
-    ? "Under budgettet"
+  const statusLabel = variance === 0
+    ? "På budgettet"
+    : status === "favorable"
+      ? "Under budgettet"
     : status === "watch"
       ? "Mindre overskridelse"
       : "Væsentligt over budget";
@@ -448,16 +506,24 @@ function CostBudgetPanel({ analysis }: { analysis: CostIntelligence }) {
       <div className="space-y-5 p-5">
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-slate-500">Faktisk</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-slate-500">Faktisk forbrug</p>
             <p className="mt-1.5 text-lg font-semibold tabular-nums text-[#0b1c2d]">{currency(actual)}</p>
           </div>
           <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-slate-500">Budget</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-slate-500">Budgetgrænse</p>
             <p className="mt-1.5 text-lg font-semibold tabular-nums text-[#0b1c2d]">{currency(budget)}</p>
           </div>
         </div>
         <div>
-          <div className="relative h-3 rounded-full bg-slate-100">
+          <div
+            className="relative h-3 rounded-full bg-slate-100"
+            role="progressbar"
+            aria-label="Andel af omkostningsbudget anvendt"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={utilization === null ? undefined : Math.min(100, Math.max(0, Math.round(utilization * 100)))}
+            aria-valuetext={utilization === null ? "Kan ikke beregnes" : `${precisePercent(utilization)} af budgettet anvendt`}
+          >
             <div
               className={`h-full rounded-full ${status === "favorable" ? "bg-emerald-500" : status === "watch" ? "bg-orange-500" : "bg-rose-500"}`}
               style={{ width: `${actualWidth}%` }}
@@ -466,11 +532,12 @@ function CostBudgetPanel({ analysis }: { analysis: CostIntelligence }) {
               className="absolute top-1/2 h-6 w-0.5 -translate-y-1/2 bg-[#0b1c2d]"
               style={{ left: `${budgetPosition}%` }}
               title={`Budgetmarkør: ${currency(budget)}`}
+              aria-hidden="true"
             />
           </div>
           <div className="mt-2 flex justify-between text-[11px] font-medium text-slate-500">
-            <span>0 kr.</span>
-            <span>Budgetmarkør</span>
+            <span>{utilization === null ? "Udnyttelse kan ikke beregnes" : `${precisePercent(utilization)} anvendt`}</span>
+            <span>Streg = budgetgrænse</span>
           </div>
         </div>
         <div className="flex flex-wrap items-end justify-between gap-3 border-t border-slate-100 pt-4">
@@ -486,9 +553,28 @@ function CostBudgetPanel({ analysis }: { analysis: CostIntelligence }) {
             {statusLabel}
           </span>
         </div>
-        <p className="text-[11px] leading-5 text-slate-500">
-          Statusgrænser: under budget er gunstigt; overskridelser til og med 8 % markeres til opfølgning, og større overskridelser markeres som væsentlige.
-        </p>
+        <div className={`rounded-lg border px-3 py-2.5 text-xs font-medium ${
+          remaining >= 0
+            ? "border-emerald-100 bg-emerald-50/60 text-emerald-800"
+            : "border-rose-100 bg-rose-50/60 text-rose-800"
+        }`}>
+          {remaining >= 0
+            ? `${currency(remaining)} resterer af budgettet.`
+            : `${currency(Math.abs(remaining))} er overskredet.`}
+        </div>
+        {analysis.budgetBasis === "proportional" ? (
+          <p className="text-[11px] leading-5 text-slate-500">
+            Budgettet er forholdsmæssigt fordelt efter de filtrerede rækker og er ikke et registreret kategori- eller periodebudget.
+          </p>
+        ) : null}
+        <details className="group text-[11px] leading-5 text-slate-500">
+          <summary className="w-fit cursor-pointer rounded font-medium text-slate-600 outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
+            Sådan fastsættes status
+          </summary>
+          <p className="mt-2">
+            Under budget er gunstigt. Overskridelser til og med 8 % markeres til opfølgning; større overskridelser markeres som væsentlige.
+          </p>
+        </details>
       </div>
     </CommandPanel>
   );
@@ -598,14 +684,7 @@ function CostDistributionPanel({ analysis }: { analysis: CostIntelligence }) {
 function comparisonConclusion(analysis: CostIntelligence) {
   const comparison = analysis.comparison;
   if (!comparison) return "Der kræves mindst to perioder for at beregne udviklingen.";
-  if (comparison.revenueChangePercent === null || comparison.costChangePercent === null) {
-    return `Omkostningerne ændrede sig med ${signedCurrency(comparison.costChange)} fra ${comparison.previousPeriod} til ${comparison.currentPeriod}.`;
-  }
-  if (comparison.costShareChange !== null && Math.abs(comparison.costShareChange) >= 0.001) {
-    const direction = comparison.costShareChange <= 0 ? "faldt" : "steg";
-    return `Omkostningsandelen ${direction} ${percent(Math.abs(comparison.costShareChange))}point; omkostningerne ændrede sig ${signedPercent(comparison.costChangePercent)}, mens omsætningen ændrede sig ${signedPercent(comparison.revenueChangePercent)}.`;
-  }
-  return `Omkostningerne ændrede sig ${signedPercent(comparison.costChangePercent)}, mens omsætningen ændrede sig ${signedPercent(comparison.revenueChangePercent)}.`;
+  return buildCostComparisonPresentation(comparison).summary;
 }
 
 function RevenueCostPanel({ analysis }: { analysis: CostIntelligence }) {
@@ -733,28 +812,28 @@ function CostEfficiencyPanel({ analysis }: { analysis: CostIntelligence }) {
     analysis.efficiency.costPerUnit !== null
       ? {
           label: "Omkostning pr. enhed",
-          value: currency(analysis.efficiency.costPerUnit),
+          value: preciseCurrency(analysis.efficiency.costPerUnit),
           formula: "Samlede omkostninger / solgte enheder",
         }
       : null,
     analysis.efficiency.resultPerUnit !== null
       ? {
           label: "Resultat pr. enhed",
-          value: currency(analysis.efficiency.resultPerUnit),
+          value: preciseCurrency(analysis.efficiency.resultPerUnit),
           formula: "Resultat / solgte enheder",
         }
       : null,
     analysis.efficiency.revenuePerCostKrone !== null
       ? {
           label: "Omsætning pr. omkostningskrone",
-          value: currency(analysis.efficiency.revenuePerCostKrone),
+          value: preciseCurrency(analysis.efficiency.revenuePerCostKrone),
           formula: "Omsætning / samlede omkostninger",
         }
       : null,
     analysis.efficiency.costShare !== null
       ? {
           label: "Omkostningsandel",
-          value: percent(analysis.efficiency.costShare),
+          value: precisePercent(analysis.efficiency.costShare),
           formula: "Samlede omkostninger / omsætning",
         }
       : null,
@@ -814,7 +893,7 @@ function LowProfitabilityPanel({ analysis }: { analysis: CostIntelligence }) {
   return (
     <CommandPanel
       title={title}
-      description="Laveste robuste dækningsgrad i den filtrerede visning"
+      description={`Laveste robuste ${PROFITABILITY_RATE_LABEL.toLocaleLowerCase("da-DK")} i den filtrerede visning`}
       icon={PackageSearch}
       tone="warning"
       testId="low-profitability-panel"
@@ -826,8 +905,8 @@ function LowProfitabilityPanel({ analysis }: { analysis: CostIntelligence }) {
               <th className="px-5 py-3">Navn</th>
               <th className="px-3 py-3 text-right">Omsætning</th>
               <th className="px-3 py-3 text-right">Omkostning</th>
-              <th className="px-3 py-3 text-right">Resultat</th>
-              <th className="px-5 py-3 text-right">Grad</th>
+              <th className="px-3 py-3 text-right">{PROFITABILITY_VALUE_LABEL}</th>
+              <th className="px-5 py-3 text-right" title="Resultat divideret med omsætning">{PROFITABILITY_RATE_LABEL}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm tabular-nums">
@@ -852,33 +931,15 @@ function LowProfitabilityPanel({ analysis }: { analysis: CostIntelligence }) {
   );
 }
 
-function tableSortLabel(key: CostSortKey) {
-  if (key === "name") return "kategori";
-  if (key === "current") return "aktuel periode";
-  if (key === "change") return "ændring";
-  return "andel";
+function tableSortLabel(key: CostDetailColumnKey) {
+  return COST_DETAIL_COLUMN_DEFINITIONS[key].label.toLocaleLowerCase("da-DK");
 }
 
-function downloadCostCsv(rows: CostDetailRow[], includeComparison: boolean) {
-  const headers = [
-    "Omkostningskategori",
-    "Aktuel periode",
-    ...(includeComparison ? ["Forrige periode", "Ændring i kr.", "Ændring i %"] : []),
-    "Andel af samlede omkostninger",
-  ];
-  const csvRows = rows.map((row) => [
-    row.name,
-    row.current.toFixed(2),
-    ...(includeComparison
-      ? [
-          (row.previous ?? 0).toFixed(2),
-          (row.change ?? 0).toFixed(2),
-          row.changePercent === null ? "" : (row.changePercent * 100).toFixed(2),
-        ]
-      : []),
-    (row.share * 100).toFixed(2),
-  ]);
-  const csv = buildExcelCompatibleCsv([headers, ...csvRows]);
+function downloadCostCsv(
+  rows: CostDetailRow[],
+  visibleColumns: CostDetailColumnKey[],
+) {
+  const csv = buildCostDetailCsv(rows, visibleColumns, visibleColumns);
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -888,61 +949,128 @@ function downloadCostCsv(rows: CostDetailRow[], includeComparison: boolean) {
   URL.revokeObjectURL(url);
 }
 
+function CostSortButton({
+  column,
+  activeColumn,
+  direction,
+  onSort,
+}: {
+  column: CostDetailColumnKey;
+  activeColumn: CostDetailColumnKey;
+  direction: CostDetailSortDirection;
+  onSort: (column: CostDetailColumnKey) => void;
+}) {
+  const selected = column === activeColumn;
+  const Icon = selected && direction === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(column)}
+      className={`inline-flex min-h-11 items-center gap-1 rounded-sm font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 ${
+        selected ? "text-cyan-800" : "text-slate-500 hover:text-slate-800"
+      }`}
+      aria-label={`Sortér efter ${tableSortLabel(column)}${selected ? `, aktuelt ${direction === "asc" ? "stigende" : "faldende"}` : ""}`}
+    >
+      {COST_DETAIL_COLUMN_DEFINITIONS[column].label}
+      <Icon className={`h-3.5 w-3.5 ${selected ? "opacity-100" : "opacity-35"}`} aria-hidden="true" />
+    </button>
+  );
+}
+
+function CostDetailCell({
+  row,
+  column,
+}: {
+  row: CostDetailRow;
+  column: CostDetailColumnKey;
+}) {
+  if (column === "name") {
+    return <span className="font-semibold text-[#0b1c2d]">{row.name}</span>;
+  }
+
+  const value = row[column];
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return <span className="text-slate-400" aria-label="Ikke tilgængelig">–</span>;
+  }
+  if (column === "share") return <span className="font-semibold text-slate-700">{percent(value)}</span>;
+  if (column === "changePercent") {
+    return <span className={value <= 0 ? "text-emerald-700" : "text-orange-700"}>{signedPercent(value)}</span>;
+  }
+  if (column === "change" || column === "budgetVariance") {
+    return <span className={value <= 0 ? "font-semibold text-emerald-700" : "font-semibold text-orange-700"}>{signedCurrency(value)}</span>;
+  }
+  return <span className={column === "current" ? "font-semibold text-slate-800" : "text-slate-600"}>{currency(value)}</span>;
+}
+
 function CostDetailTable({ analysis }: { analysis: CostIntelligence }) {
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
-  const [sort, setSort] = useState<{ key: CostSortKey; direction: "asc" | "desc" }>({
+  const [sort, setSort] = useState<{ key: CostDetailColumnKey; direction: CostDetailSortDirection }>({
     key: "current",
     direction: "desc",
   });
-  const includeComparison = analysis.detailRows.some((row) => row.previous !== null);
+  const [selectedColumns, setSelectedColumns] = useState<CostDetailColumnKey[]>([
+    ...COST_DETAIL_PRIMARY_COLUMNS,
+  ]);
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
+  const availableColumns = useMemo(
+    () => getAvailableCostDetailColumns(analysis.detailRows),
+    [analysis.detailRows],
+  );
+  const visibleColumns = useMemo(
+    () => normalizeCostDetailColumnSelection(selectedColumns, availableColumns),
+    [availableColumns, selectedColumns],
+  );
+  const effectiveSort = visibleColumns.includes(sort.key)
+    ? sort
+    : { key: "current" as const, direction: "desc" as const };
+
+  useEffect(() => {
+    const stored = window.sessionStorage.getItem(COST_DETAIL_COLUMN_SESSION_KEY);
+    setSelectedColumns(parseCostDetailColumnSelection(stored, COST_DETAIL_COLUMN_ORDER));
+    setPreferencesLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!preferencesLoaded) return;
+    window.sessionStorage.setItem(
+      COST_DETAIL_COLUMN_SESSION_KEY,
+      serializeCostDetailColumnSelection(selectedColumns),
+    );
+  }, [preferencesLoaded, selectedColumns]);
+
   const visibleRows = useMemo(() => {
     const normalizedQuery = normalizeForComparison(deferredQuery);
     const rows = normalizedQuery
       ? analysis.detailRows.filter((row) => normalizeForComparison(row.name).includes(normalizedQuery))
       : analysis.detailRows;
-    const sorted = [...rows].sort((a, b) => {
-      if (sort.key === "name") return a.name.localeCompare(b.name, "da-DK");
-      const aValue = sort.key === "current" ? a.current : sort.key === "change" ? (a.change ?? 0) : a.share;
-      const bValue = sort.key === "current" ? b.current : sort.key === "change" ? (b.change ?? 0) : b.share;
-      return aValue - bValue;
-    });
-    return sort.direction === "asc" ? sorted : sorted.reverse();
-  }, [analysis.detailRows, deferredQuery, sort]);
+    return sortCostDetailRows(rows, effectiveSort.key, effectiveSort.direction);
+  }, [analysis.detailRows, deferredQuery, effectiveSort.direction, effectiveSort.key]);
 
-  function toggleSort(key: CostSortKey) {
+  function toggleSort(key: CostDetailColumnKey) {
     setSort((current) => current.key === key
       ? { key, direction: current.direction === "asc" ? "desc" : "asc" }
       : { key, direction: key === "name" ? "asc" : "desc" });
   }
 
-  function SortButton({ sortKey, children }: { sortKey: CostSortKey; children: string }) {
-    const selected = sort.key === sortKey;
-    const Icon = selected && sort.direction === "asc" ? ArrowUp : ArrowDown;
-    return (
-      <button
-        type="button"
-        onClick={() => toggleSort(sortKey)}
-        className={`inline-flex min-h-11 items-center gap-1 font-semibold ${selected ? "text-cyan-800" : "text-slate-500 hover:text-slate-800"}`}
-        aria-label={`Sortér efter ${tableSortLabel(sortKey)}`}
-      >
-        {children}
-        <Icon className={`h-3.5 w-3.5 ${selected ? "opacity-100" : "opacity-35"}`} aria-hidden="true" />
-      </button>
-    );
+  function toggleColumn(column: CostDetailColumnKey) {
+    setSelectedColumns((current) => normalizeCostDetailColumnSelection(
+      current.includes(column)
+        ? current.filter((key) => key !== column)
+        : [...current, column],
+      COST_DETAIL_COLUMN_ORDER,
+    ));
   }
 
   return (
     <CommandPanel
       title="Detaljeret omkostningstabel"
-      description={includeComparison
-        ? `Aktuel periode mod forrige periode · sorteret efter ${tableSortLabel(sort.key)}`
-        : `Aktuel filtreret visning · sorteret efter ${tableSortLabel(sort.key)}`}
+      description={`Aktuel filtreret visning · sorteret efter ${tableSortLabel(effectiveSort.key)}`}
       icon={Rows3}
       tone="neutral"
       testId="cost-detail-table"
     >
-      <div className="flex flex-col gap-2 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-start sm:justify-between sm:px-5">
         <label className="relative block w-full sm:max-w-sm">
           <span className="sr-only">Søg i omkostningskategorier</span>
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
@@ -954,41 +1082,89 @@ function CostDetailTable({ analysis }: { analysis: CostIntelligence }) {
             className="h-11 w-full rounded-lg border border-slate-200 bg-slate-50/70 pl-10 pr-3 text-sm text-[#0b1c2d] outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-2 focus:ring-cyan-100"
           />
         </label>
-        <button
-          type="button"
-          onClick={() => downloadCostCsv(visibleRows, includeComparison)}
-          disabled={!visibleRows.length}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-800 disabled:cursor-not-allowed disabled:opacity-45"
-        >
-          <Download className="h-4 w-4" aria-hidden="true" />
-          Eksportér CSV
-        </button>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+          <div className="flex flex-col gap-2 min-[460px]:flex-row">
+            <details className="group min-w-[190px] rounded-lg border border-slate-200 bg-white text-xs text-slate-700">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-center gap-2 rounded-lg px-3 font-semibold outline-none transition hover:border-cyan-300 hover:text-cyan-800 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2">
+                <Settings2 className="h-4 w-4" aria-hidden="true" />
+                Tilpas kolonner
+              </summary>
+              <fieldset className="space-y-1 border-t border-slate-100 p-2.5">
+                <legend className="sr-only">Valgfrie tabelkolonner</legend>
+                {COST_DETAIL_OPTIONAL_COLUMNS.map((column) => {
+                  const available = availableColumns.includes(column);
+                  return (
+                    <label
+                      key={column}
+                      className={`flex min-h-9 items-center gap-2 rounded-md px-2 py-1.5 ${
+                        available ? "cursor-pointer hover:bg-slate-50" : "cursor-not-allowed text-slate-400"
+                      }`}
+                      title={available ? undefined : "Kolonnen kræver et registreret sammenlignings- eller kategoribudget"}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={available && selectedColumns.includes(column)}
+                        onChange={() => toggleColumn(column)}
+                        disabled={!available}
+                        className="h-4 w-4 rounded border-slate-300 text-cyan-700 focus:ring-cyan-500"
+                      />
+                      <span>{COST_DETAIL_COLUMN_DEFINITIONS[column].label}</span>
+                    </label>
+                  );
+                })}
+              </fieldset>
+            </details>
+            <button
+              type="button"
+              onClick={() => downloadCostCsv(visibleRows, visibleColumns)}
+              disabled={!visibleRows.length}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none transition hover:border-cyan-300 hover:text-cyan-800 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+              Eksportér CSV
+            </button>
+          </div>
+          <p className="text-[11px] leading-4 text-slate-500">
+            Kolonnevalget gemmes i denne browsersession.
+          </p>
+        </div>
       </div>
-      <div className="max-h-[520px] overflow-auto overscroll-contain">
-        <table className="w-full min-w-[760px] text-left">
-          <thead className="sticky top-0 z-10 bg-[#f4f8fa] text-[11px] uppercase tracking-[0.08em] shadow-[0_1px_0_#cedde4]">
+      <div className="overflow-x-auto overscroll-x-contain">
+        <table
+          className="w-full text-left"
+          style={{ minWidth: visibleColumns.length > 5 ? `${Math.max(760, visibleColumns.length * 150)}px` : "640px" }}
+        >
+          <thead className="bg-[#f4f8fa] text-[11px] uppercase tracking-[0.08em] shadow-[0_1px_0_#cedde4]">
             <tr>
-              <th className="px-5"><SortButton sortKey="name">Omkostningskategori</SortButton></th>
-              <th className="px-3 text-right"><SortButton sortKey="current">Aktuel periode</SortButton></th>
-              {includeComparison ? <th className="px-3 py-3 text-right font-semibold text-slate-500">Forrige periode</th> : null}
-              {includeComparison ? <th className="px-3 text-right"><SortButton sortKey="change">Ændring</SortButton></th> : null}
-              {includeComparison ? <th className="px-3 py-3 text-right font-semibold text-slate-500">Ændring %</th> : null}
-              <th className="px-5 text-right"><SortButton sortKey="share">Andel</SortButton></th>
+              {visibleColumns.map((column, index) => (
+                <th
+                  key={column}
+                  className={`${index === 0 ? "px-5 text-left" : index === visibleColumns.length - 1 ? "px-5 text-right" : "px-3 text-right"}`}
+                  aria-sort={effectiveSort.key === column
+                    ? effectiveSort.direction === "asc" ? "ascending" : "descending"
+                    : "none"}
+                >
+                  <CostSortButton
+                    column={column}
+                    activeColumn={effectiveSort.key}
+                    direction={effectiveSort.direction}
+                    onSort={toggleSort}
+                  />
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white text-sm tabular-nums">
             {visibleRows.map((row) => (
               <tr key={row.name} className="transition hover:bg-cyan-50/35">
-                <td className="px-5 py-3.5 font-semibold text-[#0b1c2d]">{row.name}</td>
-                <td className="px-3 py-3.5 text-right font-semibold text-slate-800">{currency(row.current)}</td>
-                {includeComparison ? <td className="px-3 py-3.5 text-right text-slate-600">{currency(row.previous ?? 0)}</td> : null}
-                {includeComparison ? (
-                  <td className={`px-3 py-3.5 text-right font-semibold ${(row.change ?? 0) <= 0 ? "text-emerald-700" : "text-orange-700"}`}>
-                    {signedCurrency(row.change ?? 0)}
+                {visibleColumns.map((column, index) => (
+                  <td
+                    key={column}
+                    className={`${index === 0 ? "px-5 text-left" : index === visibleColumns.length - 1 ? "px-5 text-right" : "px-3 text-right"} py-3.5`}
+                  >
+                    <CostDetailCell row={row} column={column} />
                   </td>
-                ) : null}
-                {includeComparison ? <td className="px-3 py-3.5 text-right text-slate-600">{signedPercent(row.changePercent)}</td> : null}
-                <td className="px-5 py-3.5 text-right font-semibold text-slate-700">{percent(row.share)}</td>
+                ))}
               </tr>
             ))}
           </tbody>
@@ -1025,33 +1201,29 @@ export const CostIntelligenceDashboard = memo(function CostIntelligenceDashboard
       <CostKpiGrid analysis={analysis} />
 
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.75fr)]">
-        {analysis.hasCostTimeline ? (
-          <CostTrendChart analysis={analysis} />
-        ) : (
-          <CommandPanel title="Omkostningsudvikling" icon={TrendingUp} tone="warning">
-            <CommandEmptyState
-              title="Tidsserie mangler"
-              message="Tilføj måned eller dato samt omkostning i salgsdata for at se udviklingen over tid."
-              tone="warning"
-            />
-          </CommandPanel>
-        )}
+        <div className="min-w-0 space-y-5">
+          {analysis.hasCostTimeline ? (
+            <CostTrendChart analysis={analysis} />
+          ) : (
+            <CommandPanel title="Omkostningsudvikling" icon={TrendingUp} tone="warning">
+              <CommandEmptyState
+                title="Tidsserie mangler"
+                message="Tilføj måned eller dato samt omkostning i salgsdata for at se udviklingen over tid."
+                tone="warning"
+              />
+            </CommandPanel>
+          )}
+          <CostDistributionPanel analysis={analysis} />
+          <CostChangesPanel analysis={analysis} />
+        </div>
         <div className="space-y-5">
           <CostBudgetPanel analysis={analysis} />
           <CostInsightsPanel analysis={analysis} />
+          <CostEfficiencyPanel analysis={analysis} />
         </div>
       </div>
 
-      <div className="grid items-start gap-5 xl:grid-cols-2">
-        <CostDistributionPanel analysis={analysis} />
-        <RevenueCostPanel analysis={analysis} />
-      </div>
-
-      <div className="grid items-start gap-5 xl:grid-cols-2">
-        <CostChangesPanel analysis={analysis} />
-        <CostEfficiencyPanel analysis={analysis} />
-      </div>
-
+      <RevenueCostPanel analysis={analysis} />
       <LowProfitabilityPanel analysis={analysis} />
       <CostDetailTable analysis={analysis} />
     </div>

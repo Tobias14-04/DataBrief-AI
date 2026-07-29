@@ -1,5 +1,6 @@
 import {
   formatDanishCurrency,
+  formatDanishCurrencyPrecise,
   formatDanishMonth,
   formatDanishPercent,
   monthSortKey,
@@ -17,6 +18,8 @@ export const COST_BUDGET_THRESHOLDS = {
 export const COST_CHANGE_MINIMUM_BASE_SHARE = 0.005;
 export const PROFITABILITY_MINIMUM_REVENUE_SHARE = 0.005;
 export const PROFITABILITY_MINIMUM_ROWS = 2;
+export const PROFITABILITY_RATE_LABEL = "Resultatgrad";
+export const PROFITABILITY_VALUE_LABEL = "Resultat";
 
 export type CostIntelligenceRow = {
   date: Date | null;
@@ -79,6 +82,21 @@ export type CostDetailRow = CostDistributionItem & {
   previous: number | null;
   change: number | null;
   changePercent: number | null;
+  budget: number | null;
+  budgetVariance: number | null;
+};
+
+export type CostComparison = {
+  currentPeriod: string;
+  previousPeriod: string;
+  currentCost: number;
+  previousCost: number;
+  costChange: number;
+  costChangePercent: number | null;
+  currentRevenue: number;
+  previousRevenue: number;
+  revenueChangePercent: number | null;
+  costShareChange: number | null;
 };
 
 type DimensionAccumulator = {
@@ -99,6 +117,8 @@ export type CostIntelligenceOptions = {
   totalCosts?: number | null;
   distribution?: CostDistributionInput[];
   budgetCosts?: number | null;
+  budgetDistribution?: CostDistributionInput[];
+  budgetBasis?: "registered" | "proportional";
 };
 
 function finiteOrZero(value: number | null | undefined) {
@@ -126,13 +146,15 @@ export function safeRatio(numerator: number, denominator: number) {
 export function calculateCostBudgetVariance(actual: number, budget: number) {
   const variance = actual - budget;
   const variancePercent = safeRatio(variance, budget);
+  const utilization = safeRatio(actual, budget);
+  const remaining = budget - actual;
   const status: CostBudgetStatus = variance <= 0
     ? "favorable"
     : variancePercent !== null && variancePercent <= COST_BUDGET_THRESHOLDS.materialOverrun
       ? "watch"
       : "critical";
 
-  return { actual, budget, variance, variancePercent, status };
+  return { actual, budget, variance, variancePercent, utilization, remaining, status };
 }
 
 function addDimension(
@@ -235,6 +257,22 @@ function buildProfitability(
     });
 }
 
+function groupDistributionInputs(items: CostDistributionInput[], includeZero = false) {
+  const groups = new Map<string, CostDistributionInput>();
+  items.forEach((item) => {
+    if (!item.name.trim() || !Number.isFinite(item.cost) || (!includeZero && item.cost === 0)) return;
+    const identity = comparableLabel(item.name);
+    const current = groups.get(identity.key) ?? {
+      name: identity.label,
+      cost: 0,
+    };
+    current.name = chooseRepresentativeLabel(current.name, identity.label);
+    current.cost += item.cost;
+    groups.set(identity.key, current);
+  });
+  return groups;
+}
+
 export function buildCostIntelligence(
   rows: CostIntelligenceRow[],
   options: CostIntelligenceOptions = {},
@@ -313,19 +351,9 @@ export function buildCostIntelligence(
   const totalCosts = providedTotal ?? trackedCosts;
   const actualResult = hasRevenue ? totalRevenue - totalCosts : null;
   const costShare = hasRevenue ? safeRatio(totalCosts, totalRevenue) : null;
-  const providedDistributionGroups = new Map<string, CostDistributionInput>();
-  (options.distribution ?? []).forEach((item) => {
-    if (!item.name.trim() || !Number.isFinite(item.cost) || item.cost === 0) return;
-    const identity = comparableLabel(item.name);
-    const current = providedDistributionGroups.get(identity.key) ?? {
-      name: identity.label,
-      cost: 0,
-    };
-    current.name = chooseRepresentativeLabel(current.name, identity.label);
-    current.cost += item.cost;
-    providedDistributionGroups.set(identity.key, current);
-  });
+  const providedDistributionGroups = groupDistributionInputs(options.distribution ?? []);
   const providedDistribution = Array.from(providedDistributionGroups.values());
+  const budgetDistributionGroups = groupDistributionInputs(options.budgetDistribution ?? [], true);
   const rawDistribution = providedDistribution.length
     ? providedDistribution
     : dimensionValues(categories)
@@ -347,7 +375,7 @@ export function buildCostIntelligence(
   const previousCostShare = previousAccumulator && hasRevenue
     ? safeRatio(previousAccumulator.cost, previousAccumulator.revenue)
     : null;
-  const comparison = latestAccumulator && previousAccumulator
+  const comparison: CostComparison | null = hasRowCosts && latestAccumulator && previousAccumulator
     ? {
         currentPeriod: latestAccumulator.name,
         previousPeriod: previousAccumulator.name,
@@ -380,10 +408,12 @@ export function buildCostIntelligence(
   const hasProductDimension = products.size > 1
     && !products.has(normalizeForComparison("Ukategoriseret"));
   const profitabilityDimension = hasProductDimension ? "product" : "category";
-  const profitability = buildProfitability(
-    hasProductDimension ? products : categories,
-    totalRevenue,
-  );
+  const profitability = hasRowCosts
+    ? buildProfitability(
+        hasProductDimension ? products : categories,
+        totalRevenue,
+      )
+    : [];
 
   const budgetCosts = typeof options.budgetCosts === "number"
     && Number.isFinite(options.budgetCosts)
@@ -391,6 +421,14 @@ export function buildCostIntelligence(
     ? options.budgetCosts
     : null;
   const budget = budgetCosts === null ? null : calculateCostBudgetVariance(totalCosts, budgetCosts);
+  const detailBudget = (name: string, current: number) => {
+    const budgetItem = budgetDistributionGroups.get(normalizeForComparison(name));
+    const categoryBudget = budgetItem?.cost ?? null;
+    return {
+      budget: categoryBudget,
+      budgetVariance: categoryBudget === null ? null : current - categoryBudget,
+    };
+  };
 
   const detailSource = providedDistribution.length
     ? distribution.map((item) => ({
@@ -399,6 +437,7 @@ export function buildCostIntelligence(
         previous: null,
         change: null,
         changePercent: null,
+        ...detailBudget(item.name, item.cost),
       }))
     : comparison && latestAccumulator && previousAccumulator
       ? Array.from(new Set([
@@ -422,6 +461,7 @@ export function buildCostIntelligence(
               previous,
               change,
               changePercent: reliableChangePercent(current, previous, comparison.previousCost),
+              ...detailBudget(name, current),
             };
           })
           .sort((a, b) => Math.abs(b.current) - Math.abs(a.current))
@@ -431,6 +471,7 @@ export function buildCostIntelligence(
           previous: null,
           change: null,
           changePercent: null,
+          ...detailBudget(item.name, item.cost),
         }));
 
   const efficiency = {
@@ -460,6 +501,7 @@ export function buildCostIntelligence(
     changeDimension: useCategoryChanges ? "category" as const : "product" as const,
     changeDrivers,
     budget,
+    budgetBasis: options.budgetBasis ?? "registered" as const,
     efficiency,
     profitabilityDimension,
     profitability,
@@ -484,45 +526,120 @@ function signedPercent(value: number | null) {
   return `${value > 0 ? "+" : "−"}${formatDanishPercent(Math.abs(value))}`;
 }
 
+function movementText(subject: string, value: number) {
+  if (Math.abs(value) < 0.000_000_1) return `${subject} udviklede sig ikke`;
+  return value > 0
+    ? `${subject} steg ${formatDanishPercent(value)}`
+    : `${subject} faldt ${formatDanishPercent(Math.abs(value))}`;
+}
+
+function formatPercentagePoints(value: number) {
+  return `${new Intl.NumberFormat("da-DK", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(Math.abs(value) * 100)} procentpoint`;
+}
+
+export function buildCostComparisonPresentation(comparison: CostComparison) {
+  const percentagePointDifference = comparison.costChangePercent !== null
+    && comparison.revenueChangePercent !== null
+    ? comparison.costChangePercent - comparison.revenueChangePercent
+    : null;
+  const costMovement = comparison.costChangePercent === null
+    ? `Omkostningsændringen var ${signedCurrency(comparison.costChange)}, men procentændringen kan ikke beregnes`
+    : movementText("Omkostningerne", comparison.costChangePercent);
+  const revenueMovement = comparison.revenueChangePercent === null
+    ? "omsætningsændringen kan ikke beregnes i procent"
+    : movementText("omsætningen", comparison.revenueChangePercent).replace(/^omsætningen/, "omsætningen");
+
+  let differenceText: string;
+  if (percentagePointDifference === null) {
+    differenceText = "Forskellen i udvikling kan ikke beregnes, fordi en tidligere periode har 0 som sammenligningsgrundlag.";
+  } else if (Math.abs(percentagePointDifference) < 0.0005) {
+    differenceText = "Omkostninger og omsætning udviklede sig med samme procentvise hastighed.";
+  } else if (
+    comparison.costChangePercent !== null
+    && comparison.revenueChangePercent !== null
+    && comparison.costChangePercent >= 0
+    && comparison.revenueChangePercent >= 0
+  ) {
+    differenceText = `Omkostningerne steg ${formatPercentagePoints(percentagePointDifference)} ${percentagePointDifference > 0 ? "hurtigere" : "langsommere"} end omsætningen.`;
+  } else if (
+    comparison.costChangePercent !== null
+    && comparison.revenueChangePercent !== null
+    && comparison.costChangePercent <= 0
+    && comparison.revenueChangePercent <= 0
+  ) {
+    differenceText = `Omkostningerne faldt ${formatPercentagePoints(percentagePointDifference)} ${percentagePointDifference < 0 ? "mere" : "mindre"} end omsætningen.`;
+  } else {
+    differenceText = `Forskellen mellem omkostningernes og omsætningens udvikling var ${formatPercentagePoints(percentagePointDifference)}.`;
+  }
+
+  return {
+    periodLabel: `${comparison.previousPeriod} → ${comparison.currentPeriod}`,
+    costChangeLabel: signedPercent(comparison.costChangePercent),
+    revenueChangeLabel: signedPercent(comparison.revenueChangePercent),
+    percentagePointDifference,
+    differenceText,
+    summary: `${costMovement}, mens ${revenueMovement}. ${differenceText}`,
+  };
+}
+
 export function buildCostInsightSummary(analysis: CostIntelligence) {
   const insights: string[] = [];
   const topDriver = analysis.distribution[0];
+  const largestAbsoluteChange = analysis.changeDrivers[0];
+  const largestPercentageChange = [...analysis.changeDrivers]
+    .filter((item) => item.changePercent !== null)
+    .sort((a, b) => Math.abs(b.changePercent ?? 0) - Math.abs(a.changePercent ?? 0))[0];
   if (topDriver) {
-    insights.push(`${topDriver.name} er den største omkostningsdriver med ${formatDanishCurrency(topDriver.cost)} og ${formatDanishPercent(topDriver.share)} af de registrerede omkostninger.`);
+    insights.push(`${topDriver.name} er den største omkostningsdriver med ${formatDanishCurrency(topDriver.cost)} og udgør ${formatDanishPercent(topDriver.share)} af de samlede registrerede omkostninger.`);
+  }
+  if (largestAbsoluteChange) {
+    const direction = largestAbsoluteChange.change > 0 ? "stigning" : "fald";
+    insights.push(`${largestAbsoluteChange.name} står for den største absolutte omkostnings${direction} på ${formatDanishCurrency(Math.abs(largestAbsoluteChange.change))}.`);
+  }
+  if (largestPercentageChange?.changePercent !== null && largestPercentageChange?.changePercent !== undefined) {
+    const direction = largestPercentageChange.changePercent > 0 ? "stigning" : "nedgang";
+    insights.push(`${largestPercentageChange.name} har den største pålidelige procentvise ${direction} på ${formatDanishPercent(Math.abs(largestPercentageChange.changePercent))}.`);
   }
   if (analysis.budget) {
-    const direction = analysis.budget.variance <= 0 ? "under" : "over";
-    insights.push(`Omkostningerne ligger ${formatDanishCurrency(Math.abs(analysis.budget.variance))} ${direction} omkostningsbudgettet.`);
+    const direction = analysis.budget.variance === 0
+      ? "præcis på"
+      : analysis.budget.variance < 0
+        ? "under"
+        : "over";
+    const amount = analysis.budget.variance === 0
+      ? ""
+      : `${formatDanishCurrency(Math.abs(analysis.budget.variance))} `;
+    insights.push(`Omkostningerne ligger ${amount}${direction} omkostningsbudgettet.`);
   }
   if (analysis.comparison) {
-    const costDirection = analysis.comparison.costChange >= 0 ? "steg" : "faldt";
-    const revenueDirection = (analysis.comparison.revenueChangePercent ?? 0) >= 0 ? "steg" : "faldt";
-    const costChange = signedPercent(analysis.comparison.costChangePercent);
-    if (analysis.comparison.revenueChangePercent !== null) {
-      insights.push(`Fra ${analysis.comparison.previousPeriod} til ${analysis.comparison.currentPeriod} ${costDirection} omkostningerne ${costChange}, mens omsætningen ${revenueDirection} ${signedPercent(analysis.comparison.revenueChangePercent)}.`);
-    } else {
-      insights.push(`Fra ${analysis.comparison.previousPeriod} til ${analysis.comparison.currentPeriod} ${costDirection} omkostningerne med ${signedCurrency(analysis.comparison.costChange)}.`);
-    }
+    const comparison = buildCostComparisonPresentation(analysis.comparison);
+    insights.push(`Fra ${analysis.comparison.previousPeriod} til ${analysis.comparison.currentPeriod}: ${comparison.summary}`);
   }
   if (analysis.costShare !== null) {
-    insights.push(`Hver omsætningskrone anvender aktuelt ${formatDanishCurrency(analysis.costShare)} på registrerede omkostninger.`);
+    insights.push(`Der anvendes ${formatDanishCurrencyPrecise(analysis.costShare)} i registrerede omkostninger pr. omsætningskrone.`);
   }
   const lowest = analysis.profitability[0];
   if (lowest && lowest.margin !== null) {
-    insights.push(`${lowest.name} har den laveste robuste rentabilitet i analysen med en dækningsgrad på ${formatDanishPercent(lowest.margin)}.`);
+    insights.push(`${lowest.name} har den laveste robuste rentabilitet i analysen med en resultatgrad på ${formatDanishPercent(lowest.margin)}.`);
   }
 
-  const leadingChanges = analysis.changeDrivers.slice(0, 2).map((item) => item.name);
+  const leadingIncrease = analysis.changeDrivers.find((item) => item.change > 0);
   let recommendation: string | null = null;
-  if (leadingChanges.length && analysis.comparison?.costChange && analysis.comparison.costChange > 0) {
-    recommendation = `Undersøg ${leadingChanges.join(" og ")} først; de står for den største absolutte bevægelse i den seneste omkostningsændring.`;
+  if (
+    leadingIncrease
+    && leadingIncrease.movementShare >= 0.1
+    && analysis.comparison?.costChange
+    && analysis.comparison.costChange > 0
+  ) {
+    recommendation = `Undersøg ${leadingIncrease.name} først, da området står for ${formatDanishPercent(leadingIncrease.movementShare)} af den samlede absolutte omkostningsbevægelse.`;
   } else if (analysis.budget && analysis.budget.variance > 0 && topDriver) {
     recommendation = `Start budgetopfølgningen med ${topDriver.name}, som er den største registrerede omkostningsdriver.`;
   } else if (lowest && lowest.margin !== null) {
-    recommendation = `Gennemgå pris og registrerede omkostninger for ${lowest.name}, som har den laveste robuste dækningsgrad i den aktuelle visning.`;
-  } else if (topDriver) {
-    recommendation = `Følg udviklingen i ${topDriver.name}; området har størst økonomisk vægt i den aktuelle visning.`;
+    recommendation = `Gennemgå pris og registrerede omkostninger for ${lowest.name}, som har den laveste robuste resultatgrad i den aktuelle visning.`;
   }
 
-  return { insights: insights.slice(0, 5), recommendation };
+  return { insights: insights.slice(0, 7), recommendation };
 }

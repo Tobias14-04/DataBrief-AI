@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
+import { performance } from "node:perf_hooks";
 import test from "node:test";
 
+import { buildCostIntelligence } from "../lib/cost-intelligence.ts";
 import {
   applyDashboardFilters,
   reconcileDashboardFilterDraft,
   rowMatchesDashboardFilters,
   toggleDashboardFilterValue,
 } from "../lib/dashboard-filtering.ts";
+import { calculateDashboardMetrics } from "../lib/dashboard-metrics.ts";
 
 const rows = [
   { month: "maj 2026", product: "Café latte", category: "Drikke", channel: "Online", region: "København" },
@@ -108,4 +111,37 @@ test("filtre matcher Unicode-labels via intern nøgle uden at ændre den synlige
   const selected = toggleDashboardFilterValue(emptyFilters, "category", "Løn");
   const deselected = toggleDashboardFilterValue(selected, "category", "LØN");
   assert.deepEqual(deselected.category, []);
+});
+
+test("fil 07-lignende filterklik med 7.500 rækker genbruger den kompakte beregningspipeline", () => {
+  const largeRows = Array.from({ length: 7_500 }, (_, index) => {
+    const monthIndex = index % 24;
+    return {
+      date: new Date(2024 + Math.floor(monthIndex / 12), monthIndex % 12, 1),
+      month: `${(monthIndex % 12) + 1}/${2024 + Math.floor(monthIndex / 12)}`,
+      product: `Produkt ${index % 80}`,
+      category: `Kategori ${index % 12}`,
+      channel: index % 2 ? "Online" : "Butik",
+      region: `Region ${index % 5}`,
+      revenue: 100 + (index % 17),
+      units: 1 + (index % 5),
+      grossProfit: null,
+      grossMargin: null,
+      cost: 40 + (index % 11),
+    };
+  });
+  const startedAt = performance.now();
+  const filtered = applyDashboardFilters(largeRows, {
+    ...emptyFilters,
+    category: ["Kategori 3", "Kategori 7"],
+    channel: ["Online"],
+  });
+  const metrics = calculateDashboardMetrics(filtered, undefined, { useWorkbookTotals: false });
+  const costs = buildCostIntelligence(filtered, { totalCosts: metrics.totalCosts });
+  const duration = performance.now() - startedAt;
+
+  assert.equal(filtered.length, 1_250);
+  assert.equal(metrics.rowCount, 1_250);
+  assert.equal(costs.rowCount, 1_250);
+  assert.ok(duration < 1_000, `Filter + metrics + omkostningsanalyse tog ${duration.toFixed(1)} ms`);
 });

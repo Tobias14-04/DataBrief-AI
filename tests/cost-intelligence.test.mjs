@@ -3,12 +3,19 @@ import { performance } from "node:perf_hooks";
 import test from "node:test";
 
 import {
+  buildCostComparisonPresentation,
   buildCostIntelligence,
   buildCostInsightSummary,
   calculateCostBudgetVariance,
+  PROFITABILITY_RATE_LABEL,
   resolveRegisteredCost,
   safeRatio,
 } from "../lib/cost-intelligence.ts";
+import {
+  formatDanishCompactCurrency,
+  formatDanishCurrencyPrecise,
+  formatDanishPercentPrecise,
+} from "../lib/dashboard-insights.ts";
 
 function row(overrides = {}) {
   return {
@@ -263,4 +270,204 @@ test("Omkostninger-sidens KPI, fordeling, insights og tabel viser Løn med ø", 
   assert.equal(analysis.profitability[0].name, "Månedsløn");
   assert.equal(summary.insights[0].startsWith("Løn er den største omkostningsdriver"), true);
   assert.equal(summary.insights.some((insight) => insight.includes("Lon")), false);
+});
+
+test("57 procent omkostningsandel giver 0,57 kr. pr. omsætningskrone i indsigtsteksten", () => {
+  const analysis = buildCostIntelligence([
+    row({ revenue: 1_000, units: 10, cost: 570 }),
+  ]);
+  const summary = buildCostInsightSummary(analysis);
+  const costShareInsight = summary.insights.find((insight) => insight.includes("pr. omsætningskrone"));
+
+  assert.equal(analysis.costShare, 0.57);
+  assert.equal(
+    costShareInsight,
+    `Der anvendes ${formatDanishCurrencyPrecise(0.57)} i registrerede omkostninger pr. omsætningskrone.`,
+  );
+  assert.doesNotMatch(costShareInsight ?? "", /Der anvendes 1(?:,00)?(?:\u00a0| )kr\./);
+});
+
+test("effektivitets-KPI'er beregnes med fuld præcision og formateres med danske decimaler", () => {
+  const analysis = buildCostIntelligence([
+    row({ revenue: 4_954, units: 100, cost: 2_824 }),
+  ]);
+
+  assert.equal(analysis.efficiency.costPerUnit, 2_824 / 100);
+  assert.equal(analysis.efficiency.resultPerUnit, (4_954 - 2_824) / 100);
+  assert.equal(analysis.efficiency.revenuePerCostKrone, 4_954 / 2_824);
+  assert.equal(analysis.efficiency.costShare, 2_824 / 4_954);
+  assert.equal(formatDanishCurrencyPrecise(analysis.efficiency.costPerUnit), "28,24 kr.");
+  assert.equal(formatDanishCurrencyPrecise(analysis.efficiency.resultPerUnit), "21,30 kr.");
+  assert.equal(formatDanishCurrencyPrecise(analysis.efficiency.revenuePerCostKrone), "1,75 kr.");
+  assert.equal(formatDanishPercentPrecise(analysis.efficiency.costShare), "57,0 %");
+  assert.equal(formatDanishCompactCurrency(18_827), "19 t.kr.");
+});
+
+test("rentabilitet bruger Resultatgrad og resultat divideret med omsætning", () => {
+  const analysis = buildCostIntelligence([
+    row({ product: "Café", revenue: 100, cost: 40 }),
+    row({ product: "Café", revenue: 100, cost: 40 }),
+  ]);
+  const profitability = analysis.profitability[0];
+
+  assert.equal(PROFITABILITY_RATE_LABEL, "Resultatgrad");
+  assert.equal(profitability.contribution, profitability.revenue - profitability.cost);
+  assert.equal(profitability.margin, profitability.contribution / profitability.revenue);
+  assert.equal(profitability.margin, 0.6);
+});
+
+test("ændringspræsentationen sammenholder 7,2 og 7,3 procent med 0,1 procentpoint", () => {
+  const presentation = buildCostComparisonPresentation({
+    currentPeriod: "juni 2026",
+    previousPeriod: "maj 2026",
+    currentCost: 107.2,
+    previousCost: 100,
+    costChange: 7.2,
+    costChangePercent: 0.072,
+    currentRevenue: 107.3,
+    previousRevenue: 100,
+    revenueChangePercent: 0.073,
+    costShareChange: null,
+  });
+
+  assert.equal(presentation.periodLabel, "maj 2026 → juni 2026");
+  assert.equal(presentation.costChangeLabel, "+7,2 %");
+  assert.equal(presentation.revenueChangeLabel, "+7,3 %");
+  assert.ok(Math.abs((presentation.percentagePointDifference ?? 0) - (-0.001)) < 1e-12);
+  assert.equal(
+    presentation.differenceText,
+    "Omkostningerne steg 0,1 procentpoint langsommere end omsætningen.",
+  );
+});
+
+test("ændringspræsentationen håndterer fald, uændret udvikling og nulgrundlag", () => {
+  const falling = buildCostComparisonPresentation({
+    currentPeriod: "juni 2026",
+    previousPeriod: "maj 2026",
+    currentCost: 90,
+    previousCost: 100,
+    costChange: -10,
+    costChangePercent: -0.1,
+    currentRevenue: 95,
+    previousRevenue: 100,
+    revenueChangePercent: -0.05,
+    costShareChange: null,
+  });
+  const unchanged = buildCostComparisonPresentation({
+    currentPeriod: "juni 2026",
+    previousPeriod: "maj 2026",
+    currentCost: 100,
+    previousCost: 100,
+    costChange: 0,
+    costChangePercent: 0,
+    currentRevenue: 100,
+    previousRevenue: 100,
+    revenueChangePercent: 0,
+    costShareChange: 0,
+  });
+  const zeroBasis = buildCostComparisonPresentation({
+    currentPeriod: "juni 2026",
+    previousPeriod: "maj 2026",
+    currentCost: 10,
+    previousCost: 0,
+    costChange: 10,
+    costChangePercent: null,
+    currentRevenue: 20,
+    previousRevenue: 0,
+    revenueChangePercent: null,
+    costShareChange: null,
+  });
+
+  assert.equal(
+    falling.differenceText,
+    "Omkostningerne faldt 5,0 procentpoint mere end omsætningen.",
+  );
+  assert.match(unchanged.summary, /Omkostningerne udviklede sig ikke, mens omsætningen udviklede sig ikke/);
+  assert.equal(
+    unchanged.differenceText,
+    "Omkostninger og omsætning udviklede sig med samme procentvise hastighed.",
+  );
+  assert.equal(zeroBasis.costChangeLabel, "Ikke retvisende");
+  assert.equal(zeroBasis.revenueChangeLabel, "Ikke retvisende");
+  assert.equal(zeroBasis.percentagePointDifference, null);
+  assert.match(zeroBasis.differenceText, /0 som sammenligningsgrundlag/);
+  assert.doesNotMatch(zeroBasis.summary, /NaN|Infinity/);
+});
+
+test("budgetanalyse beregner afvigelse, udnyttelse, resterende beløb og statusgrænser", () => {
+  const underBudget = calculateCostBudgetVariance(97.1, 100);
+  const exactBudget = calculateCostBudgetVariance(100, 100);
+  const watchBoundary = calculateCostBudgetVariance(108, 100);
+  const overBoundary = calculateCostBudgetVariance(108.01, 100);
+
+  assert.ok(Math.abs(underBudget.variance - (-2.9)) < 1e-12);
+  assert.ok(Math.abs((underBudget.variancePercent ?? 0) - (-0.029)) < 1e-12);
+  assert.equal(underBudget.utilization, 0.971);
+  assert.ok(Math.abs(underBudget.remaining - 2.9) < 1e-12);
+  assert.equal(underBudget.status, "favorable");
+  assert.equal(exactBudget.remaining, 0);
+  assert.equal(exactBudget.status, "favorable");
+  assert.equal(watchBoundary.variancePercent, 0.08);
+  assert.equal(watchBoundary.status, "watch");
+  assert.equal(overBoundary.status, "critical");
+});
+
+test("nul omkostninger giver ingen opdigtet omsætning pr. omkostningskrone", () => {
+  const analysis = buildCostIntelligence([
+    row({ revenue: 1_000, units: 10, cost: 0 }),
+  ]);
+
+  assert.equal(analysis.totalCosts, 0);
+  assert.equal(analysis.costShare, 0);
+  assert.equal(analysis.efficiency.costPerUnit, 0);
+  assert.equal(analysis.efficiency.resultPerUnit, 100);
+  assert.equal(analysis.efficiency.revenuePerCostKrone, null);
+  assert.equal(analysis.distribution.length, 0);
+});
+
+test("registrerede kategoribudgetter tilføjer budget og afvigelse til detaljerne", () => {
+  const analysis = buildCostIntelligence([
+    row({ category: "Løn", cost: 70 }),
+    row({ category: "Råvarer", cost: 30 }),
+  ], {
+    budgetCosts: 105,
+    budgetDistribution: [
+      { name: "LØN", cost: 80 },
+      { name: "Råvarer", cost: 25 },
+    ],
+  });
+  const salary = analysis.detailRows.find((item) => item.name === "Løn");
+  const materials = analysis.detailRows.find((item) => item.name === "Råvarer");
+
+  assert.equal(salary?.budget, 80);
+  assert.equal(salary?.budgetVariance, -10);
+  assert.equal(materials?.budget, 25);
+  assert.equal(materials?.budgetVariance, 5);
+});
+
+test("ekstern fordeling uden rækkeomkostninger fabrikkerer ikke sammenligning eller rentabilitet", () => {
+  const analysis = buildCostIntelligence([
+    row({ cost: null, grossProfit: null }),
+    row({
+      date: new Date(2026, 1, 5),
+      month: "februar 2026",
+      product: "Produkt B",
+      category: "Kategori B",
+      cost: null,
+      grossProfit: null,
+    }),
+  ], {
+    totalCosts: 180,
+    distribution: [
+      { name: "Løn", cost: 120 },
+      { name: "Marketing", cost: 60 },
+    ],
+  });
+
+  assert.equal(analysis.hasRowCosts, false);
+  assert.equal(analysis.hasComparison, false);
+  assert.equal(analysis.comparison, null);
+  assert.deepEqual(analysis.changeDrivers, []);
+  assert.deepEqual(analysis.profitability, []);
+  assert.equal(analysis.hasCostTimeline, false);
 });

@@ -89,6 +89,16 @@ export function formatDanishCurrency(value: number) {
   }).format(value);
 }
 
+export function formatDanishCurrencyPrecise(value: number, fractionDigits = 2) {
+  if (!Number.isFinite(value)) return "–";
+  return new Intl.NumberFormat("da-DK", {
+    style: "currency",
+    currency: "DKK",
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(value);
+}
+
 export function formatDanishPercent(value: number) {
   return new Intl.NumberFormat("da-DK", {
     style: "percent",
@@ -96,8 +106,25 @@ export function formatDanishPercent(value: number) {
   }).format(value);
 }
 
+export function formatDanishPercentPrecise(value: number, fractionDigits = 1) {
+  if (!Number.isFinite(value)) return "–";
+  return new Intl.NumberFormat("da-DK", {
+    style: "percent",
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(value);
+}
+
 export function formatDanishNumber(value: number) {
   return new Intl.NumberFormat("da-DK", { maximumFractionDigits: 0 }).format(value);
+}
+
+export function formatDanishCompactCurrency(value: number) {
+  if (!Number.isFinite(value)) return "–";
+  const absolute = Math.abs(value);
+  if (absolute >= 1_000_000) return `${formatDanishNumber(value / 1_000_000)} mio. kr.`;
+  if (absolute >= 1_000) return `${formatDanishNumber(value / 1_000)} t.kr.`;
+  return `${formatDanishNumber(value)} kr.`;
 }
 
 export function formatMetricTooltip(value: number | string, metric: string | number) {
