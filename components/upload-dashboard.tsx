@@ -50,6 +50,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { CategoryAnalysisDashboard } from "@/components/category-analysis-dashboard";
 import { CostIntelligenceDashboard } from "@/components/cost-intelligence-dashboard";
 import { ExcelProcessingView } from "@/components/excel-processing-view";
 import { KpiCustomizer } from "@/components/kpi-customizer";
@@ -67,7 +68,6 @@ import {
   CommandPanel,
   CompactKpiCard,
   CompactSecondaryMetric,
-  RankedMetricList,
   commandCardClass,
   commandSectionLabelClass,
 } from "@/components/command-center-ui";
@@ -867,38 +867,6 @@ function buildParseResult({
       budget: analysis.budget,
     },
   };
-}
-
-function groupRows(rows: SaleRow[], keyGetter: (row: SaleRow) => string) {
-  const groups = new Map<string, GroupedValue & { grossMarginTotal: number; grossMarginCount: number }>();
-
-  rows.forEach((row) => {
-    const identity = comparableLabel(keyGetter(row));
-    const current = groups.get(identity.key) ?? {
-      name: identity.label,
-      revenue: 0,
-      units: 0,
-      grossProfit: 0,
-      cost: 0,
-      grossMarginTotal: 0,
-      grossMarginCount: 0,
-    };
-    current.name = chooseRepresentativeLabel(current.name, identity.label);
-    current.revenue += row.revenue;
-    current.units += row.units;
-    current.grossProfit += row.grossProfit ?? 0;
-    current.cost += row.grossProfit !== null ? row.revenue - row.grossProfit : (row.cost ?? 0);
-    if (row.grossMargin !== null) {
-      current.grossMarginTotal += row.grossMargin;
-      current.grossMarginCount += 1;
-    }
-    groups.set(identity.key, current);
-  });
-
-  return Array.from(groups.values()).map(({ grossMarginTotal, grossMarginCount, ...group }) => ({
-    ...group,
-    grossMargin: grossMarginCount ? grossMarginTotal / grossMarginCount : undefined,
-  }));
 }
 
 function uniqueValues(rows: SaleRow[], field: DashboardFilterKey) {
@@ -2479,12 +2447,6 @@ export default function UploadDashboard() {
     [activeTrendMetric, metrics.monthly],
   );
   const trendTotal = metrics.monthly.reduce((sum, month) => sum + month[activeTrendMetric], 0);
-  const categoryViewData = useMemo(
-    () => activeView === "categories"
-      ? groupRows(filteredRows, (row) => row.category).sort((a, b) => b.revenue - a.revenue)
-      : [],
-    [activeView, filteredRows],
-  );
   const costIntelligence = useMemo(
     () => activeView === "costs"
       ? buildCostIntelligence(filteredRows, {
@@ -3360,72 +3322,12 @@ export default function UploadDashboard() {
           ) : null}
 
           {activeView === "categories" ? (
-            <section className="min-w-0 space-y-6 min-[1360px]:col-span-2" data-testid="categories-view">
-              <CommandPageIntro
-                eyebrow="Kategorifordeling"
-                title="Kategorier"
-                description="Omsætning, indtjening og omkostninger samlet pr. kategori."
-              />
-              <div className="grid gap-4 lg:grid-cols-2">
-                <CommandPanel title="Omsætning pr. kategori" description="Andel af den samlede omsætning" icon={CircleDollarSign}>
-                  <RankedMetricList
-                    items={categoryViewData.map((category) => ({ name: category.name, value: category.revenue }))}
-                    valueFormatter={currency}
-                    limit={10}
-                  />
-                </CommandPanel>
-                <CommandPanel
-                  title={marginChartMode === "grossMargin" ? "Dækningsgrad pr. kategori" : "Dækningsbidrag pr. kategori"}
-                  description="Indtjening fordelt på kategorier"
-                  icon={TrendingUp}
-                  tone="positive"
-                >
-                  {marginChartMode !== "empty" ? (
-                    <RankedMetricList
-                      items={marginChartData.map((category) => ({
-                        name: category.name,
-                        value: marginChartMode === "grossMargin" ? (category.grossMargin ?? 0) : category.grossProfit,
-                      }))}
-                      valueFormatter={marginChartMode === "grossMargin" ? percent : currency}
-                      tone="positive"
-                      limit={10}
-                    />
-                  ) : (
-                    <CommandEmptyState
-                      title="Indtjeningsdata mangler"
-                      message="Tilføj dækningsbidrag eller dækningsgrad for at se fordelingen."
-                      tone="positive"
-                    />
-                  )}
-                </CommandPanel>
-              </div>
-              <CommandPanel title="Kategoritabel" description="Det samlede datagrundlag pr. kategori" icon={Rows3}>
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[680px] text-left">
-                    <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
-                      <tr>
-                        <th className="px-4 py-3">Kategori</th>
-                        <th className="px-4 py-3 text-right">Omsætning</th>
-                        <th className="px-4 py-3 text-right">Andel</th>
-                        <th className="px-4 py-3 text-right">Dækningsbidrag</th>
-                        <th className="px-4 py-3 text-right">Omkostninger</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-sm tabular-nums">
-                      {categoryViewData.map((category) => (
-                        <tr key={category.name} className="transition hover:bg-slate-50/70">
-                          <td className="px-4 py-3 font-semibold text-ink">{category.name}</td>
-                          <td className="px-4 py-3 text-right text-slate-700">{currency(category.revenue)}</td>
-                          <td className="px-4 py-3 text-right text-slate-700">{percent(metrics.totalRevenue ? category.revenue / metrics.totalRevenue : 0)}</td>
-                          <td className="px-4 py-3 text-right text-slate-700">{baseMetrics.hasGrossProfit ? currency(category.grossProfit) : "–"}</td>
-                          <td className="px-4 py-3 text-right text-slate-700">{baseMetrics.hasCosts ? currency(category.cost) : "–"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CommandPanel>
-            </section>
+            <CategoryAnalysisDashboard
+              categories={metrics.categoryGroups}
+              hasSourceCategories={baseMetrics.categoryGroups.length > 0}
+              hasGrossProfit={baseMetrics.hasGrossProfit}
+              hasCosts={baseMetrics.hasCosts}
+            />
           ) : null}
 
           {activeView === "costs" ? (

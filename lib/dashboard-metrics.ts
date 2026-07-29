@@ -23,6 +23,9 @@ type GroupedValue = {
   grossProfit: number;
   cost: number;
   grossMargin?: number;
+  rowCount?: number;
+  grossProfitCount?: number;
+  costCount?: number;
 };
 
 type MonthValue = GroupedValue & {
@@ -70,12 +73,22 @@ export function calculateDashboardMetrics(
       cost: 0,
       grossMarginTotal: 0,
       grossMarginCount: 0,
+      rowCount: 0,
+      grossProfitCount: 0,
+      costCount: 0,
     };
     current.name = chooseRepresentativeLabel(current.name, identity.label);
     current.revenue += row.revenue;
     current.units += row.units;
     current.grossProfit += row.grossProfit ?? 0;
     current.cost += row.grossProfit !== null ? row.revenue - row.grossProfit : (row.cost ?? 0);
+    current.rowCount = (current.rowCount ?? 0) + 1;
+    if (row.grossProfit !== null) {
+      current.grossProfitCount = (current.grossProfitCount ?? 0) + 1;
+    }
+    if (row.cost !== null || row.grossProfit !== null) {
+      current.costCount = (current.costCount ?? 0) + 1;
+    }
     if (row.grossMargin !== null) {
       current.grossMarginTotal += row.grossMargin;
       current.grossMarginCount += 1;
@@ -175,6 +188,7 @@ export function calculateDashboardMetrics(
     bestMonth: monthsByRevenue[0],
     monthly,
     productsByUnits: productsByUnits.slice(0, 8),
+    categoryGroups: categoryValues,
     categories: categoryValues.slice(0, 8),
     grossProfitByCategory: grossProfitByCategory.slice(0, 8),
     grossMarginByCategory: grossMarginByCategory.slice(0, 8),
