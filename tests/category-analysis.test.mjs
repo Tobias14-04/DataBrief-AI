@@ -455,6 +455,10 @@ test("kategorikomponenten har fælles kontrol, tilgængelig sortering og respons
     new URL("../components/category-analysis-dashboard.tsx", import.meta.url),
     "utf8",
   );
+  const globalStyles = readFileSync(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
 
   assert.match(source, /Vis beløb som/u);
   assert.match(source, /Rangér efter/u);
@@ -472,4 +476,5 @@ test("kategorikomponenten har fælles kontrol, tilgængelig sortering og respons
   assert.match(source, /Aktiv sorteringskolonne/u);
   assert.match(source, /Største omkostningsandel/u);
   assert.doesNotMatch(source, /bg-violet-50/u);
+  assert.match(globalStyles, /html\s*\{[^}]*overflow-x:\s*clip;/su);
 });
