@@ -470,7 +470,7 @@ test("kategorikomponenten har fælles kontrol, tilgængelig sortering og respons
   assert.match(source, /Eksportér CSV/u);
   assert.match(source, /max-h-\[420px\]/u);
   assert.match(source, /min-w-\[980px\]/u);
-  assert.match(source, /\[contain:inline-size\]/u);
+  assert.match(source, /\[contain:inline-size_paint\]/u);
   assert.match(source, /Fælles højeste dækningsgrad/u);
   assert.match(source, /Dækningsgraden er ensartet på tværs af kategorier/u);
   assert.match(source, /Aktiv sorteringskolonne/u);
