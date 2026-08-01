@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { FloatingPopover } from "@/components/floating-popover";
 import {
   reconcileDashboardFilterDraft,
   toggleDashboardFilterValue,
@@ -58,6 +59,8 @@ const FilterMenu = memo(function FilterMenu({
   onClear: (field: DashboardControlKey) => void;
 }) {
   const [search, setSearch] = useState("");
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const searchable = field === "month" || field === "product" || options.length > 10;
   const normalizedSearch = normalizeForComparison(search);
   const visibleOptions = useMemo(
@@ -75,6 +78,7 @@ const FilterMenu = memo(function FilterMenu({
   return (
     <div className="relative min-w-0 w-full sm:w-auto">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => onOpen(field)}
         aria-expanded={open}
@@ -91,8 +95,13 @@ const FilterMenu = memo(function FilterMenu({
         <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition duration-200 ${open ? "rotate-180" : ""}`} aria-hidden="true" />
       </button>
 
-      {open ? (
-        <div className="premium-popover absolute left-0 top-[calc(100%+8px)] z-50 w-[min(304px,calc(100vw-32px))] overflow-hidden rounded-xl border border-[#cfdee5] bg-white shadow-[0_22px_55px_rgba(7,22,37,0.18)]">
+      <FloatingPopover
+        open={open}
+        anchorRef={triggerRef}
+        popoverRef={popoverRef}
+        align="left"
+        scope="dashboard-control"
+      >
           <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-3.5 py-3">
             <p className="text-[13px] font-semibold text-ink">{labels[field]}</p>
             {values.length ? (
@@ -117,7 +126,7 @@ const FilterMenu = memo(function FilterMenu({
               />
             </label>
           ) : null}
-          <div className="max-h-72 overflow-y-auto overscroll-contain p-1.5">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5">
             <button
               type="button"
               onClick={() => onClear(field)}
@@ -150,8 +159,7 @@ const FilterMenu = memo(function FilterMenu({
               <p className="px-3 py-6 text-center text-xs text-slate-500">Ingen muligheder matcher søgningen.</p>
             ) : null}
           </div>
-        </div>
-      ) : null}
+      </FloatingPopover>
     </div>
   );
 });
@@ -181,6 +189,8 @@ export const DashboardControlBar = memo(function DashboardControlBar({
   const [isUpdateQueued, setIsUpdateQueued] = useState(false);
   const [isDashboardUpdatePending, startDashboardUpdate] = useTransition();
   const rootRef = useRef<HTMLDivElement>(null);
+  const moreTriggerRef = useRef<HTMLButtonElement>(null);
+  const morePopoverRef = useRef<HTMLDivElement>(null);
   const draftFiltersRef = useRef(filters);
   const hasPendingDraftRef = useRef(false);
   const updateTimerRef = useRef<number | null>(null);
@@ -273,7 +283,14 @@ export const DashboardControlBar = memo(function DashboardControlBar({
 
   useEffect(() => {
     function closeMenus(event: PointerEvent) {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const isControlPopover = target instanceof Element
+        && Boolean(target.closest('[data-floating-popover-scope="dashboard-control"]'));
+      if (
+        rootRef.current
+        && !rootRef.current.contains(target)
+        && !isControlPopover
+      ) {
         setOpenField(null);
         setMoreOpen(false);
       }
@@ -337,6 +354,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
         {moreFields.length ? (
           <div className="relative">
             <button
+              ref={moreTriggerRef}
               type="button"
               onClick={() => {
                 setOpenField(null);
@@ -353,8 +371,15 @@ export const DashboardControlBar = memo(function DashboardControlBar({
               Flere filtre
               <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition duration-200 ${moreOpen ? "rotate-180" : ""}`} aria-hidden="true" />
             </button>
-            {moreOpen ? (
-              <div className="premium-popover absolute right-0 top-[calc(100%+8px)] z-40 w-[min(380px,calc(100vw-32px))] rounded-xl border border-[#cfdee5] bg-white p-3 shadow-[0_22px_55px_rgba(7,22,37,0.18)]">
+            <FloatingPopover
+              open={moreOpen}
+              anchorRef={moreTriggerRef}
+              popoverRef={morePopoverRef}
+              align="right"
+              preferredWidth={380}
+              scope="dashboard-control"
+            >
+              <div className="min-h-0 overflow-y-auto p-3">
                 <div className="grid gap-3 sm:grid-cols-2">
                   {moreFields.map((field) => (
                     <div key={field}>
@@ -382,7 +407,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
                   ))}
                 </div>
               </div>
-            ) : null}
+            </FloatingPopover>
           </div>
         ) : null}
 

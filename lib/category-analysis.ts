@@ -79,6 +79,10 @@ const danishCsvNumber = new Intl.NumberFormat("da-DK", {
   useGrouping: false,
 });
 
+export const CATEGORY_GROSS_MARGIN_TIE_TOLERANCE = 0.0005;
+export const CATEGORY_UNIFORM_GROSS_MARGIN_SPREAD = 0.005;
+export const CATEGORY_SHARE_TIE_TOLERANCE = 1e-12;
+
 function finiteOrNull(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
@@ -107,6 +111,51 @@ function lowestBy(
     const lowestValue = lowest[key];
     return lowestValue === null || value < lowestValue ? row : lowest;
   }, null);
+}
+
+function metricTieTolerance(key: CategoryMetricKey) {
+  if (key === "grossMargin") return CATEGORY_GROSS_MARGIN_TIE_TOLERANCE;
+  if (key === "revenueShare" || key === "costShare") {
+    return CATEGORY_SHARE_TIE_TOLERANCE;
+  }
+  return 0;
+}
+
+export function getCategoryMetricLeaders(
+  rows: ReadonlyArray<CategoryAnalysisRow>,
+  key: CategoryMetricKey,
+  tolerance = metricTieTolerance(key),
+) {
+  let highestValue: number | null = null;
+  for (const row of rows) {
+    const value = row[key];
+    if (value === null) continue;
+    if (highestValue === null || value > highestValue) highestValue = value;
+  }
+  if (highestValue === null) return [];
+
+  return rows
+    .filter((row) => {
+      const value = row[key];
+      if (value === null) return false;
+      return tolerance > 0
+        ? Math.abs(highestValue - value) < tolerance
+        : value === highestValue;
+    })
+    .sort((left, right) => (
+      compareNullableCategoryNumbers(left.revenue, right.revenue, "desc")
+      || danishCategoryCollator.compare(left.name, right.name)
+    ));
+}
+
+export function categoryPercentagesAreEquivalent(
+  left: number | null,
+  right: number | null,
+  tolerance = CATEGORY_GROSS_MARGIN_TIE_TOLERANCE,
+) {
+  return left !== null
+    && right !== null
+    && Math.abs(left - right) < tolerance;
 }
 
 export function buildCategoryAnalysis(
@@ -169,6 +218,31 @@ export function buildCategoryAnalysis(
       : null,
   }));
   const grossMarginRows = rows.filter((row) => row.grossMargin !== null);
+  const grossMarginValues = grossMarginRows.map((row) => row.grossMargin as number);
+  const highestGrossMarginValue = grossMarginValues.length
+    ? Math.max(...grossMarginValues)
+    : null;
+  const lowestGrossMarginValue = grossMarginValues.length
+    ? Math.min(...grossMarginValues)
+    : null;
+  const grossMarginVariation = highestGrossMarginValue !== null
+    && lowestGrossMarginValue !== null
+    ? highestGrossMarginValue - lowestGrossMarginValue
+    : null;
+  const comparableGrossMarginRevenue = grossMarginRows.reduce(
+    (sum, row) => sum + row.revenue,
+    0,
+  );
+  const comparableGrossProfit = grossMarginRows.reduce(
+    (sum, row) => sum + (row.grossProfit ?? 0),
+    0,
+  );
+  const aggregateGrossMargin = comparableGrossMarginRevenue > 0
+    ? comparableGrossProfit / comparableGrossMarginRevenue
+    : null;
+  const largestRevenueShareLeaders = getCategoryMetricLeaders(rows, "revenueShare");
+  const highestGrossMarginLeaders = getCategoryMetricLeaders(rows, "grossMargin");
+  const largestCostShareLeaders = getCategoryMetricLeaders(rows, "costShare");
 
   return {
     rows,
@@ -179,13 +253,22 @@ export function buildCategoryAnalysis(
     hasGrossProfit,
     hasCosts,
     hasCompleteCostCoverage,
+    aggregateGrossMargin,
+    grossMarginVariation,
+    grossMarginCategoryCount: grossMarginRows.length,
+    isGrossMarginUniform: grossMarginRows.length > 1
+      && grossMarginVariation !== null
+      && grossMarginVariation < CATEGORY_UNIFORM_GROSS_MARGIN_SPREAD,
     largestCategory: highestBy(rows, "revenue"),
-    largestRevenueShare: highestBy(rows, "revenueShare"),
-    highestGrossMargin: highestBy(rows, "grossMargin"),
+    largestRevenueShare: largestRevenueShareLeaders[0] ?? null,
+    largestRevenueShareLeaders,
+    highestGrossMargin: highestGrossMarginLeaders[0] ?? null,
+    highestGrossMarginLeaders,
     lowestGrossMargin: grossMarginRows.length > 1
       ? lowestBy(rows, "grossMargin")
       : null,
-    largestCostShare: highestBy(rows, "costShare"),
+    largestCostShare: largestCostShareLeaders[0] ?? null,
+    largestCostShareLeaders,
   };
 }
 
@@ -270,6 +353,9 @@ export function sortCategoryRows(
 ) {
   return [...rows].sort((left, right) => (
     compareNullableCategoryNumbers(left[key], right[key], direction)
+    || (key === "revenue"
+      ? 0
+      : compareNullableCategoryNumbers(left.revenue, right.revenue, "desc"))
     || danishCategoryCollator.compare(left.name, right.name)
   ));
 }

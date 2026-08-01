@@ -7,12 +7,15 @@ import {
   buildCategoryAnalysis,
   buildCategoryCsv,
   buildCategoryInsights,
+  categoryPercentagesAreEquivalent,
   filterCategoryRows,
+  getCategoryMetricLeaders,
   getAvailableCategoryColumns,
   parseCategoryColumnSelection,
   serializeCategoryColumnSelection,
   sortCategoryRows,
 } from "../lib/category-analysis.ts";
+import { formatAmount } from "../lib/amount-display.ts";
 import { applyDashboardFilters } from "../lib/dashboard-filtering.ts";
 import { calculateDashboardMetrics } from "../lib/dashboard-metrics.ts";
 
@@ -103,6 +106,95 @@ test("alle seks nøgletal kan styre kategorirangeringen", () => {
   assert.equal(sortCategoryRows(rows, "cost", "desc")[0].name, "Drikke");
   assert.equal(sortCategoryRows(rows, "costShare", "desc")[0].name, "Drikke");
   assert.equal(sortCategoryRows(rows, "grossMargin", "asc")[0].name, "Månedsløn");
+});
+
+test("omsætning og omkostninger rangerer på hver sin rå værdi", () => {
+  const rows = buildCategoryAnalysis([
+    {
+      name: "Omsætningsleder",
+      revenue: 1_000,
+      grossProfit: 900,
+      cost: 100,
+      grossProfitCount: 1,
+      costCount: 1,
+    },
+    {
+      name: "Omkostningsleder",
+      revenue: 900,
+      grossProfit: 100,
+      cost: 800,
+      grossProfitCount: 1,
+      costCount: 1,
+    },
+  ]).rows;
+
+  assert.deepEqual(
+    sortCategoryRows(rows, "revenue", "desc").map((row) => row.name),
+    ["Omsætningsleder", "Omkostningsleder"],
+  );
+  assert.deepEqual(
+    sortCategoryRows(rows, "cost", "desc").map((row) => row.name),
+    ["Omkostningsleder", "Omsætningsleder"],
+  );
+});
+
+test("enhedsskift ændrer kun formattering og aldrig rå kategoriorden", () => {
+  const rows = buildCategoryAnalysis(categories).rows;
+  const expectedOrder = sortCategoryRows(rows, "revenue", "desc").map((row) => row.name);
+
+  for (const unit of ["kr", "thousand", "million"]) {
+    rows.forEach((row) => formatAmount(row.revenue, unit));
+    assert.deepEqual(
+      sortCategoryRows(rows, "revenue", "desc").map((row) => row.name),
+      expectedOrder,
+    );
+  }
+});
+
+test("identiske dækningsgrader bruger omsætning og derefter navn som stabil tie-breaker", () => {
+  const tiedRows = buildCategoryAnalysis([
+    { name: "Zulu", revenue: 500, grossProfit: 335, cost: 165, grossProfitCount: 1, costCount: 1 },
+    { name: "Beta", revenue: 600, grossProfit: 402, cost: 198, grossProfitCount: 1, costCount: 1 },
+    { name: "Alfa", revenue: 600, grossProfit: 402, cost: 198, grossProfitCount: 1, costCount: 1 },
+  ]).rows;
+  const expected = ["Alfa", "Beta", "Zulu"];
+
+  for (let render = 0; render < 10; render += 1) {
+    assert.deepEqual(
+      sortCategoryRows(tiedRows, "grossMargin", "desc").map((row) => row.name),
+      expected,
+    );
+  }
+});
+
+test("højeste dækningsgrad er tie-aware på urundede værdier", () => {
+  const shared = buildCategoryAnalysis([
+    { name: "Drikke", revenue: 1_000, grossProfit: 684, cost: 316, grossProfitCount: 1, costCount: 1 },
+    { name: "Bagværk", revenue: 900, grossProfit: 615.24, cost: 284.76, grossProfitCount: 1, costCount: 1 },
+    { name: "Menu", revenue: 800, grossProfit: 536, cost: 264, grossProfitCount: 1, costCount: 1 },
+  ]);
+
+  assert.deepEqual(
+    shared.highestGrossMarginLeaders.map((row) => row.name),
+    ["Drikke", "Bagværk"],
+  );
+  assert.equal(getCategoryMetricLeaders(shared.rows, "grossMargin").length, 2);
+  assert.equal(categoryPercentagesAreEquivalent(0.62, 0.6204), true);
+  assert.equal(categoryPercentagesAreEquivalent(0.62, 0.621), false);
+});
+
+test("ensartede dækningsgrader bruger vægtet aggregat og aktiverer neutral visning", () => {
+  const analysis = buildCategoryAnalysis([
+    { name: "Drikke", revenue: 1_000, grossProfit: 670, cost: 330, grossProfitCount: 1, costCount: 1 },
+    { name: "Bagværk", revenue: 900, grossProfit: 603, cost: 297, grossProfitCount: 1, costCount: 1 },
+    { name: "Menu", revenue: 500, grossProfit: 335, cost: 165, grossProfitCount: 1, costCount: 1 },
+    { name: "Andet", revenue: 100, grossProfit: 67, cost: 33, grossProfitCount: 1, costCount: 1 },
+  ]);
+
+  assert.equal(analysis.highestGrossMarginLeaders.length, 4);
+  assert.equal(analysis.isGrossMarginUniform, true);
+  assert.equal(analysis.grossMarginVariation, 0);
+  assert.equal(analysis.aggregateGrossMargin, 0.67);
 });
 
 test("kategorisøgning matcher Unicode uden at ændre den synlige label", () => {
@@ -374,4 +466,9 @@ test("kategorikomponenten har fælles kontrol, tilgængelig sortering og respons
   assert.match(source, /Eksportér CSV/u);
   assert.match(source, /max-h-\[420px\]/u);
   assert.match(source, /min-w-\[980px\]/u);
+  assert.match(source, /Fælles højeste dækningsgrad/u);
+  assert.match(source, /Dækningsgraden er ensartet på tværs af kategorier/u);
+  assert.match(source, /Aktiv sorteringskolonne/u);
+  assert.match(source, /Største omkostningsandel/u);
+  assert.doesNotMatch(source, /bg-violet-50/u);
 });

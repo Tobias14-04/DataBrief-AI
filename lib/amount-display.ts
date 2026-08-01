@@ -19,21 +19,25 @@ const preferenceValues = new Set<AmountDisplayPreference>(
 
 const unitDefinitions: Record<ResolvedAmountUnit, {
   divisor: number;
+  minimumFractionDigits: number;
   maximumFractionDigits: number;
   suffix: string;
 }> = {
   kr: {
     divisor: 1,
+    minimumFractionDigits: 0,
     maximumFractionDigits: 0,
     suffix: "kr.",
   },
   thousand: {
     divisor: 1_000,
+    minimumFractionDigits: 1,
     maximumFractionDigits: 1,
     suffix: "t.kr.",
   },
   million: {
     divisor: 1_000_000,
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
     suffix: "mio. kr.",
   },
@@ -71,7 +75,7 @@ export function formatAmount(
   if (typeof value !== "number" || !Number.isFinite(value)) return "–";
   const definition = unitDefinitions[unit];
   const formatted = new Intl.NumberFormat("da-DK", {
-    minimumFractionDigits: 0,
+    minimumFractionDigits: definition.minimumFractionDigits,
     maximumFractionDigits: definition.maximumFractionDigits,
   }).format(value / definition.divisor);
   return `${formatted} ${definition.suffix}`;

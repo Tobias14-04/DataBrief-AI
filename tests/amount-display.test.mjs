@@ -15,6 +15,16 @@ test("beløb formatteres konsekvent som kr., t.kr. og mio. kr.", () => {
   assert.equal(formatAmount(-1_250, "thousand"), "-1,3 t.kr.");
 });
 
+test("enhedsomregningen dividerer rå beløb præcist én gang med fast visningspræcision", () => {
+  assert.equal(formatAmount(10_361_712, "kr"), "10.361.712 kr.");
+  assert.equal(formatAmount(10_361_712, "thousand"), "10.361,7 t.kr.");
+  assert.equal(formatAmount(10_361_712, "million"), "10,36 mio. kr.");
+  assert.equal(formatAmount(2_270_288, "kr"), "2.270.288 kr.");
+  assert.equal(formatAmount(2_270_288, "thousand"), "2.270,3 t.kr.");
+  assert.equal(formatAmount(2_270_288, "million"), "2,27 mio. kr.");
+  assert.equal(formatAmount(2_000_000, "million"), "2,00 mio. kr.");
+});
+
 test("automatisk beløbsenhed vælges én gang ud fra visningens største beløb", () => {
   assert.equal(resolveAmountUnit("auto", [12, 999]), "kr");
   assert.equal(resolveAmountUnit("auto", [999, 1_000]), "thousand");

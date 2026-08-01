@@ -10,6 +10,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
+import { FloatingPopover } from "@/components/floating-popover";
 import { normalizeForComparison } from "@/lib/data-labels";
 
 export type PremiumSelectOption = {
@@ -43,6 +44,7 @@ export const PremiumSelect = memo(function PremiumSelect({
   const [activeIndex, setActiveIndex] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const listboxId = useId();
   const selectedOption = options.find((option) => option.value === value) ?? options[0];
@@ -67,7 +69,12 @@ export const PremiumSelect = memo(function PremiumSelect({
     setActiveIndex(selectedIndex >= 0 ? selectedIndex : Math.max(0, firstEnabledIndex));
 
     function closeOnPointerDown(event: PointerEvent) {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        rootRef.current
+        && !rootRef.current.contains(target)
+        && !popoverRef.current?.contains(target)
+      ) {
         setOpen(false);
       }
     }
@@ -177,12 +184,12 @@ export const PremiumSelect = memo(function PremiumSelect({
         />
       </button>
 
-      {open ? (
-        <div
-          className={`premium-popover absolute top-[calc(100%+8px)] z-[70] w-[min(304px,calc(100vw-32px))] overflow-hidden rounded-xl border border-[#cfdee5] bg-white shadow-[0_22px_55px_rgba(7,22,37,0.18)] ${
-            align === "right" ? "right-0" : "left-0"
-          }`}
-        >
+      <FloatingPopover
+        open={open}
+        anchorRef={triggerRef}
+        popoverRef={popoverRef}
+        align={align}
+      >
           {searchable ? (
             <label className="sticky top-0 z-10 block border-b border-slate-100 bg-white p-2.5">
               <span className="sr-only">Søg</span>
@@ -205,7 +212,7 @@ export const PremiumSelect = memo(function PremiumSelect({
           ) : null}
           <div
             id={listboxId}
-            className="max-h-72 overflow-y-auto overscroll-contain p-1.5"
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5"
             role="listbox"
             aria-label={ariaLabel}
           >
@@ -247,8 +254,7 @@ export const PremiumSelect = memo(function PremiumSelect({
               </p>
             ) : null}
           </div>
-        </div>
-      ) : null}
+      </FloatingPopover>
     </div>
   );
 });

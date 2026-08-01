@@ -44,6 +44,7 @@ import {
   buildCategoryAnalysis,
   buildCategoryCsv,
   buildCategoryInsights,
+  categoryPercentagesAreEquivalent,
   filterCategoryRows,
   getAvailableCategoryColumns,
   normalizeCategoryColumnSelection,
@@ -101,12 +102,14 @@ function CategoryKpiCard({
   label,
   value,
   detail,
+  note,
   icon: Icon,
   tone,
 }: {
   label: string;
   value: string;
   detail: string;
+  note?: string;
   icon: LucideIcon;
   tone: "cyan" | "emerald" | "orange" | "slate";
 }) {
@@ -152,9 +155,14 @@ function CategoryKpiCard({
           </p>
         </div>
       </div>
-      <p className={`mt-2.5 truncate border-t border-slate-100 pt-2.5 text-xs font-medium ${styles.detail}`} title={detail}>
+      <p className={`mt-2.5 border-t border-slate-100 pt-2.5 text-xs font-medium leading-4 ${styles.detail}`} title={detail}>
         {detail}
       </p>
+      {note ? (
+        <p className="mt-1 text-[11px] leading-4 text-slate-500" title={note}>
+          {note}
+        </p>
+      ) : null}
     </article>
   );
 }
@@ -166,7 +174,7 @@ function CategoryRanking({
   tone,
 }: {
   rows: ReadonlyArray<CategoryAnalysisRow>;
-  valueKey: "revenue" | "grossMargin";
+  valueKey: "revenue" | "grossProfit" | "grossMargin";
   valueFormatter: (value: number | null) => string;
   tone: "brand" | "positive";
 }) {
@@ -249,30 +257,34 @@ function categoryCellHighlight(
   row: CategoryAnalysisRow,
   key: CategoryColumnKey,
   markers: {
-    largestRevenueShare: string | null;
-    highestGrossMargin: string | null;
-    lowestGrossMargin: string | null;
+    largestRevenueShare: ReadonlySet<string>;
+    highestGrossMargin: ReadonlySet<string>;
+    largestCostShare: ReadonlySet<string>;
   },
+  activeMetric: CategoryMetricKey,
 ) {
-  if (key === "revenueShare" && row.name === markers.largestRevenueShare) {
-    return {
-      className: "bg-cyan-50/80 font-semibold text-cyan-800",
-      label: "Største omsætningsandel",
-    };
+  const labels: string[] = key === activeMetric ? ["Aktiv sorteringskolonne"] : [];
+  let className = key === activeMetric ? "bg-cyan-50/45 text-cyan-950" : "";
+
+  if (key === "revenueShare" && markers.largestRevenueShare.has(row.name)) {
+    labels.push("Største omsætningsandel");
+    className = "bg-cyan-50/90 font-semibold text-cyan-800";
+  } else if (key === "grossMargin" && markers.highestGrossMargin.has(row.name)) {
+    labels.push("Højeste dækningsgrad");
+    className = "bg-emerald-50/90 font-semibold text-emerald-800";
+  } else if (key === "costShare" && markers.largestCostShare.has(row.name)) {
+    labels.push("Største omkostningsandel");
+    className = "bg-orange-50/90 font-semibold text-orange-800";
   }
-  if (key === "grossMargin" && row.name === markers.highestGrossMargin) {
-    return {
-      className: "bg-emerald-50/80 font-semibold text-emerald-800",
-      label: "Højeste dækningsgrad",
-    };
-  }
-  if (key === "grossMargin" && row.name === markers.lowestGrossMargin) {
-    return {
-      className: "bg-violet-50/75 font-semibold text-violet-800",
-      label: "Laveste dækningsgrad",
-    };
-  }
-  return { className: "", label: "" };
+
+  return {
+    className,
+    label: labels.join(". "),
+  };
+}
+
+function categoryCountLabel(count: number) {
+  return `${formatDanishNumber(count)} ${count === 1 ? "kategori" : "kategorier"}`;
 }
 
 function formatCategoryValue(
@@ -387,11 +399,21 @@ export function CategoryAnalysisDashboard({
     () => buildCategoryInsights(analysis),
     [analysis],
   );
-  const markers = {
-    largestRevenueShare: analysis.largestRevenueShare?.name ?? null,
-    highestGrossMargin: analysis.highestGrossMargin?.name ?? null,
-    lowestGrossMargin: analysis.lowestGrossMargin?.name ?? null,
-  };
+  const markers = useMemo(() => ({
+    largestRevenueShare: new Set(
+      analysis.largestRevenueShareLeaders.map((row) => row.name),
+    ),
+    highestGrossMargin: new Set(
+      analysis.highestGrossMarginLeaders.map((row) => row.name),
+    ),
+    largestCostShare: new Set(
+      analysis.largestCostShareLeaders.map((row) => row.name),
+    ),
+  }), [
+    analysis.highestGrossMarginLeaders,
+    analysis.largestCostShareLeaders,
+    analysis.largestRevenueShareLeaders,
+  ]);
 
   function handleMetricChange(value: string) {
     setSortKey(value as CategoryMetricKey);
@@ -443,6 +465,12 @@ export function CategoryAnalysisDashboard({
   const shareLeader = analysis.largestRevenueShare;
   const marginLeader = analysis.highestGrossMargin;
   const costLeader = analysis.largestCostShare;
+  const sharedMarginLeader = analysis.highestGrossMarginLeaders.length > 1;
+  const costShareFollowsRevenueShare = costLeader?.name === shareLeader?.name
+    && categoryPercentagesAreEquivalent(
+      costLeader?.costShare ?? null,
+      shareLeader?.revenueShare ?? null,
+    );
   const activeMetricLabel = CATEGORY_METRIC_LABELS[effectiveSortKey].toLocaleLowerCase("da-DK");
 
   return (
@@ -479,7 +507,7 @@ export function CategoryAnalysisDashboard({
         <CategoryKpiCard
           label="Største kategori"
           value={revenueLeader?.name ?? "Ikke tilgængelig"}
-          detail={revenueLeader ? formatAmount(revenueLeader.revenue, resolvedAmountUnit) : "Ingen omsætning"}
+          detail={revenueLeader ? `${formatAmount(revenueLeader.revenue, resolvedAmountUnit)} i omsætning` : "Ingen omsætning"}
           icon={CircleDollarSign}
           tone="cyan"
         />
@@ -487,14 +515,16 @@ export function CategoryAnalysisDashboard({
           label="Største omsætningsandel"
           value={shareLeader?.name ?? "Ikke tilgængelig"}
           detail={shareLeader?.revenueShare !== null && shareLeader
-            ? formatDanishPercent(shareLeader.revenueShare)
+            ? `${formatDanishPercent(shareLeader.revenueShare)} af omsætningen`
             : "Andel kan ikke beregnes"}
           icon={PieChart}
           tone="cyan"
         />
         <CategoryKpiCard
-          label="Højeste dækningsgrad"
-          value={marginLeader?.name ?? "Ikke tilgængelig"}
+          label={sharedMarginLeader ? "Fælles højeste dækningsgrad" : "Højeste dækningsgrad"}
+          value={sharedMarginLeader
+            ? categoryCountLabel(analysis.highestGrossMarginLeaders.length)
+            : marginLeader?.name ?? "Ikke tilgængelig"}
           detail={marginLeader?.grossMargin !== null && marginLeader
             ? formatDanishPercent(marginLeader.grossMargin)
             : "Dækningsbidrag mangler"}
@@ -505,8 +535,11 @@ export function CategoryAnalysisDashboard({
           label="Største omkostningsandel"
           value={costLeader?.name ?? "Ikke tilgængelig"}
           detail={costLeader?.costShare !== null && costLeader
-            ? formatDanishPercent(costLeader.costShare)
+            ? `${formatDanishPercent(costLeader.costShare)} af omkostningerne`
             : "Omkostningsdata mangler"}
+          note={costShareFollowsRevenueShare
+            ? "Omkostningsandelen følger omsætningsandelen."
+            : undefined}
           icon={WalletCards}
           tone={costLeader ? "orange" : "slate"}
         />
@@ -553,12 +586,36 @@ export function CategoryAnalysisDashboard({
           tone="positive"
           className="h-full"
         >
-          <CategoryRanking
-            rows={chartRows}
-            valueKey="grossMargin"
-            valueFormatter={(value) => value === null ? "–" : formatDanishPercent(value)}
-            tone="positive"
-          />
+          {analysis.isGrossMarginUniform ? (
+            <div>
+              <div className="m-4 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-slate-700">
+                <p className="text-sm font-semibold text-[#0b1c2d]">
+                  Dækningsgraden er ensartet på tværs af kategorier
+                </p>
+                <p className="mt-1 text-[13px] leading-5">
+                  Alle {categoryCountLabel(analysis.grossMarginCategoryCount)} ligger omkring {analysis.aggregateGrossMargin === null ? "–" : formatDanishPercent(analysis.aggregateGrossMargin)}.
+                </p>
+              </div>
+              <div className="border-t border-slate-100">
+                <p className={`${commandSectionLabelClass} px-5 pt-4 text-slate-500`}>
+                  Dækningsbidrag pr. kategori
+                </p>
+                <CategoryRanking
+                  rows={chartRows}
+                  valueKey="grossProfit"
+                  valueFormatter={(value) => formatAmount(value, resolvedAmountUnit)}
+                  tone="positive"
+                />
+              </div>
+            </div>
+          ) : (
+            <CategoryRanking
+              rows={chartRows}
+              valueKey="grossMargin"
+              valueFormatter={(value) => value === null ? "–" : formatDanishPercent(value)}
+              tone="positive"
+            />
+          )}
         </CommandPanel>
       </div>
 
@@ -665,13 +722,18 @@ export function CategoryAnalysisDashboard({
               {sortedRows.map((row) => (
                 <tr key={row.name} className="transition-colors hover:bg-slate-50/70">
                   {visibleColumns.map((key) => {
-                    const highlight = categoryCellHighlight(row, key, markers);
+                    const highlight = categoryCellHighlight(
+                      row,
+                      key,
+                      markers,
+                      effectiveSortKey,
+                    );
                     const displayedValue = formatCategoryValue(row, key, resolvedAmountUnit);
                     return (
                       <td
                         key={key}
                         title={highlight.label || undefined}
-                        aria-label={highlight.label ? `${displayedValue}, ${highlight.label}` : undefined}
+                        aria-label={highlight.label ? `${displayedValue}. ${highlight.label}` : undefined}
                         className={`px-4 py-3 ${
                           key === "name"
                             ? "font-semibold text-[#0b1c2d]"
@@ -679,6 +741,7 @@ export function CategoryAnalysisDashboard({
                         }`}
                       >
                         {displayedValue}
+                        {highlight.label ? <span className="sr-only">. {highlight.label}</span> : null}
                       </td>
                     );
                   })}
