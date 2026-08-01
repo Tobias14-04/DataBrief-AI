@@ -680,7 +680,7 @@ export function CategoryAnalysisDashboard({
           </div>
         </div>
 
-        <div className="max-h-[420px] min-w-0 overflow-auto overscroll-contain">
+        <div className="max-h-[420px] w-full min-w-0 max-w-full overflow-auto overscroll-contain [contain:inline-size]">
           <table className="w-full min-w-[980px] border-collapse">
             <thead className="sticky top-0 z-10 bg-[#f3f7f9] text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 shadow-[0_1px_0_#dbe5ea]">
               <tr>
