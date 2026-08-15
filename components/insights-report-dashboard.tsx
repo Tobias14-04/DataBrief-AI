@@ -755,7 +755,7 @@ function reportSectionTreatment(sectionKey: string) {
   if (sectionKey === "risks") {
     return {
       tone: "risk",
-      section: "border-l-[3px] border-l-orange-400 bg-orange-50/30",
+      section: "bg-orange-50/30 shadow-[inset_3px_0_0_#fb923c]",
       number: "bg-orange-100 text-orange-800",
       heading: "text-base",
       body: "text-slate-700",
@@ -764,7 +764,7 @@ function reportSectionTreatment(sectionKey: string) {
   if (sectionKey === "opportunities") {
     return {
       tone: "opportunity",
-      section: "border-l-[3px] border-l-emerald-400 bg-emerald-50/30",
+      section: "bg-emerald-50/30 shadow-[inset_3px_0_0_#34d399]",
       number: "bg-emerald-100 text-emerald-800",
       heading: "text-base",
       body: "text-slate-700",
@@ -773,7 +773,7 @@ function reportSectionTreatment(sectionKey: string) {
   if (sectionKey === "recommended-focus") {
     return {
       tone: "focus",
-      section: "border-l-[3px] border-l-cyan-500 bg-cyan-50/30 py-7",
+      section: "bg-cyan-50/30 py-7 shadow-[inset_3px_0_0_#06b6d4]",
       number: "bg-[#0b263a] text-cyan-200 shadow-sm",
       heading: "text-lg",
       body: "font-medium text-slate-800",
