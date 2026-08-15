@@ -3416,6 +3416,7 @@ export default function UploadDashboard() {
                 analysis={insightAnalysis}
                 activeTab={insightsTab}
                 onTabChange={setInsightsTab}
+                isUpdating={isFilterUpdatePending}
               />
             ) : null
           ) : null}

@@ -211,6 +211,31 @@ textarea {
     animation: smooth-metric-value-out 190ms ease-out both;
   }
 
+  .insight-data-region {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .insight-data-region-out {
+    opacity: 0.48;
+    transform: translateY(2px);
+    transition:
+      opacity 85ms ease-out,
+      transform 85ms ease-out;
+  }
+
+  .insight-data-region-in {
+    animation: insight-data-region-in 190ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+  }
+
+  .insight-driver-bar {
+    transition: width 240ms cubic-bezier(0.2, 0.75, 0.25, 1);
+  }
+
+  .insight-driver-item {
+    animation: insight-driver-item-in 190ms ease-out both;
+  }
+
   @keyframes smooth-metric-value-in {
     from {
       opacity: 0;
@@ -232,6 +257,28 @@ textarea {
     to {
       opacity: 0;
       transform: translateY(-2px);
+    }
+  }
+
+  @keyframes insight-data-region-in {
+    from {
+      opacity: 0.48;
+      transform: translateY(2px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes insight-driver-item-in {
+    from {
+      opacity: 0.55;
+    }
+
+    to {
+      opacity: 1;
     }
   }
 
@@ -282,8 +329,15 @@ textarea {
     }
 
     .smooth-metric-value-in,
-    .smooth-metric-value-out {
+    .smooth-metric-value-out,
+    .insight-data-region-out,
+    .insight-data-region-in {
+      opacity: 1;
       transform: none;
+    }
+
+    .insight-driver-bar {
+      transition: none;
     }
   }
 }

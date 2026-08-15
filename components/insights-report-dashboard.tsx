@@ -13,6 +13,7 @@ import {
   Gauge,
   Lightbulb,
   ListChecks,
+  LoaderCircle,
   PackageCheck,
   Percent,
   SearchCheck,
@@ -24,6 +25,7 @@ import {
 } from "lucide-react";
 import {
   memo,
+  useEffect,
   useId,
   useMemo,
   useRef,
@@ -39,6 +41,7 @@ import {
   type CommandTone,
 } from "@/components/command-center-ui";
 import { PremiumSelect } from "@/components/premium-select";
+import { SmoothMetricValue } from "@/components/smooth-metric-value";
 import {
   formatDanishCurrency,
   formatDanishNumber,
@@ -63,7 +66,10 @@ export type InsightsReportDashboardProps = {
   analysis: InsightAnalysis;
   activeTab: InsightsReportTab;
   onTabChange: (tab: InsightsReportTab) => void;
+  isUpdating?: boolean;
 };
+
+type InsightSwapPhase = "idle" | "fading-out" | "fading-in";
 
 const metricIcons: Record<string, LucideIcon> = {
   revenue: CircleDollarSign,
@@ -113,6 +119,85 @@ function formatMetricDelta(metric: InsightMetricKey, value: number) {
   }
   if (metric === "averagePrice") return `${prefix}${formatDanishCurrency(absolute)}`;
   return `${prefix}${formatDanishCurrency(absolute)}`;
+}
+
+function usePrefersReducedMotion() {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updatePreference = () => setPrefersReducedMotion(mediaQuery.matches);
+    updatePreference();
+    mediaQuery.addEventListener("change", updatePreference);
+    return () => mediaQuery.removeEventListener("change", updatePreference);
+  }, []);
+
+  return prefersReducedMotion;
+}
+
+function useDelayedUpdateStatus(isUpdating: boolean, delay = 130) {
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    if (!isUpdating) {
+      setIsVisible(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => setIsVisible(true), delay);
+    return () => window.clearTimeout(timer);
+  }, [delay, isUpdating]);
+
+  return isVisible;
+}
+
+function useSmoothAnalysis(analysis: InsightAnalysis) {
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const [displayedAnalysis, setDisplayedAnalysis] = useState(analysis);
+  const [phase, setPhase] = useState<InsightSwapPhase>("idle");
+  const displayedAnalysisRef = useRef(analysis);
+  const latestAnalysisRef = useRef(analysis);
+  const swapTimerRef = useRef<number | null>(null);
+  const settleTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    latestAnalysisRef.current = analysis;
+    if (displayedAnalysisRef.current === analysis) return;
+
+    if (swapTimerRef.current) window.clearTimeout(swapTimerRef.current);
+    if (settleTimerRef.current) window.clearTimeout(settleTimerRef.current);
+
+    if (prefersReducedMotion) {
+      displayedAnalysisRef.current = analysis;
+      setDisplayedAnalysis(analysis);
+      setPhase("idle");
+      return;
+    }
+
+    setPhase("fading-out");
+    swapTimerRef.current = window.setTimeout(() => {
+      const nextAnalysis = latestAnalysisRef.current;
+      displayedAnalysisRef.current = nextAnalysis;
+      setDisplayedAnalysis(nextAnalysis);
+      setPhase("fading-in");
+      settleTimerRef.current = window.setTimeout(() => {
+        setPhase("idle");
+        settleTimerRef.current = null;
+      }, 190);
+      swapTimerRef.current = null;
+    }, 85);
+
+    return () => {
+      if (swapTimerRef.current) window.clearTimeout(swapTimerRef.current);
+      if (settleTimerRef.current) window.clearTimeout(settleTimerRef.current);
+    };
+  }, [analysis, prefersReducedMotion]);
+
+  return {
+    displayedAnalysis,
+    phase,
+    isSwapping: phase !== "idle",
+  };
 }
 
 function driverExplanation(driver: InsightDriverAnalysis) {
@@ -292,16 +377,17 @@ function ChangesPanel({ changes }: { changes: InsightMetricChange[] }) {
       testId="insight-changes"
     >
       {changes.length ? (
-        <ul className={`grid gap-px bg-slate-100 sm:grid-cols-2 ${desktopGridClass}`}>
+        <ul className={`grid min-h-[184px] gap-px bg-slate-100 sm:grid-cols-2 ${desktopGridClass}`}>
           {visibleChanges.map((change) => (
             <li key={change.evidenceId} className="min-w-0 bg-white px-5 py-5 sm:px-6">
               <div className={`flex items-center gap-2 text-sm font-semibold ${toneTextClass(change.tone)}`}>
                 <ChangeIcon change={change.absoluteChange} />
                 <span className="truncate" title={change.label}>{change.label}</span>
               </div>
-              <p className="mt-2 text-2xl font-semibold tabular-nums text-[#0b1c2d]">
-                {change.changeLabel ?? formatMetricDelta(change.metric, change.absoluteChange)}
-              </p>
+              <SmoothMetricValue
+                value={change.changeLabel ?? formatMetricDelta(change.metric, change.absoluteChange)}
+                className="mt-2 text-2xl font-semibold tabular-nums text-[#0b1c2d]"
+              />
               <p className="mt-2 text-[13px] leading-5 text-slate-600">
                 Dokumenteret ændring i den sammenlignede periode.
               </p>
@@ -351,7 +437,7 @@ function ContributionList({
               ? Math.max(5, (contribution / maxContribution) * 100)
               : 5;
             return (
-              <li key={`${item.dimensionValue}-${index}`} className="grid grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-2.5">
+              <li key={item.evidenceId} className="insight-driver-item grid grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-2.5">
                 <span className="text-[11px] font-semibold tabular-nums text-slate-400">{String(index + 1).padStart(2, "0")}</span>
                 <div className="min-w-0">
                   <div className="mb-1.5 flex items-start justify-between gap-2">
@@ -367,12 +453,13 @@ function ContributionList({
                     <span className="sr-only">Andel af den samlede absolutte bevægelse: {(contribution * 100).toLocaleString("da-DK", { maximumFractionDigits: 1 })} procent</span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
-                    <div className={`h-full rounded-full ${barClass}`} style={{ width: `${width}%` }} />
+                    <div className={`insight-driver-bar h-full rounded-full ${barClass}`} style={{ width: `${width}%` }} />
                   </div>
                 </div>
-                <span className={`max-w-[132px] truncate text-right text-[13px] font-semibold tabular-nums ${valueClass}`} title={formatMetricDelta(metric, item.absoluteChange)}>
-                  {formatMetricDelta(metric, item.absoluteChange)}
-                </span>
+                <SmoothMetricValue
+                  value={formatMetricDelta(metric, item.absoluteChange)}
+                  className={`max-w-[132px] truncate text-right text-[13px] font-semibold tabular-nums ${valueClass}`}
+                />
               </li>
             );
           })}
@@ -409,6 +496,17 @@ function DriverPanel({
     : availableMetricIds[0] ?? "";
   const activeDriver = preferredDrivers.find((driver) => driver.metric === resolvedMetric) ?? null;
   const explanationId = useId();
+  const driverRevision = useMemo(() => preferredDrivers.map((driver) => (
+    `${driver.evidenceId}:${driver.totalChange}:${driver.positiveDrivers.length}:${driver.negativeDrivers.length}`
+  )).join("|"), [preferredDrivers]);
+  const previousDriverRevisionRef = useRef(driverRevision);
+
+  useEffect(() => {
+    if (previousDriverRevisionRef.current === driverRevision) return;
+    previousDriverRevisionRef.current = driverRevision;
+    setSelectedMetric((current) => availableMetricIds.includes(current) ? current : availableMetricIds[0] ?? "");
+    setExpandedMetric(null);
+  }, [availableMetricIds, driverRevision]);
 
   function changeMetric(metric: string) {
     setSelectedMetric(metric);
@@ -468,7 +566,10 @@ function DriverPanel({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Samlet ændring · {activeDriver.label}</p>
-            <p className="mt-1.5 text-[28px] font-semibold leading-none tabular-nums text-[#0b1c2d]">{formatMetricDelta(activeDriver.metric, activeDriver.totalChange)}</p>
+            <SmoothMetricValue
+              value={formatMetricDelta(activeDriver.metric, activeDriver.totalChange)}
+              className="mt-1.5 text-[28px] font-semibold leading-none tabular-nums text-[#0b1c2d]"
+            />
             <p className="mt-2 text-xs text-slate-500">{activeDriver.comparisonPeriod} · fordelt efter {activeDriver.dimensionLabel.toLocaleLowerCase("da-DK")}</p>
           </div>
           <button
@@ -582,7 +683,7 @@ function AttentionAndFocus({
         icon={Lightbulb}
       >
         {observations.length ? (
-          <ul className="grid gap-3 bg-[#f7fafb] p-4 sm:grid-cols-2 sm:p-5">
+          <ul className="grid min-h-[180px] content-start gap-3 bg-[#f7fafb] p-4 sm:grid-cols-2 sm:p-5">
             {observations.slice(0, 5).map((observation) => (
               <ObservationCard key={observation.id} observation={observation} />
             ))}
@@ -595,7 +696,7 @@ function AttentionAndFocus({
         )}
       </CommandPanel>
 
-      <section className="premium-panel-dark overflow-hidden rounded-xl text-white" aria-labelledby="recommended-focus-title">
+      <section className="premium-panel-dark min-h-[260px] overflow-hidden rounded-xl text-white" aria-labelledby="recommended-focus-title">
         <div className="border-b border-white/10 px-5 py-5 sm:px-6">
           <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-cyan-300">Næste analysetrin</p>
           <div className="mt-1.5 flex items-center justify-between gap-4">
@@ -628,22 +729,72 @@ function AttentionAndFocus({
 }
 
 function InsightsView({ analysis }: { analysis: InsightAnalysis }) {
-  const driverStateKey = analysis.driverAnalyses.map((driver) => {
-    const leadingDriver = [...driver.positiveDrivers, ...driver.negativeDrivers]
-      .sort((left, right) => Math.abs(right.absoluteChange) - Math.abs(left.absoluteChange))[0];
-    return `${driver.evidenceId}:${driver.totalChange}:${leadingDriver?.dimensionValue ?? "none"}:${leadingDriver?.absoluteChange ?? 0}`;
-  }).join("|");
   return (
     <div className="space-y-6">
       <ExecutiveSnapshot items={analysis.snapshot} changes={analysis.changes} />
       <ChangesPanel changes={analysis.changes} />
-      <DriverPanel key={driverStateKey} drivers={analysis.driverAnalyses} analysis={analysis} />
+      <DriverPanel drivers={analysis.driverAnalyses} analysis={analysis} />
       <AttentionAndFocus
         observations={analysis.observations}
         recommendations={analysis.recommendations}
       />
     </div>
   );
+}
+
+function reportSectionTreatment(sectionKey: string) {
+  if (sectionKey === "executive-summary") {
+    return {
+      tone: "summary",
+      section: "bg-cyan-50/45 py-7 sm:px-8",
+      number: "border border-cyan-200 bg-white text-cyan-800 shadow-sm",
+      heading: "text-lg",
+      body: "text-slate-700",
+    };
+  }
+  if (sectionKey === "risks") {
+    return {
+      tone: "risk",
+      section: "border-l-[3px] border-l-orange-400 bg-orange-50/30",
+      number: "bg-orange-100 text-orange-800",
+      heading: "text-base",
+      body: "text-slate-700",
+    };
+  }
+  if (sectionKey === "opportunities") {
+    return {
+      tone: "opportunity",
+      section: "border-l-[3px] border-l-emerald-400 bg-emerald-50/30",
+      number: "bg-emerald-100 text-emerald-800",
+      heading: "text-base",
+      body: "text-slate-700",
+    };
+  }
+  if (sectionKey === "recommended-focus") {
+    return {
+      tone: "focus",
+      section: "border-l-[3px] border-l-cyan-500 bg-cyan-50/30 py-7",
+      number: "bg-[#0b263a] text-cyan-200 shadow-sm",
+      heading: "text-lg",
+      body: "font-medium text-slate-800",
+    };
+  }
+  if (sectionKey === "data-basis") {
+    return {
+      tone: "basis",
+      section: "bg-slate-50/80 py-4",
+      number: "bg-slate-200/70 text-slate-600",
+      heading: "text-sm",
+      body: "text-xs leading-5 text-slate-600",
+    };
+  }
+  return {
+    tone: "standard",
+    section: "",
+    number: "bg-cyan-50 text-cyan-800",
+    heading: "text-base",
+    body: "text-slate-700",
+  };
 }
 
 function ReportView({ analysis }: { analysis: InsightAnalysis }) {
@@ -665,7 +816,7 @@ function ReportView({ analysis }: { analysis: InsightAnalysis }) {
   }`;
   return (
     <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
-      <article className="premium-panel overflow-hidden rounded-xl" aria-labelledby="management-report-title" data-testid="management-report">
+      <article className="premium-panel min-h-[560px] overflow-hidden rounded-xl" aria-labelledby="management-report-title" data-testid="management-report">
         <header className="border-b border-slate-200 bg-[linear-gradient(135deg,#ffffff_48%,#eefafd)] px-5 py-6 sm:px-7 sm:py-7">
           <div className="flex items-start justify-between gap-5">
             <div className="min-w-0">
@@ -683,15 +834,22 @@ function ReportView({ analysis }: { analysis: InsightAnalysis }) {
 
         {hasReportContent ? (
           <div className="divide-y divide-slate-100">
-            {sections.map((section, index) => (
-              <section key={section.key} aria-labelledby={`report-section-${section.key}`} className="px-5 py-6 sm:px-7">
+            {sections.map((section, index) => {
+              const treatment = reportSectionTreatment(section.key);
+              return (
+              <section
+                key={section.key}
+                aria-labelledby={`report-section-${section.key}`}
+                className={`px-5 py-6 sm:px-7 ${treatment.section}`}
+                data-report-tone={treatment.tone}
+              >
                 <div className="grid gap-4 sm:grid-cols-[34px_minmax(0,1fr)]">
-                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-cyan-50 text-[11px] font-semibold text-cyan-800" aria-hidden="true">
+                  <span className={`grid h-8 w-8 place-items-center rounded-lg text-[11px] font-semibold ${treatment.number}`} aria-hidden="true">
                     {String(index + 1).padStart(2, "0")}
                   </span>
                   <div className="min-w-0">
-                    <h3 id={`report-section-${section.key}`} className="text-base font-semibold text-[#0b1c2d]">{section.title}</h3>
-                    <div className="mt-2 space-y-2.5 text-sm leading-6 text-slate-700">
+                    <h3 id={`report-section-${section.key}`} className={`${treatment.heading} font-semibold text-[#0b1c2d]`}>{section.title}</h3>
+                    <div className={`mt-2 space-y-2.5 text-sm leading-6 ${treatment.body}`}>
                       {section.paragraphs.map((paragraph, paragraphIndex) => (
                         <p key={`${section.key}-paragraph-${paragraphIndex}`}>{paragraph}</p>
                       ))}
@@ -699,7 +857,8 @@ function ReportView({ analysis }: { analysis: InsightAnalysis }) {
                   </div>
                 </div>
               </section>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <CommandEmptyState
@@ -744,15 +903,28 @@ export const InsightsReportDashboard = memo(function InsightsReportDashboard({
   analysis,
   activeTab,
   onTabChange,
+  isUpdating = false,
 }: InsightsReportDashboardProps) {
   const idPrefix = useId();
   const insightsTabId = `${idPrefix}-insights-tab`;
   const reportTabId = `${idPrefix}-report-tab`;
   const insightsPanelId = `${idPrefix}-insights-panel`;
   const reportPanelId = `${idPrefix}-report-panel`;
+  const showUpdateStatus = useDelayedUpdateStatus(isUpdating);
+  const { displayedAnalysis, phase, isSwapping } = useSmoothAnalysis(analysis);
+  const transitionClass = phase === "fading-out"
+    ? "insight-data-region-out"
+    : phase === "fading-in"
+      ? "insight-data-region-in"
+      : "";
 
   return (
-    <section className="min-w-0 space-y-6 min-[1360px]:col-span-2" data-testid="insights-report-dashboard">
+    <section
+      className="min-w-0 space-y-6 min-[1360px]:col-span-2"
+      data-testid="insights-report-dashboard"
+      data-update-phase={phase}
+      aria-busy={isUpdating || isSwapping}
+    >
       <CommandPageIntro
         eyebrow={activeTab === "insights" ? "Beslutningsgrundlag" : "Aktuel rapport"}
         title={activeTab === "insights" ? "Indsigter" : "Ledelsesrapport"}
@@ -760,14 +932,29 @@ export const InsightsReportDashboard = memo(function InsightsReportDashboard({
           ? "Forstå udviklingen, find de vigtigste drivere og se, hvad der bør undersøges."
           : "Læs en kortfattet ledelsesrapport baseret på den valgte periode og de aktive filtre."}
         action={(
-          <DashboardTabs
-            activeTab={activeTab}
-            onTabChange={onTabChange}
-            insightsTabId={insightsTabId}
-            reportTabId={reportTabId}
-            insightsPanelId={insightsPanelId}
-            reportPanelId={reportPanelId}
-          />
+          <div className="flex w-full flex-col items-stretch gap-1.5 sm:w-auto sm:items-end">
+            <div className="flex min-h-5 items-center justify-end">
+              {showUpdateStatus ? (
+                <span
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-cyan-800"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                  {activeTab === "insights" ? "Opdaterer indsigter…" : "Opdaterer rapport…"}
+                </span>
+              ) : null}
+            </div>
+            <DashboardTabs
+              activeTab={activeTab}
+              onTabChange={onTabChange}
+              insightsTabId={insightsTabId}
+              reportTabId={reportTabId}
+              insightsPanelId={insightsPanelId}
+              reportPanelId={reportPanelId}
+            />
+          </div>
         )}
       />
 
@@ -777,9 +964,9 @@ export const InsightsReportDashboard = memo(function InsightsReportDashboard({
           role="tabpanel"
           aria-labelledby={insightsTabId}
           tabIndex={0}
-          className="focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-4"
+          className={`insight-data-region ${transitionClass} focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-4`}
         >
-          <InsightsView analysis={analysis} />
+          <InsightsView analysis={displayedAnalysis} />
         </div>
       ) : (
         <div
@@ -787,9 +974,9 @@ export const InsightsReportDashboard = memo(function InsightsReportDashboard({
           role="tabpanel"
           aria-labelledby={reportTabId}
           tabIndex={0}
-          className="focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-4"
+          className={`insight-data-region ${transitionClass} focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-4`}
         >
-          <ReportView analysis={analysis} />
+          <ReportView analysis={displayedAnalysis} />
         </div>
       )}
     </section>

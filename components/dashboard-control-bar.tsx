@@ -187,6 +187,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
   const [moreOpen, setMoreOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState(filters);
   const [isUpdateQueued, setIsUpdateQueued] = useState(false);
+  const [showUpdateStatus, setShowUpdateStatus] = useState(false);
   const [isDashboardUpdatePending, startDashboardUpdate] = useTransition();
   const rootRef = useRef<HTMLDivElement>(null);
   const moreTriggerRef = useRef<HTMLButtonElement>(null);
@@ -243,6 +244,16 @@ export const DashboardControlBar = memo(function DashboardControlBar({
       region: [],
     });
   }, [queueDashboardUpdate]);
+
+  useEffect(() => {
+    if (!isUpdating) {
+      setShowUpdateStatus(false);
+      return;
+    }
+
+    const statusTimer = window.setTimeout(() => setShowUpdateStatus(true), 130);
+    return () => window.clearTimeout(statusTimer);
+  }, [isUpdating]);
 
   useEffect(() => {
     const reconciled = reconcileDashboardFilterDraft(
@@ -412,16 +423,18 @@ export const DashboardControlBar = memo(function DashboardControlBar({
         ) : null}
 
         <div className="ml-auto flex min-h-11 items-center gap-2">
-          {isUpdating ? (
-            <span
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700"
-              role="status"
-              aria-live="polite"
-            >
-              <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-              Opdaterer visningen…
-            </span>
-          ) : null}
+          <span className="hidden min-h-5 w-[142px] items-center justify-end sm:inline-flex">
+            {showUpdateStatus ? (
+              <span
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700"
+                role="status"
+                aria-live="polite"
+              >
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                Opdaterer visningen…
+              </span>
+            ) : null}
+          </span>
           <button
             type="button"
             onClick={resetDraftFilters}
