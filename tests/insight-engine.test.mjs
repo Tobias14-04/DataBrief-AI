@@ -368,7 +368,9 @@ test("L: rapport, observationer og anbefalinger kan spores 1:1 til eksisterende 
   const centralMetrics = analysis.report.sections.find((section) => section.key === "central-metrics");
   assert.deepEqual(
     centralMetrics?.paragraphs,
-    analysis.snapshot.map((item) => `${item.label}: ${item.formattedValue}.`),
+    analysis.snapshot.map((item) => (
+      `${item.label}: ${item.formattedValue}${/[.!?]$/u.test(item.formattedValue) ? "" : "."}`
+    )),
   );
 });
 
@@ -396,6 +398,26 @@ test("M: serialiseret UI-data er endelig, deterministisk og uden kausale påstan
     first.observations.map((item) => item.text).join(" "),
     /Dataene viser, hvor ændringen opstod, men ikke den bagvedliggende forretningsmæssige årsag\./u,
   );
+});
+
+test("rapporten samler aktivitet og margin i et dokumenteret ledelsesafsnit", () => {
+  const analysis = buildInsightAnalysis([
+    row({ revenue: 1_000, units: 100, grossProfit: 600, grossMargin: 0.6 }),
+    nextMonth({ revenue: 593, units: 59.3, grossProfit: 359.358, grossMargin: 0.606 }),
+  ]);
+  const development = analysis.report.sections.find((section) => section.key === "development");
+  const prose = development?.paragraphs.join(" ") ?? "";
+
+  assert.match(
+    prose,
+    /Omsætningen faldt 40,7\s% fra januar 2026 til februar 2026, samtidig med at antallet af solgte enheder faldt tilsvarende 40,7\s%\./u,
+  );
+  assert.match(prose, /Dækningsgraden var stort set stabil med en ændring på 0,6 procentpoint/u);
+  assert.doesNotMatch(prose, /(?:skyldes|forårsaget af|på grund af)/iu);
+  const developmentEvidence = new Set(development?.evidenceIds);
+  analysis.changes
+    .filter((change) => ["revenue", "units", "grossMargin"].includes(change.metric))
+    .forEach((change) => assert.equal(developmentEvidence.has(change.evidenceId), true));
 });
 
 test("uparsebare og manglende perioder påvirker snapshot, men ikke den seneste kronologiske sammenligning", () => {

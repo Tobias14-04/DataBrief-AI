@@ -42,6 +42,7 @@ import {
 } from "@/components/command-center-ui";
 import { PremiumSelect } from "@/components/premium-select";
 import { SmoothMetricValue } from "@/components/smooth-metric-value";
+import { StrategyDashboard } from "@/components/strategy-dashboard";
 import {
   formatDanishCurrency,
   formatDanishNumber,
@@ -56,11 +57,17 @@ import type {
   InsightObservation,
   InsightRecommendation,
   InsightReliability,
+  InsightReportSection,
   InsightSnapshotItem,
   InsightTone,
 } from "@/lib/insight-engine";
+import {
+  buildStrategicAnalysis,
+  type StrategicAnalysis,
+  type StrategicQuadrant,
+} from "@/lib/strategy-engine";
 
-export type InsightsReportTab = "insights" | "report";
+export type InsightsReportTab = "insights" | "report" | "strategy";
 
 export type InsightsReportDashboardProps = {
   analysis: InsightAnalysis;
@@ -231,18 +238,23 @@ function DashboardTabs({
   onTabChange,
   insightsTabId,
   reportTabId,
+  strategyTabId,
   insightsPanelId,
   reportPanelId,
+  strategyPanelId,
 }: {
   activeTab: InsightsReportTab;
   onTabChange: (tab: InsightsReportTab) => void;
   insightsTabId: string;
   reportTabId: string;
+  strategyTabId: string;
   insightsPanelId: string;
   reportPanelId: string;
+  strategyPanelId: string;
 }) {
   const insightsRef = useRef<HTMLButtonElement>(null);
   const reportRef = useRef<HTMLButtonElement>(null);
+  const strategyRef = useRef<HTMLButtonElement>(null);
   const tabs: Array<{
     id: InsightsReportTab;
     label: string;
@@ -252,13 +264,15 @@ function DashboardTabs({
   }> = [
     { id: "insights", label: "Indsigter", icon: BrainCircuit, tabId: insightsTabId, panelId: insightsPanelId },
     { id: "report", label: "Rapport", icon: FileText, tabId: reportTabId, panelId: reportPanelId },
+    { id: "strategy", label: "Strategi", icon: Target, tabId: strategyTabId, panelId: strategyPanelId },
   ];
 
   function selectTab(tab: InsightsReportTab, focus = false) {
     onTabChange(tab);
     if (focus) {
       window.requestAnimationFrame(() => {
-        (tab === "insights" ? insightsRef : reportRef).current?.focus();
+        const tabRef = tab === "insights" ? insightsRef : tab === "report" ? reportRef : strategyRef;
+        tabRef.current?.focus();
       });
     }
   }
@@ -278,8 +292,8 @@ function DashboardTabs({
   return (
     <div
       role="tablist"
-      aria-label="Vælg mellem indsigter og rapport"
-      className="inline-grid w-full grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-white/90 p-1 shadow-sm sm:w-auto"
+      aria-label="Vælg mellem indsigter, rapport og strategi"
+      className="inline-grid w-full grid-cols-3 gap-1 rounded-xl border border-slate-200 bg-white/90 p-1 shadow-sm sm:w-auto"
     >
       {tabs.map((tab) => {
         const Icon = tab.icon;
@@ -287,7 +301,7 @@ function DashboardTabs({
         return (
           <button
             key={tab.id}
-            ref={tab.id === "insights" ? insightsRef : reportRef}
+            ref={tab.id === "insights" ? insightsRef : tab.id === "report" ? reportRef : strategyRef}
             id={tab.tabId}
             type="button"
             role="tab"
@@ -296,7 +310,7 @@ function DashboardTabs({
             tabIndex={selected ? 0 : -1}
             onClick={() => selectTab(tab.id)}
             onKeyDown={handleKeyDown}
-            className={`inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-lg px-4 text-[13px] font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 sm:min-w-[128px] ${
+            className={`inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2.5 text-[12px] font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 sm:min-w-[116px] sm:gap-2 sm:px-4 sm:text-[13px] ${
               selected
                 ? "bg-[#0b263a] text-white shadow-[0_8px_20px_rgba(8,31,48,0.16)]"
                 : "text-slate-600 hover:bg-slate-50 hover:text-[#0b1c2d]"
@@ -377,21 +391,22 @@ function ChangesPanel({ changes }: { changes: InsightMetricChange[] }) {
       testId="insight-changes"
     >
       {changes.length ? (
-        <ul className={`grid min-h-[184px] gap-px bg-slate-100 sm:grid-cols-2 ${desktopGridClass}`}>
+        <ul className={`grid min-h-[148px] gap-px bg-slate-100 sm:grid-cols-2 ${desktopGridClass}`}>
           {visibleChanges.map((change) => (
-            <li key={change.evidenceId} className="min-w-0 bg-white px-5 py-5 sm:px-6">
+            <li key={change.evidenceId} className="flex min-w-0 flex-col justify-center bg-white px-4 py-4 sm:px-5">
               <div className={`flex items-center gap-2 text-sm font-semibold ${toneTextClass(change.tone)}`}>
                 <ChangeIcon change={change.absoluteChange} />
                 <span className="truncate" title={change.label}>{change.label}</span>
               </div>
               <SmoothMetricValue
                 value={change.changeLabel ?? formatMetricDelta(change.metric, change.absoluteChange)}
-                className="mt-2 text-2xl font-semibold tabular-nums text-[#0b1c2d]"
+                className="mt-2 text-[22px] font-semibold leading-none tabular-nums text-[#0b1c2d]"
               />
-              <p className="mt-2 text-[13px] leading-5 text-slate-600">
-                Dokumenteret ændring i den sammenlignede periode.
+              <p className="mt-3 text-[11px] font-medium leading-4 text-slate-500">
+                {change.comparisonLabel}
+                <span aria-hidden="true"> · </span>
+                <span className="whitespace-nowrap">{reliabilityLabel(change.reliability)}</span>
               </p>
-              <p className="mt-3 text-[11px] font-medium text-slate-400">{change.comparisonLabel} · {reliabilityLabel(change.reliability)}</p>
             </li>
           ))}
         </ul>
@@ -410,11 +425,13 @@ function ContributionList({
   items,
   tone,
   metric,
+  emptyMessage,
 }: {
   title: string;
   items: InsightDriver[];
   tone: "positive" | "negative";
   metric: InsightMetricKey;
+  emptyMessage: string;
 }) {
   const maxContribution = Math.max(
     ...items.map((item) => item.movementShare),
@@ -424,7 +441,7 @@ function ContributionList({
   const valueClass = tone === "positive" ? "text-emerald-700" : "text-orange-700";
 
   return (
-    <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+    <div className="flex min-h-[230px] min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
       <div className="flex items-center gap-2">
         <span className={`h-2 w-2 rounded-full ${barClass}`} aria-hidden="true" />
         <h3 className="text-[13px] font-semibold text-[#0b1c2d]">{title}</h3>
@@ -465,7 +482,12 @@ function ContributionList({
           })}
         </ol>
       ) : (
-        <p className="mt-4 text-[13px] leading-5 text-slate-500">Ingen registrerede bidrag i denne retning.</p>
+        <div className="flex flex-1 flex-col items-center justify-center px-3 py-7 text-center">
+          <span className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-400" aria-hidden="true">
+            <BarChart3 className="h-4 w-4" />
+          </span>
+          <p className="mt-3 max-w-[280px] text-[13px] leading-5 text-slate-500">{emptyMessage}</p>
+        </div>
       )}
     </div>
   );
@@ -591,12 +613,18 @@ function DriverPanel({
           items={activeDriver.positiveDrivers}
           tone={isCostDriver ? "negative" : "positive"}
           metric={activeDriver.metric}
+          emptyMessage={isCostDriver
+            ? "Ingen registrerede omkostningsstigninger i sammenligningsperioden."
+            : "Ingen positive bidrag i sammenligningsperioden."}
         />
         <ContributionList
           title={isCostDriver ? "Største omkostningsfald" : "Største negative drivere"}
           items={activeDriver.negativeDrivers}
           tone={isCostDriver ? "positive" : "negative"}
           metric={activeDriver.metric}
+          emptyMessage={isCostDriver
+            ? "Ingen registrerede omkostningsfald i sammenligningsperioden."
+            : "Ingen negative bidrag i sammenligningsperioden."}
         />
       </div>
 
@@ -797,9 +825,99 @@ function reportSectionTreatment(sectionKey: string) {
   };
 }
 
-function ReportView({ analysis }: { analysis: InsightAnalysis }) {
+const strategicQuadrantLabels: Record<StrategicQuadrant, string> = {
+  strength: "Styrker",
+  weakness: "Svagheder",
+  opportunity: "Datadrevne muligheder",
+  threat: "Datadrevne risici",
+};
+
+function StrategicReportSummary({
+  strategy,
+  sectionNumber,
+}: {
+  strategy: StrategicAnalysis;
+  sectionNumber: number;
+}) {
+  const quadrants = (["strength", "weakness", "opportunity", "threat"] as const)
+    .map((quadrant) => ({
+      quadrant,
+      items: strategy.reportSummary.quadrants[quadrant],
+    }))
+    .filter((entry) => entry.items.length > 0);
+  const focus = strategy.reportSummary.strategicFocus;
+
+  return (
+    <section
+      aria-labelledby="report-section-strategic-summary"
+      className="bg-[linear-gradient(135deg,rgba(236,254,255,0.58),rgba(255,255,255,0.92))] px-5 py-7 shadow-[inset_3px_0_0_#0891b2] sm:px-7"
+      data-report-tone="strategy"
+    >
+      <div className="grid gap-4 sm:grid-cols-[34px_minmax(0,1fr)]">
+        <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#0b263a] text-[11px] font-semibold text-cyan-200 shadow-sm" aria-hidden="true">
+          {String(sectionNumber).padStart(2, "0")}
+        </span>
+        <div className="min-w-0">
+          <h3 id="report-section-strategic-summary" className="text-lg font-semibold text-[#0b1c2d]">Strategisk opsamling</h3>
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            Fundene vedrører {strategy.dataBasis.scopeLabel}. Kun dokumenterede interne forhold indgår; eksterne markedsforhold er ikke vurderet.
+          </p>
+          {quadrants.length ? (
+            <div className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2">
+              {quadrants.map(({ quadrant, items }) => (
+                <section key={quadrant} aria-labelledby={`report-strategy-${quadrant}`}>
+                  <h4 id={`report-strategy-${quadrant}`} className="text-xs font-semibold uppercase tracking-[0.08em] text-cyan-800">
+                    {strategicQuadrantLabels[quadrant]}
+                  </h4>
+                  <ul className="mt-2 space-y-2 text-[13px] leading-5 text-slate-700">
+                    {items.map((item) => (
+                      <li key={item.findingId}>
+                        <span className="font-semibold text-[#0b1c2d]">{item.title}.</span>{" "}{item.description}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          ) : null}
+          {focus.length ? (
+            <section className="mt-5 border-t border-cyan-100 pt-4" aria-labelledby="report-strategic-focus">
+              <h4 id="report-strategic-focus" className="text-sm font-semibold text-[#0b1c2d]">Strategisk fokus</h4>
+              <ol className="mt-2 space-y-2 text-[13px] leading-5 text-slate-700">
+                {focus.map((item) => <li key={item.id}>{item.text}</li>)}
+              </ol>
+            </section>
+          ) : null}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ReportView({ analysis, strategy }: { analysis: InsightAnalysis; strategy: StrategicAnalysis }) {
   const sections = analysis.report.sections.filter((section) => section.available);
-  const hasReportContent = sections.some((section) => section.key !== "data-basis");
+  const hasStrategicSummary = Object.values(strategy.reportSummary.quadrants)
+    .some((items) => items.length > 0)
+    || strategy.reportSummary.strategicFocus.length > 0;
+  const hasReportContent = sections.some((section) => section.key !== "data-basis")
+    || hasStrategicSummary;
+  const reportEntries: Array<
+    | { kind: "section"; section: InsightReportSection }
+    | { kind: "strategy" }
+  > = [];
+  let strategicSummaryInserted = false;
+  for (const section of sections) {
+    if (section.key === "data-basis" && hasStrategicSummary && !strategicSummaryInserted) {
+      reportEntries.push({ kind: "strategy" });
+      strategicSummaryInserted = true;
+    }
+    reportEntries.push({ kind: "section", section });
+    if (section.key === "recommended-focus" && hasStrategicSummary && !strategicSummaryInserted) {
+      reportEntries.push({ kind: "strategy" });
+      strategicSummaryInserted = true;
+    }
+  }
+  if (hasStrategicSummary && !strategicSummaryInserted) reportEntries.push({ kind: "strategy" });
   const reportSubtitle = analysis.dataBasis.scopeMode === "all-filtered-periods"
     ? `${analysis.dataBasis.scopeLabel}.${analysis.currentPeriod && analysis.comparisonPeriod
         ? ` Udviklingen sammenlignes fra ${analysis.comparisonPeriod.label} til ${analysis.currentPeriod.label}.`
@@ -834,7 +952,17 @@ function ReportView({ analysis }: { analysis: InsightAnalysis }) {
 
         {hasReportContent ? (
           <div className="divide-y divide-slate-100">
-            {sections.map((section, index) => {
+            {reportEntries.map((entry, index) => {
+              if (entry.kind === "strategy") {
+                return (
+                  <StrategicReportSummary
+                    key="strategic-report-summary"
+                    strategy={strategy}
+                    sectionNumber={index + 1}
+                  />
+                );
+              }
+              const { section } = entry;
               const treatment = reportSectionTreatment(section.key);
               return (
               <section
@@ -908,10 +1036,16 @@ export const InsightsReportDashboard = memo(function InsightsReportDashboard({
   const idPrefix = useId();
   const insightsTabId = `${idPrefix}-insights-tab`;
   const reportTabId = `${idPrefix}-report-tab`;
+  const strategyTabId = `${idPrefix}-strategy-tab`;
   const insightsPanelId = `${idPrefix}-insights-panel`;
   const reportPanelId = `${idPrefix}-report-panel`;
+  const strategyPanelId = `${idPrefix}-strategy-panel`;
   const showUpdateStatus = useDelayedUpdateStatus(isUpdating);
   const { displayedAnalysis, phase, isSwapping } = useSmoothAnalysis(analysis);
+  const strategicAnalysis = useMemo(
+    () => buildStrategicAnalysis(displayedAnalysis),
+    [displayedAnalysis],
+  );
   const transitionClass = phase === "fading-out"
     ? "insight-data-region-out"
     : phase === "fading-in"
@@ -926,11 +1060,17 @@ export const InsightsReportDashboard = memo(function InsightsReportDashboard({
       aria-busy={isUpdating || isSwapping}
     >
       <CommandPageIntro
-        eyebrow={activeTab === "insights" ? "Beslutningsgrundlag" : "Aktuel rapport"}
-        title={activeTab === "insights" ? "Indsigter" : "Ledelsesrapport"}
+        eyebrow={activeTab === "insights"
+          ? "Beslutningsgrundlag"
+          : activeTab === "report" ? "Aktuel rapport" : "Strategisk beslutningsstøtte"}
+        title={activeTab === "insights"
+          ? "Indsigter"
+          : activeTab === "report" ? "Ledelsesrapport" : "Strategisk opsamling"}
         description={activeTab === "insights"
           ? "Forstå udviklingen, find de vigtigste drivere og se, hvad der bør undersøges."
-          : "Læs en kortfattet ledelsesrapport baseret på den valgte periode og de aktive filtre."}
+          : activeTab === "report"
+            ? "Læs en kortfattet ledelsesrapport baseret på den valgte periode og de aktive filtre."
+            : "Omsæt dokumenterede indsigter til styrker, svagheder, muligheder, risici og konkrete fokusområder."}
         action={(
           <div className="flex w-full flex-col items-stretch gap-1.5 sm:w-auto sm:items-end">
             <div className="flex min-h-5 items-center justify-end">
@@ -942,7 +1082,9 @@ export const InsightsReportDashboard = memo(function InsightsReportDashboard({
                   aria-atomic="true"
                 >
                   <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                  {activeTab === "insights" ? "Opdaterer indsigter…" : "Opdaterer rapport…"}
+                  {activeTab === "insights"
+                    ? "Opdaterer indsigter…"
+                    : activeTab === "report" ? "Opdaterer rapport…" : "Opdaterer strategisk opsamling…"}
                 </span>
               ) : null}
             </div>
@@ -951,34 +1093,47 @@ export const InsightsReportDashboard = memo(function InsightsReportDashboard({
               onTabChange={onTabChange}
               insightsTabId={insightsTabId}
               reportTabId={reportTabId}
+              strategyTabId={strategyTabId}
               insightsPanelId={insightsPanelId}
               reportPanelId={reportPanelId}
+              strategyPanelId={strategyPanelId}
             />
           </div>
         )}
       />
 
-      {activeTab === "insights" ? (
-        <div
-          id={insightsPanelId}
-          role="tabpanel"
-          aria-labelledby={insightsTabId}
-          tabIndex={0}
-          className={`insight-data-region ${transitionClass} focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-4`}
-        >
-          <InsightsView analysis={displayedAnalysis} />
-        </div>
-      ) : (
-        <div
-          id={reportPanelId}
-          role="tabpanel"
-          aria-labelledby={reportTabId}
-          tabIndex={0}
-          className={`insight-data-region ${transitionClass} focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-4`}
-        >
-          <ReportView analysis={displayedAnalysis} />
-        </div>
-      )}
+      <div
+        id={insightsPanelId}
+        role="tabpanel"
+        aria-labelledby={insightsTabId}
+        hidden={activeTab !== "insights"}
+        tabIndex={activeTab === "insights" ? 0 : -1}
+        className={`insight-data-region ${transitionClass} focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-4`}
+      >
+        {activeTab === "insights" ? <InsightsView analysis={displayedAnalysis} /> : null}
+      </div>
+      <div
+        id={reportPanelId}
+        role="tabpanel"
+        aria-labelledby={reportTabId}
+        hidden={activeTab !== "report"}
+        tabIndex={activeTab === "report" ? 0 : -1}
+        className={`insight-data-region ${transitionClass} focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-4`}
+      >
+        {activeTab === "report" ? (
+          <ReportView analysis={displayedAnalysis} strategy={strategicAnalysis} />
+        ) : null}
+      </div>
+      <div
+        id={strategyPanelId}
+        role="tabpanel"
+        aria-labelledby={strategyTabId}
+        hidden={activeTab !== "strategy"}
+        tabIndex={activeTab === "strategy" ? 0 : -1}
+        className={`insight-data-region ${transitionClass} focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-4`}
+      >
+        {activeTab === "strategy" ? <StrategyDashboard strategy={strategicAnalysis} /> : null}
+      </div>
     </section>
   );
 });

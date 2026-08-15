@@ -363,6 +363,11 @@ function signedMetric(metric: InsightMetricKey, value: number) {
   return `${value > 0 ? "+" : "−"}${formatMetric(metric, Math.abs(value))}`;
 }
 
+function endSentence(text: string) {
+  const trimmed = text.trimEnd();
+  return /[.!?]$/u.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
 function changeTone(metric: InsightMetricKey, change: number): InsightTone {
   if (change === 0) return "neutral";
   const lowerIsBetter = metric === "cost" || metric === "costShare";
@@ -589,6 +594,118 @@ function economicImpact(change: InsightMetricChange, changes: readonly InsightMe
   return impact * reliabilityWeight;
 }
 
+function proseChangeValue(change: InsightMetricChange) {
+  if (change.percentagePointChange !== null) {
+    return `${new Intl.NumberFormat("da-DK", { maximumFractionDigits: 1 })
+      .format(Math.abs(change.percentagePointChange) * 100)} procentpoint`;
+  }
+  if (change.percentageChange !== null) return formatDanishPercent(Math.abs(change.percentageChange));
+  return formatMetric(change.metric, Math.abs(change.absoluteChange));
+}
+
+function movementVerb(change: InsightMetricChange) {
+  return change.absoluteChange > 0 ? "steg" : change.absoluteChange < 0 ? "faldt" : "var uændret";
+}
+
+function displayedPercent(value: number | null) {
+  return value === null ? null : Math.round(Math.abs(value) * 1_000) / 10;
+}
+
+function metricProseSubject(metric: InsightMetricKey) {
+  const subjects: Record<InsightMetricKey, string> = {
+    revenue: "Omsætningen",
+    units: "Antallet af solgte enheder",
+    averagePrice: "Gennemsnitsprisen",
+    grossProfit: "Dækningsbidraget",
+    grossMargin: "Dækningsgraden",
+    cost: "Omkostningerne",
+    result: "Resultatet",
+    costShare: "Omkostningsandelen",
+  };
+  return subjects[metric];
+}
+
+function buildDevelopmentNarrative(
+  changes: readonly InsightMetricChange[],
+  comparisonPeriod: InsightPeriodReference | null,
+  currentPeriod: InsightPeriodReference | null,
+) {
+  const paragraphs: string[] = [];
+  const evidenceIds: string[] = [];
+  const consumed = new Set<InsightMetricKey>();
+  const revenue = changes.find((item) => item.metric === "revenue") ?? null;
+  const units = changes.find((item) => item.metric === "units") ?? null;
+  const grossMargin = changes.find((item) => item.metric === "grossMargin") ?? null;
+  const periodText = comparisonPeriod && currentPeriod
+    ? ` fra ${comparisonPeriod.label} til ${currentPeriod.label}`
+    : " i sammenligningsperioden";
+
+  if (revenue || units) {
+    const first = revenue ?? units;
+    if (first) {
+      const subject = first.metric === "revenue" ? "Omsætningen" : "Antallet af solgte enheder";
+      let paragraph = `${subject} ${movementVerb(first)}${first.absoluteChange === 0 ? "" : ` ${proseChangeValue(first)}`}${periodText}`;
+      consumed.add(first.metric);
+      evidenceIds.push(first.evidenceId);
+
+      const companion = first.metric === "revenue" ? units : revenue;
+      if (companion) {
+        const companionSubject = companion.metric === "units" ? "antallet af solgte enheder" : "omsætningen";
+        const sameDisplayedRate = displayedPercent(first.percentageChange) !== null
+          && displayedPercent(first.percentageChange) === displayedPercent(companion.percentageChange)
+          && Math.sign(first.absoluteChange) === Math.sign(companion.absoluteChange);
+        paragraph += `, samtidig med at ${companionSubject} ${movementVerb(companion)}${companion.absoluteChange === 0
+          ? ""
+          : ` ${sameDisplayedRate ? "tilsvarende " : ""}${proseChangeValue(companion)}`}`;
+        consumed.add(companion.metric);
+        evidenceIds.push(companion.evidenceId);
+      }
+      paragraph += ".";
+
+      if (grossMargin) {
+        const isStableMargin = Math.abs(grossMargin.absoluteChange) < 0.01;
+        const supportsActivityComparison = Boolean(
+          revenue
+          && units
+          && revenue.percentageChange !== null
+          && units.percentageChange !== null
+          && Math.sign(revenue.absoluteChange) === Math.sign(units.absoluteChange)
+          && Math.abs(revenue.percentageChange - units.percentageChange) < 0.015,
+        );
+        paragraph += isStableMargin
+          ? supportsActivityComparison
+            ? ` Dækningsgraden var stort set stabil med en ændring på ${proseChangeValue(grossMargin)}; de registrerede bevægelser lå dermed i omsætning og volumen, mens marginen ændrede sig begrænset.`
+            : ` Dækningsgraden var stort set stabil med en ændring på ${proseChangeValue(grossMargin)}.`
+          : ` Dækningsgraden ${movementVerb(grossMargin)} ${proseChangeValue(grossMargin)} i samme periode.`;
+        consumed.add("grossMargin");
+        evidenceIds.push(grossMargin.evidenceId);
+      }
+      paragraphs.push(paragraph);
+    }
+  } else if (grossMargin) {
+    paragraphs.push(`Dækningsgraden ${movementVerb(grossMargin)}${grossMargin.absoluteChange === 0 ? "" : ` ${proseChangeValue(grossMargin)}`}${periodText}.`);
+    consumed.add("grossMargin");
+    evidenceIds.push(grossMargin.evidenceId);
+  }
+
+  const remaining = changes.filter((change) => !consumed.has(change.metric) && change.absoluteChange !== 0);
+  for (let index = 0; index < remaining.length; index += 2) {
+    const first = remaining[index];
+    const second = remaining[index + 1];
+    if (!first) continue;
+    let paragraph = `${metricProseSubject(first.metric)} ${movementVerb(first)} ${proseChangeValue(first)}`;
+    evidenceIds.push(first.evidenceId);
+    if (second) {
+      const secondSubject = metricProseSubject(second.metric);
+      paragraph += `, mens ${secondSubject.charAt(0).toLocaleLowerCase("da-DK")}${secondSubject.slice(1)} ${movementVerb(second)} ${proseChangeValue(second)}`;
+      evidenceIds.push(second.evidenceId);
+    }
+    paragraphs.push(`${paragraph}${periodText}.`);
+  }
+
+  return { paragraphs, evidenceIds: Array.from(new Set(evidenceIds)) };
+}
+
 export function buildInsightAnalysis(
   rows: ReadonlyArray<InsightSourceRow>,
   options: InsightAnalysisOptions = {},
@@ -735,8 +852,8 @@ export function buildInsightAnalysis(
           Math.min(metricCoverage(current, metric), metricCoverage(previous, metric)),
         ),
         supportingFacts: [
-          `${metricLabels[metric]} i ${current.label}: ${formatMetric(metric, value)}.`,
-          `${metricLabels[metric]} i ${previous.label}: ${formatMetric(metric, previousValue)}.`,
+          endSentence(`${metricLabels[metric]} i ${current.label}: ${formatMetric(metric, value)}`),
+          endSentence(`${metricLabels[metric]} i ${previous.label}: ${formatMetric(metric, previousValue)}`),
         ],
       });
     }
@@ -760,7 +877,7 @@ export function buildInsightAnalysis(
         tone: periodChange?.tone ?? "neutral",
         evidenceId: id,
       });
-      const supportingFacts = [`${metricLabels[metric]} for ${scopeLabel}: ${formatMetric(metric, value)}.`];
+      const supportingFacts = [endSentence(`${metricLabels[metric]} for ${scopeLabel}: ${formatMetric(metric, value)}`)];
       if (usesActualCost(metric)) {
         supportingFacts.push(actualCostBasis === "registered"
           ? "Omkostningstallet kommer fra den registrerede omkostningsopgørelse."
@@ -859,7 +976,7 @@ export function buildInsightAnalysis(
     observations.unshift({
       id: "observation-driver",
       title: "Største registrerede bidrag",
-      text: `Det største registrerede omsætningsbidrag kommer fra ${strongestDriver.dimensionValue}: ${signedMetric("revenue", strongestDriver.absoluteChange)}. Dataene viser, hvor ændringen opstod, men ikke den bagvedliggende forretningsmæssige årsag.`,
+      text: `${endSentence(`Det største registrerede omsætningsbidrag kommer fra ${strongestDriver.dimensionValue}: ${signedMetric("revenue", strongestDriver.absoluteChange)}`)} Dataene viser, hvor ændringen opstod, men ikke den bagvedliggende forretningsmæssige årsag.`,
       tone: strongestDriver.absoluteChange > 0 ? "positive" : "negative",
       priority: Math.abs(strongestDriver.absoluteChange) * 1.01,
       evidenceIds: [strongestDriver.evidenceId],
@@ -880,7 +997,7 @@ export function buildInsightAnalysis(
       if (currentValue === null) continue;
       const id = evidenceId("budget", metric, scopeKey);
       budgetEvidenceIds.push(id);
-      evidence.push({ id, type: "budget", title: `${metricLabels[metric]} mod budget`, metric, currentValue, previousValue: value, absoluteChange: currentValue - value, sampleSize: scope?.rowCount ?? 0, reliability: budget.basis === "proportional" ? "medium" : "high", supportingFacts: [`Faktisk: ${formatMetric(metric, currentValue)}. Budget: ${formatMetric(metric, value)}.`] });
+      evidence.push({ id, type: "budget", title: `${metricLabels[metric]} mod budget`, metric, currentValue, previousValue: value, absoluteChange: currentValue - value, sampleSize: scope?.rowCount ?? 0, reliability: budget.basis === "proportional" ? "medium" : "high", supportingFacts: [`${endSentence(`Faktisk: ${formatMetric(metric, currentValue)}`)} ${endSentence(`Budget: ${formatMetric(metric, value)}`)}`] });
     }
   }
   for (const [index, id] of budgetEvidenceIds.entries()) {
@@ -933,7 +1050,7 @@ export function buildInsightAnalysis(
       sampleSize: costDistribution.length,
       reliability: costDistribution.length >= 2 ? "high" : "medium",
       supportingFacts: [
-        `${largestCostGroup.name}: ${formatDanishCurrency(largestCostGroup.cost)}.`,
+        endSentence(`${largestCostGroup.name}: ${formatDanishCurrency(largestCostGroup.cost)}`),
         `${formatDanishPercent(share)} af den registrerede omkostningsfordeling.`,
       ],
     });
@@ -954,18 +1071,60 @@ export function buildInsightAnalysis(
     }
   }
 
+  if (current) {
+    const currentRevenue = metricValue(current, "revenue");
+    if (currentRevenue !== null && currentRevenue > 0) {
+      for (const dimension of dimensions) {
+        const revenueGroups = Array.from(current.dimensions[dimension], ([key, group]) => ({
+          key,
+          group,
+          revenue: metricValue(group, "revenue"),
+        })).filter((item): item is { key: string; group: DimensionAccumulator; revenue: number } => (
+          item.revenue !== null && item.revenue > 0
+        ));
+        if (revenueGroups.length < 2) continue;
+        const positiveRevenueTotal = revenueGroups.reduce((sum, item) => sum + item.revenue, 0);
+        const comparisonTolerance = Math.max(0.01, Math.abs(currentRevenue) * Number.EPSILON * 16);
+        if (positiveRevenueTotal > currentRevenue + comparisonTolerance) continue;
+        for (const { key, group, revenue: groupRevenue } of revenueGroups) {
+          const share = safeRatio(groupRevenue, currentRevenue);
+          if (share === null || share <= 0) continue;
+          const id = evidenceId("revenue-distribution", dimension, key, current.key);
+          evidence.push({
+            id,
+            type: "distribution",
+            title: `${group.name}: omsætningsandel`,
+            metric: "revenue",
+            currentValue: groupRevenue,
+            dimension,
+            dimensionValue: group.name,
+            contribution: share,
+            sampleSize: group.rowCount,
+            reliability: reliability(group.rowCount, metricCoverage(group, "revenue")),
+            supportingFacts: [
+              `${group.name}: ${formatDanishCurrency(groupRevenue)} i ${current.label}.`,
+              `${formatDanishPercent(share)} af omsætningen i ${current.label}.`,
+            ],
+          });
+        }
+      }
+    }
+  }
+
   const revenueSnapshot = snapshot.find((item) => item.metric === "revenue");
   const summaryParagraphs = snapshot.length
     ? [hasSelectedPeriod
-        ? `I ${scopeLabel} var omsætningen ${revenueSnapshot?.formattedValue ?? "ikke tilgængelig"}${comparisonPeriod ? ` sammenlignet med ${comparisonPeriod.label}.` : ". Der findes ingen tidligere sammenlignelig periode i datagrundlaget."}`
-        : `Den filtrerede visning for ${scopeLabel} omfatter en omsætning på ${revenueSnapshot?.formattedValue ?? "ikke tilgængelig"}.${comparisonPeriod && currentPeriod ? ` Udviklingen sammenlignes fra ${comparisonPeriod.label} til ${currentPeriod.label}.` : " Der findes ingen tidligere sammenlignelig periode i datagrundlaget."}`]
+        ? comparisonPeriod
+          ? `I ${scopeLabel} var omsætningen ${revenueSnapshot?.formattedValue ?? "ikke tilgængelig"} sammenlignet med ${comparisonPeriod.label}.`
+          : `${endSentence(`I ${scopeLabel} var omsætningen ${revenueSnapshot?.formattedValue ?? "ikke tilgængelig"}`)} Der findes ingen tidligere sammenlignelig periode i datagrundlaget.`
+        : `${endSentence(`Den filtrerede visning for ${scopeLabel} omfatter en omsætning på ${revenueSnapshot?.formattedValue ?? "ikke tilgængelig"}`)}${comparisonPeriod && currentPeriod ? ` Udviklingen sammenlignes fra ${comparisonPeriod.label} til ${currentPeriod.label}.` : " Der findes ingen tidligere sammenlignelig periode i datagrundlaget."}`]
     : [];
   const bestPositive = primaryRevenueAnalysis?.positiveDrivers[0];
   const bestNegative = primaryRevenueAnalysis?.negativeDrivers[0];
   const costSnapshot = snapshot.find((item) => item.metric === "cost");
   const resultSnapshot = snapshot.find((item) => item.metric === "result");
   const costParagraphs = costSnapshot && resultSnapshot
-    ? [`Omkostningerne var ${costSnapshot.formattedValue}, og resultatet var ${resultSnapshot.formattedValue}.`]
+    ? [endSentence(`Omkostningerne var ${costSnapshot.formattedValue}, og resultatet var ${resultSnapshot.formattedValue}`)]
     : [];
   if (largestCostGroup && largestCostEvidenceId && costDistributionTotal > 0) {
     costParagraphs.push(
@@ -1018,21 +1177,23 @@ export function buildInsightAnalysis(
     revenueSnapshot?.evidenceId,
     comparisonPeriod ? revenueChange?.evidenceId : null,
   ].filter((id): id is string => Boolean(id));
-  const developmentObservations = observations.filter((item) => (
-    item.evidenceIds.some((id) => changes.some((change) => change.evidenceId === id))
-  ));
+  const developmentNarrative = buildDevelopmentNarrative(
+    primaryChanges,
+    comparisonPeriod,
+    currentPeriod,
+  );
   const costBudgetEvidenceId = evidence.find((item) => item.type === "budget" && item.metric === "cost")?.id;
   const sections: InsightReportSection[] = [
     reportSection("executive-summary", "Executive summary", summaryParagraphs, executiveEvidenceIds),
-    reportSection("central-metrics", "Centrale nøgletal", snapshot.map((item) => `${item.label}: ${item.formattedValue}.`), snapshotEvidenceIds),
+    reportSection("central-metrics", "Centrale nøgletal", snapshot.map((item) => endSentence(`${item.label}: ${item.formattedValue}`)), snapshotEvidenceIds),
     reportSection(
       "development",
       "Udvikling siden sammenligningsperioden",
-      developmentObservations.map((item) => item.text),
-      developmentObservations.flatMap((item) => item.evidenceIds),
+      developmentNarrative.paragraphs,
+      developmentNarrative.evidenceIds,
     ),
-    reportSection("positive-drivers", "Vigtigste positive drivere", bestPositive ? [`Det største positive registrerede bidrag kommer fra ${bestPositive.dimensionValue}: ${signedMetric("revenue", bestPositive.absoluteChange)}.`] : [], bestPositive ? [bestPositive.evidenceId] : []),
-    reportSection("negative-drivers", "Vigtigste negative drivere", bestNegative ? [`Det største negative registrerede bidrag kommer fra ${bestNegative.dimensionValue}: ${signedMetric("revenue", bestNegative.absoluteChange)}.`] : [], bestNegative ? [bestNegative.evidenceId] : []),
+    reportSection("positive-drivers", "Vigtigste positive drivere", bestPositive ? [endSentence(`Det største positive registrerede bidrag kommer fra ${bestPositive.dimensionValue}: ${signedMetric("revenue", bestPositive.absoluteChange)}`)] : [], bestPositive ? [bestPositive.evidenceId] : []),
+    reportSection("negative-drivers", "Vigtigste negative drivere", bestNegative ? [endSentence(`Det største negative registrerede bidrag kommer fra ${bestNegative.dimensionValue}: ${signedMetric("revenue", bestNegative.absoluteChange)}`)] : [], bestNegative ? [bestNegative.evidenceId] : []),
     reportSection("costs-profitability", "Omkostninger og rentabilitet", costParagraphs, [costSnapshot?.evidenceId, resultSnapshot?.evidenceId, largestCostEvidenceId, costBudgetEvidenceId].filter((id): id is string => Boolean(id))),
     reportSection("risks", "Risici / opmærksomhedspunkter", observations.filter((item) => item.tone === "negative").map((item) => item.text), observations.filter((item) => item.tone === "negative").flatMap((item) => item.evidenceIds)),
     reportSection("opportunities", "Muligheder", observations.filter((item) => item.tone === "positive").map((item) => item.text), observations.filter((item) => item.tone === "positive").flatMap((item) => item.evidenceIds)),
