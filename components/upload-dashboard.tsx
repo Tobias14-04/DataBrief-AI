@@ -54,6 +54,10 @@ import { CategoryAnalysisDashboard } from "@/components/category-analysis-dashbo
 import { CostIntelligenceDashboard } from "@/components/cost-intelligence-dashboard";
 import { ExcelProcessingView } from "@/components/excel-processing-view";
 import { KpiCustomizer } from "@/components/kpi-customizer";
+import {
+  InsightsReportDashboard,
+  type InsightsReportTab,
+} from "@/components/insights-report-dashboard";
 import { PremiumSelect } from "@/components/premium-select";
 import { ProductAnalysisDashboard } from "@/components/product-analysis-dashboard";
 import { SmoothMetricValue } from "@/components/smooth-metric-value";
@@ -154,6 +158,7 @@ import {
   normalizeForComparison,
 } from "@/lib/data-labels";
 import { demoOperatingCostDefinitions } from "@/lib/demo-dataset";
+import { buildInsightAnalysis } from "@/lib/insight-engine";
 import type { DashboardView } from "@/lib/dashboard-navigation";
 
 type SaleRow = {
@@ -2374,6 +2379,7 @@ export default function UploadDashboard() {
   const [filters, setFilters] = useState<DashboardFilters>(emptyDashboardFilters);
   const [reportMonth, setReportMonth] = useState("");
   const [activeView, setActiveView] = useState<DashboardView>("overview");
+  const [insightsTab, setInsightsTab] = useState<InsightsReportTab>("insights");
   const [trendMetric, setTrendMetric] = useState<TrendMetric>("revenue");
   const [isKpiCustomizerOpen, setIsKpiCustomizerOpen] = useState(false);
   const [kpiConfiguration, setKpiConfiguration] = useState<KpiConfiguration>(initialKpiConfiguration);
@@ -2470,6 +2476,56 @@ export default function UploadDashboard() {
       isFiltered,
       metrics.budgetCosts,
       metrics.totalCosts,
+    ],
+  );
+  const insightSourceRows = useMemo(
+    () => activeView === "insights"
+      ? applyDashboardFilters(allRows, deferredFilters, "month")
+      : [],
+    [activeView, allRows, deferredFilters],
+  );
+  const insightAnalysis = useMemo(
+    () => activeView === "insights"
+      ? buildInsightAnalysis(insightSourceRows, {
+          selectedMonths: deferredFilters.month,
+          sourceName: data?.feedback.salesSheetName ?? selectedSheet ?? "Salgsdata",
+          totalRowCount: allRows.length,
+          activeFilterLabels,
+          costDistribution: showCosts
+            ? costsByCategory.map((item) => ({ name: item.name, cost: item.cost }))
+            : undefined,
+          actualCost: metrics.hasCosts ? metrics.totalCosts : null,
+          actualCostBasis: metrics.hasCosts
+            ? !isFiltered && data?.feedback.costs ? "registered" : "row-derived"
+            : undefined,
+          budget: showBudget
+            ? {
+                revenue: metrics.budgetRevenue,
+                costs: metrics.budgetCosts,
+                result: metrics.budgetResult,
+                basis: isFiltered ? "proportional" : "registered",
+              }
+            : null,
+        })
+      : null,
+    [
+      activeFilterLabels,
+      allRows.length,
+      activeView,
+      costsByCategory,
+      data?.feedback.costs,
+      data?.feedback.salesSheetName,
+      deferredFilters.month,
+      insightSourceRows,
+      isFiltered,
+      metrics.hasCosts,
+      metrics.budgetCosts,
+      metrics.budgetResult,
+      metrics.budgetRevenue,
+      metrics.totalCosts,
+      selectedSheet,
+      showBudget,
+      showCosts,
     ],
   );
   const shouldShowManualMapping = shouldShowColumnReview({
@@ -2658,6 +2714,7 @@ export default function UploadDashboard() {
     setFilters(emptyDashboardFilters);
     setReportMonth("");
     setActiveView("overview");
+    setInsightsTab("insights");
     setTrendMetric("revenue");
   }, []);
 
@@ -2675,6 +2732,7 @@ export default function UploadDashboard() {
 
   const openInsightsView = useCallback(() => {
     setActiveView("insights");
+    setInsightsTab("insights");
   }, []);
 
   function saveKpiConfiguration(configuration: KpiConfiguration) {
@@ -3353,60 +3411,13 @@ export default function UploadDashboard() {
           ) : null}
 
           {activeView === "insights" ? (
-            <section className="min-w-0 space-y-6 min-[1360px]:col-span-2" data-testid="insights-view">
-              <CommandPageIntro
-                eyebrow="Beslutningsgrundlag"
-                title="Ledelsesindsigter"
-                description="Regelbaserede forklaringer ud fra de registrerede og filtrerede data."
+            insightAnalysis ? (
+              <InsightsReportDashboard
+                analysis={insightAnalysis}
+                activeTab={insightsTab}
+                onTabChange={setInsightsTab}
               />
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-                <ExecutiveSummaryCard
-                  insights={executiveSummary.insights}
-                  conclusion={executiveSummary.conclusion}
-                  status={executiveSummary.status}
-                />
-                <MonthlyReportCard
-                  rows={allRows}
-                  filters={filters}
-                  feedback={data?.feedback}
-                  preferredMonth={baseMetrics.bestMonth?.name}
-                  selectedMonth={reportMonth}
-                  onMonthChange={setReportMonth}
-                />
-              </div>
-              <CommandPanel title="Datagrundlag for indsigterne" description="Indsigterne ændres sammen med dashboardfiltrene" icon={Info}>
-                <div className="grid gap-2 p-4 sm:grid-cols-3">
-                  <CompactSecondaryMetric label="Medtagne rækker" value={number(metrics.rowCount)} />
-                  <CompactSecondaryMetric label="Aktive filtre" value={activeFilters.length ? number(activeFilters.length) : "Ingen"} />
-                  <CompactSecondaryMetric label="Salgsark" value={data?.feedback.salesSheetName ?? selectedSheet} />
-                </div>
-              </CommandPanel>
-            </section>
-          ) : null}
-
-          {activeView === "reports" ? (
-            <section className="min-w-0 space-y-6 min-[1360px]:col-span-2" data-testid="reports-view">
-              <CommandPageIntro
-                eyebrow="Aktuel rapport"
-                title="Rapporter"
-                description="Månedsrapport og ledelsesresume for den valgte visning."
-              />
-              <div className="grid gap-4 xl:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]">
-                <MonthlyReportCard
-                  rows={allRows}
-                  filters={filters}
-                  feedback={data?.feedback}
-                  preferredMonth={baseMetrics.bestMonth?.name}
-                  selectedMonth={reportMonth}
-                  onMonthChange={setReportMonth}
-                />
-                <ExecutiveSummaryCard
-                  insights={executiveSummary.insights}
-                  conclusion={executiveSummary.conclusion}
-                  status={executiveSummary.status}
-                />
-              </div>
-            </section>
+            ) : null
           ) : null}
 
           {activeView === "dataset" ? (

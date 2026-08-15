@@ -17,7 +17,6 @@ import {
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
-  ReceiptText,
   TableProperties,
   Upload,
   WalletCards,
@@ -34,7 +33,6 @@ const viewIcons: Record<DashboardView, LucideIcon> = {
   categories: FolderKanban,
   costs: WalletCards,
   insights: BrainCircuit,
-  reports: ReceiptText,
   dataset: TableProperties,
 };
 
@@ -45,7 +43,6 @@ const primaryViewIds: DashboardView[] = [
   "categories",
   "costs",
   "insights",
-  "reports",
 ];
 
 type DashboardCommandShellProps = {

@@ -234,6 +234,7 @@ export function CommandPanel({
   className = "",
   testId,
   variant = "default",
+  stackActionOnMobile = false,
 }: {
   eyebrow?: string;
   title: string;
@@ -245,17 +246,20 @@ export function CommandPanel({
   className?: string;
   testId?: string;
   variant?: CommandVariant;
+  stackActionOnMobile?: boolean;
 }) {
   const styles = toneStyles[tone];
   return (
     <section className={`premium-panel min-w-0 overflow-hidden rounded-xl ${className}`} data-testid={testId} data-variant={variant}>
-      <header className="flex min-h-[82px] items-center justify-between gap-4 border-b border-[#e5ecef] px-5 py-4 sm:px-6">
+      <header className={`flex min-h-[82px] justify-between gap-4 border-b border-[#e5ecef] px-5 py-4 sm:px-6 ${
+        stackActionOnMobile ? "flex-col items-stretch sm:flex-row sm:items-center" : "items-center"
+      }`}>
         <div className="min-w-0">
           {eyebrow ? <p className={`${commandSectionLabelClass} ${styles.helper}`}>{eyebrow}</p> : null}
           <h2 className={`${eyebrow ? "mt-1.5" : ""} text-lg font-semibold leading-6 text-[#0b1c2d]`} title={title}>{title}</h2>
           {description ? <p className="mt-1 text-[13px] leading-5 text-slate-500" title={description}>{description}</p> : null}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className={`flex items-center gap-2 ${stackActionOnMobile ? "w-full justify-between sm:w-auto sm:shrink-0" : "shrink-0"}`}>
           {action}
           {Icon ? (
             <span className={`grid h-11 w-11 place-items-center rounded-lg border shadow-sm ${styles.icon}`}>

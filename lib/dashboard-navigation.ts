@@ -5,7 +5,6 @@ export type DashboardView =
   | "categories"
   | "costs"
   | "insights"
-  | "reports"
   | "dataset";
 
 export type DashboardViewDefinition = {
@@ -48,15 +47,9 @@ export const dashboardViews: DashboardViewDefinition[] = [
   },
   {
     id: "insights",
-    label: "AI-indsigter",
-    title: "Ledelsesindsigter",
-    description: "Et regelbaseret beslutningsgrundlag fra den aktuelle visning.",
-  },
-  {
-    id: "reports",
-    label: "Rapporter",
-    title: "Rapporter",
-    description: "Månedsrapport og ledelsesresume for den valgte periode.",
+    label: "Indsigter",
+    title: "Indsigter & rapporter",
+    description: "Forstå udviklingen, find de vigtigste drivere og læs ledelsesrapporten.",
   },
   {
     id: "dataset",
@@ -66,6 +59,14 @@ export const dashboardViews: DashboardViewDefinition[] = [
   },
 ];
 
-export function getDashboardView(view: DashboardView) {
-  return dashboardViews.find((definition) => definition.id === view) ?? dashboardViews[0];
+export function resolveDashboardView(view: string | null | undefined): DashboardView {
+  if (view === "reports") return "insights";
+  return dashboardViews.some((definition) => definition.id === view)
+    ? view as DashboardView
+    : "overview";
+}
+
+export function getDashboardView(view: string | null | undefined) {
+  const resolvedView = resolveDashboardView(view);
+  return dashboardViews.find((definition) => definition.id === resolvedView) ?? dashboardViews[0];
 }
