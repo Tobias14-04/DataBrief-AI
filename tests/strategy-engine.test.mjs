@@ -117,6 +117,32 @@ test("B: en negativ rentabilitetsudvikling klassificeres som en svaghed", () => 
   assert.equal(adverseProfitability, true);
 });
 
+test("B2: omkostningsdrivere beskriver fortegn og forretningseffekt hver for sig", () => {
+  const { strategy } = analyze([
+    ...periodRows(0, [
+      { region: "Nordjylland", revenue: 1_000, grossProfit: 500, cost: 500 },
+      { region: "Syddanmark", revenue: 1_000, grossProfit: 800, cost: 200 },
+    ]),
+    ...periodRows(1, [
+      { region: "Nordjylland", revenue: 1_000, grossProfit: 700, cost: 300 },
+      { region: "Syddanmark", revenue: 1_000, grossProfit: 650, cost: 350 },
+    ]),
+  ]);
+  const costFindings = allFindings(strategy).filter((finding) => (
+    finding.metric === "cost" && finding.dimension === "region"
+  ));
+  const lowerCostFinding = costFindings.find((finding) => finding.dimensionValue === "Nordjylland");
+  const higherCostFinding = costFindings.find((finding) => finding.dimensionValue === "Syddanmark");
+
+  assert.equal(lowerCostFinding?.title, "Nordjylland bidrog til lavere omkostninger");
+  assert.match(lowerCostFinding?.description ?? "", /negativt bidrag til ændringen i omkostninger/u);
+  assert.equal(lowerCostFinding?.absoluteChange, -1_000);
+  assert.equal(higherCostFinding?.title, "Syddanmark bidrog til højere omkostninger");
+  assert.match(higherCostFinding?.description ?? "", /positivt bidrag til ændringen i omkostninger/u);
+  assert.equal(higherCostFinding?.absoluteChange, 750);
+  assert.doesNotMatch(costFindings.map((finding) => finding.title).join(" "), /bidrager positivt/u);
+});
+
 test("C: robust rentabel vækst med lav intern andel klassificeres som en mulighed", () => {
   const { strategy } = analyze([
     ...periodRows(0, [

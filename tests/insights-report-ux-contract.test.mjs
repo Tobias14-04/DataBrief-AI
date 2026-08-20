@@ -76,6 +76,12 @@ test("rapporten viser kun tilgængelige evidence-baserede sektioner", () => {
   assert.match(componentSource, /Drivere viser, hvor bevægelsen er registreret/u);
   assert.match(componentSource, /hasReportContent/u);
   assert.match(componentSource, /Seneste periode:/u);
+  assert.match(componentSource, /Ledelsesoverblik/u);
+  assert.doesNotMatch(componentSource, /Executive snapshot/u);
+  assert.match(strategyComponentSource, /eyebrow="Strategisk overblik"/u);
+  assert.doesNotMatch(strategyComponentSource, /Strategisk snapshot/u);
+  assert.match(strategyEngineSource, /bidrog til \$\{movement\}/u);
+  assert.doesNotMatch(strategyEngineSource, /bidrager positivt til/u);
 });
 
 test("filteropdateringer bevarer eksisterende data og viser kun forsinket status", () => {

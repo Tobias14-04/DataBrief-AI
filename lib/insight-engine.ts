@@ -1184,7 +1184,7 @@ export function buildInsightAnalysis(
   );
   const costBudgetEvidenceId = evidence.find((item) => item.type === "budget" && item.metric === "cost")?.id;
   const sections: InsightReportSection[] = [
-    reportSection("executive-summary", "Executive summary", summaryParagraphs, executiveEvidenceIds),
+    reportSection("executive-summary", "Ledelsesresumé", summaryParagraphs, executiveEvidenceIds),
     reportSection("central-metrics", "Centrale nøgletal", snapshot.map((item) => endSentence(`${item.label}: ${item.formattedValue}`)), snapshotEvidenceIds),
     reportSection(
       "development",

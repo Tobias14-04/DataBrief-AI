@@ -158,6 +158,10 @@ test("E: uden en tidligere periode bevares snapshot uden falsk sammenligning", (
   assert.equal(analysis.changes.length, 0);
   assert.equal(analysis.driverAnalyses.length, 0);
   assert.ok(analysis.snapshot.length > 0);
+  assert.equal(
+    analysis.report.sections.find((section) => section.key === "executive-summary")?.title,
+    "Ledelsesresumé",
+  );
   assert.match(
     analysis.report.sections.find((section) => section.key === "executive-summary")?.paragraphs.join(" ") ?? "",
     /ingen tidligere sammenlignelig periode/u,

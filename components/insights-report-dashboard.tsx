@@ -334,7 +334,7 @@ const ExecutiveSnapshot = memo(function ExecutiveSnapshot({
 }) {
   if (!items.length) {
     return (
-      <CommandPanel title="Executive snapshot" icon={Gauge}>
+      <CommandPanel title="Ledelsesoverblik" icon={Gauge}>
         <CommandEmptyState
           title="Ingen nøgletal i den aktuelle visning"
           message="Tilpas filtrene eller datagrundlaget for at vise et ledelsesoverblik."
@@ -348,7 +348,7 @@ const ExecutiveSnapshot = memo(function ExecutiveSnapshot({
       <div className="mb-3 flex items-end justify-between gap-4 px-0.5">
         <div>
           <p className={`${commandSectionLabelClass} text-brand-700`}>Aktuel visning</p>
-          <h2 id="executive-snapshot-title" className="mt-1.5 text-xl font-semibold text-[#0b1c2d]">Executive snapshot</h2>
+          <h2 id="executive-snapshot-title" className="mt-1.5 text-xl font-semibold text-[#0b1c2d]">Ledelsesoverblik</h2>
         </div>
         <p className="hidden text-xs text-slate-500 sm:block">Kun nøgletal med dokumenteret datagrundlag</p>
       </div>

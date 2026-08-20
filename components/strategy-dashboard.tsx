@@ -297,7 +297,7 @@ const StrategicSnapshot = memo(function StrategicSnapshot({
 
   return (
     <CommandPanel
-      eyebrow="Strategisk snapshot"
+      eyebrow="Strategisk overblik"
       title="Vigtigste dokumenterede fokus"
       description="Et kort overblik over de højest prioriterede fund i den aktuelle visning"
       icon={CircleDot}

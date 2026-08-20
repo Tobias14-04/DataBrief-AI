@@ -293,6 +293,24 @@ function driverIsFavorable(metric: InsightMetricKey, absoluteChange: number) {
   return absoluteChange > 0;
 }
 
+const driverMovementLabels: Record<InsightMetricKey, { higher: string; lower: string }> = {
+  revenue: { higher: "højere omsætning", lower: "lavere omsætning" },
+  units: { higher: "større salgsvolumen", lower: "lavere salgsvolumen" },
+  averagePrice: { higher: "højere gennemsnitspris", lower: "lavere gennemsnitspris" },
+  grossProfit: { higher: "højere dækningsbidrag", lower: "lavere dækningsbidrag" },
+  grossMargin: { higher: "højere dækningsgrad", lower: "lavere dækningsgrad" },
+  cost: { higher: "højere omkostninger", lower: "lavere omkostninger" },
+  result: { higher: "højere resultat", lower: "lavere resultat" },
+  costShare: { higher: "højere omkostningsandel", lower: "lavere omkostningsandel" },
+};
+
+function driverMovementTitle(metric: InsightMetricKey, dimensionValue: string, absoluteChange: number) {
+  const movement = absoluteChange > 0
+    ? driverMovementLabels[metric].higher
+    : driverMovementLabels[metric].lower;
+  return `${dimensionValue} bidrog til ${movement}`;
+}
+
 function changeTitle(metric: InsightMetricKey, favorable: boolean) {
   const favorableTitles: Record<InsightMetricKey, string> = {
     revenue: "Stigende omsætning",
@@ -572,14 +590,16 @@ export function buildStrategicAnalysis(analysis: InsightAnalysis): StrategicAnal
       if (!relevant(impact, baseline)) continue;
       const favorable = driverIsFavorable(driverAnalysis.metric, driver.absoluteChange);
       const quadrant: StrategicQuadrant = favorable ? "strength" : "weakness";
-      const direction = driver.absoluteChange > 0 ? "positivt" : "negativt";
+      const numericDirection = driver.absoluteChange > 0 ? "positivt" : "negativt";
       add({
         id: stableId("strategy", quadrant, driver.evidenceId),
         quadrant,
-        title: favorable
-          ? `${driver.dimensionValue} bidrager positivt til ${metricLabels[driverAnalysis.metric]}`
-          : `${driver.dimensionValue} trækker ${metricLabels[driverAnalysis.metric]} i en ugunstig retning`,
-        description: `${driver.dimensionValue} havde et registreret ${direction} bidrag på ${signedMetric(driverAnalysis.metric, driver.absoluteChange)} i ${driverAnalysis.comparisonPeriod}.`,
+        title: driverMovementTitle(
+          driverAnalysis.metric,
+          driver.dimensionValue,
+          driver.absoluteChange,
+        ),
+        description: `${driver.dimensionValue} havde et registreret ${numericDirection} bidrag til ændringen i ${metricLabels[driverAnalysis.metric]} på ${signedMetric(driverAnalysis.metric, driver.absoluteChange)} i ${driverAnalysis.comparisonPeriod}.`,
         evidenceIds: [driver.evidenceId, ...(analysisEvidence ? [analysisEvidence.id] : [])],
         metric: driverAnalysis.metric,
         dimension: driverAnalysis.dimension,
