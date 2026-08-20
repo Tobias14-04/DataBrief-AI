@@ -71,7 +71,7 @@ test("den tunge analysemotor aktiveres kun på Indsigter og genbruger deferred f
 });
 
 test("rapporten viser kun tilgængelige evidence-baserede sektioner", () => {
-  assert.match(componentSource, /analysis\.report\.sections\.filter\(\(section\) => section\.available\)/u);
+  assert.match(componentSource, /addTargetsToExecutiveSummary\([\s\S]*analysis\.report\.sections,[\s\S]*targetStatuses,[\s\S]*\)\.filter\(\(section\) => section\.available\)/u);
   assert.match(componentSource, /Dokumenteret datagrundlag/u);
   assert.match(componentSource, /Drivere viser, hvor bevægelsen er registreret/u);
   assert.match(componentSource, /hasReportContent/u);

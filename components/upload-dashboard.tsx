@@ -170,9 +170,14 @@ import {
   buildAnalysisTargetStatuses,
   createEmptyAnalysisPreferences,
   hasAnalysisPreferences,
+  preferredOverviewAnalysis,
+  preferredOverviewTrendMetric,
   preferredAnalysisKpiIds,
   prioritizeKpiConfiguration,
+  prioritizeOverviewSupportingInsights,
+  type AnalysisOverviewTrendMetric,
   type AnalysisPreferences,
+  type AnalysisSupportingInsight,
 } from "@/lib/analysis-preferences";
 import type { DashboardView } from "@/lib/dashboard-navigation";
 
@@ -218,7 +223,7 @@ type BudgetSummary = {
   byCategory: GroupedValue[];
 };
 
-type TrendMetric = "revenue" | "grossProfit" | "units" | "cost";
+type TrendMetric = AnalysisOverviewTrendMetric;
 
 type ActiveFilter = {
   field: DashboardFilterKey;
@@ -1201,6 +1206,7 @@ function buildExecutiveSummary(
   metrics: ReturnType<typeof calculateMetrics>,
   feedback?: MappingFeedback,
   context: { totalRows?: number; activeFilters?: string[] } = {},
+  preferences: AnalysisPreferences = createEmptyAnalysisPreferences(),
 ) {
   if (!metrics.rowCount || !metrics.bestProduct || !metrics.bestCategory || !metrics.bestMonth) {
     return {
@@ -1223,13 +1229,31 @@ function buildExecutiveSummary(
   const conclusion = feedback?.budget
     ? `Omsætningen ligger ${currency(Math.abs(metrics.revenueVsBudget))} ${metrics.revenueVsBudget >= 0 ? "over" : "under"} budgettet i denne visning.`
     : `${formatDanishMonth(metrics.bestMonth.name)} er den stærkeste periode med ${metrics.bestCategory.name} som førende kategori.`;
+  const supportingInsights: AnalysisSupportingInsight[] = [
+    {
+      text: `${currency(metrics.totalRevenue)} i omsætning fra ${number(metrics.totalUnits)} enheder fordelt på ${number(metrics.rowCount)} rækker.`,
+      topics: ["sales", "trends"],
+    },
+    {
+      text: `${metrics.bestProduct.name} er det førende produkt, mens ${metrics.bestCategory.name} er den største kategori.`,
+      topics: ["products", "sales"],
+    },
+    {
+      text: profitabilityInsight,
+      topics: metrics.hasGrossProfit
+        ? ["profitability"]
+        : metrics.hasCosts
+          ? ["costs", "profitability"]
+          : ["trends", "sales"],
+    },
+    ...(metrics.hasGrossProfit && metrics.hasCosts ? [{
+      text: `Omkostningerne er ${currency(metrics.totalCosts)}, og det aktuelle resultat er ${currency(metrics.actualResult)}.`,
+      topics: ["costs"] as const,
+    }] : []),
+  ];
 
   return {
-    insights: [
-      `${currency(metrics.totalRevenue)} i omsætning fra ${number(metrics.totalUnits)} enheder fordelt på ${number(metrics.rowCount)} rækker.`,
-      `${metrics.bestProduct.name} er det førende produkt, mens ${metrics.bestCategory.name} er den største kategori.`,
-      profitabilityInsight,
-    ],
+    insights: prioritizeOverviewSupportingInsights(supportingInsights, preferences).slice(0, 3),
     conclusion,
     status: isFiltered
       ? `Opdateret for ${context.activeFilters?.join(", ")}`
@@ -2535,8 +2559,13 @@ export default function UploadDashboard() {
     [budgetScale, data?.feedback, filteredRows, isFiltered],
   );
   const executiveSummary = useMemo(
-    () => buildExecutiveSummary(metrics, data?.feedback, { totalRows: allRows.length, activeFilters: activeFilterLabels }),
-    [activeFilterLabels, allRows.length, data?.feedback, metrics],
+    () => buildExecutiveSummary(
+      metrics,
+      data?.feedback,
+      { totalRows: allRows.length, activeFilters: activeFilterLabels },
+      analysisPreferences,
+    ),
+    [activeFilterLabels, allRows.length, analysisPreferences, data?.feedback, metrics],
   );
   const hasData = allRows.length > 0;
   const hasFilteredData = metrics.rowCount > 0;
@@ -2553,6 +2582,16 @@ export default function UploadDashboard() {
   const costsByCategory = isFiltered
     ? metrics.costsByCategory
     : (data?.feedback.costs?.byCategory ?? metrics.costsByCategory);
+  const availableOverviewAnalyses = useMemo(() => [
+    ...(metrics.productsByUnits.length ? ["products" as const] : []),
+    ...(metrics.categories.length ? ["sales" as const] : []),
+    ...(marginChartMode !== "empty" ? ["profitability" as const] : []),
+    ...(showCosts && costsByCategory.length ? ["costs" as const] : []),
+  ], [costsByCategory.length, marginChartMode, metrics.categories.length, metrics.productsByUnits.length, showCosts]);
+  const overviewAnalysisPriority = useMemo(
+    () => preferredOverviewAnalysis(analysisPreferences, availableOverviewAnalyses),
+    [analysisPreferences, availableOverviewAnalyses],
+  );
   const filterOptions = useMemo<DashboardControlOptions>(() => ({
     month: uniqueValues(allRows, "month"),
     product: uniqueValues(allRows, "product"),
@@ -2563,10 +2602,10 @@ export default function UploadDashboard() {
   const availableTrendMetrics = useMemo<TrendMetric[]>(() => {
     const available: TrendMetric[] = ["revenue"];
     if (baseMetrics.hasGrossProfit) available.push("grossProfit");
-    available.push("units");
+    if (baseMetrics.hasUnitsData) available.push("units");
     if (baseMetrics.hasCosts) available.push("cost");
     return available;
-  }, [baseMetrics.hasCosts, baseMetrics.hasGrossProfit]);
+  }, [baseMetrics.hasCosts, baseMetrics.hasGrossProfit, baseMetrics.hasUnitsData]);
   const activeTrendMetric = availableTrendMetrics.includes(trendMetric) ? trendMetric : "revenue";
   const activeTrendDefinition = trendMetricDefinitions[activeTrendMetric];
   const trendMetricOptions = useMemo(
@@ -3107,6 +3146,8 @@ export default function UploadDashboard() {
         availableTargets={availableTargetMetrics}
         onComplete={(preferences) => {
           setAnalysisPreferences(preferences);
+          const preferredTrend = preferredOverviewTrendMetric(preferences, availableTrendMetrics);
+          if (preferredTrend) setTrendMetric(preferredTrend);
           setShowAnalysisOnboarding(false);
         }}
         onSkip={() => {
@@ -3433,6 +3474,7 @@ export default function UploadDashboard() {
               coverageMode={marginChartMode}
               costs={costsByCategory}
               showCosts={showCosts}
+              priority={overviewAnalysisPriority}
               onNavigate={changeActiveView}
             />
           </section>

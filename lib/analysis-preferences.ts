@@ -8,6 +8,8 @@ import type {
   InsightAnalysis,
   InsightDimension,
   InsightMetricKey,
+  InsightReportSection,
+  InsightReportSectionKey,
 } from "./insight-engine.ts";
 import type { StrategicAnalysis, StrategicFinding } from "./strategy-engine.ts";
 
@@ -39,6 +41,13 @@ export type AnalysisTargetKpiId =
   | "total-units";
 export type AnalysisTargetDirection = "at-least" | "at-most";
 export type AnalysisTargetFormat = "currency" | "percent" | "integer";
+export type AnalysisOverviewTrendMetric = "revenue" | "grossProfit" | "units" | "cost";
+export type AnalysisOverviewPriority = "sales" | "profitability" | "costs" | "products";
+
+export type AnalysisSupportingInsight = {
+  text: string;
+  topics: readonly AnalysisFocusArea[];
+};
 
 export type AnalysisTarget = {
   kpiId: AnalysisTargetKpiId;
@@ -164,6 +173,86 @@ const targetInsightMetrics: Record<AnalysisTargetKpiId, InsightMetricKey> = {
   "total-units": "units",
 };
 
+const targetTopics: Record<AnalysisTargetKpiId, readonly AnalysisFocusArea[]> = {
+  "total-revenue": ["sales"],
+  result: ["profitability"],
+  "gross-margin": ["profitability"],
+  "total-costs": ["costs"],
+  "total-units": ["sales", "products"],
+};
+
+const goalTopics: Record<AnalysisPrimaryGoal, readonly AnalysisFocusArea[]> = {
+  "grow-sales": ["sales", "trends"],
+  "improve-profit": ["profitability"],
+  "control-costs": ["costs"],
+  "top-products": ["products"],
+  "early-warning": ["changes", "trends"],
+  overview: [],
+};
+
+const targetTrendMetrics: Record<AnalysisTargetKpiId, readonly AnalysisOverviewTrendMetric[]> = {
+  "total-revenue": ["revenue"],
+  result: ["grossProfit", "cost", "revenue"],
+  "gross-margin": ["grossProfit", "revenue"],
+  "total-costs": ["cost"],
+  "total-units": ["units", "revenue"],
+};
+
+const goalTrendMetrics: Record<AnalysisPrimaryGoal, readonly AnalysisOverviewTrendMetric[]> = {
+  "grow-sales": ["revenue", "units"],
+  "improve-profit": ["grossProfit", "cost", "revenue"],
+  "control-costs": ["cost", "grossProfit", "revenue"],
+  "top-products": ["units", "revenue"],
+  "early-warning": ["revenue", "cost", "grossProfit", "units"],
+  overview: ["revenue"],
+};
+
+const focusTrendMetrics: Record<AnalysisFocusArea, readonly AnalysisOverviewTrendMetric[]> = {
+  sales: ["revenue", "units"],
+  profitability: ["grossProfit", "cost", "revenue"],
+  costs: ["cost", "grossProfit", "revenue"],
+  products: ["units", "revenue"],
+  trends: ["revenue", "grossProfit", "cost", "units"],
+  changes: ["revenue", "cost", "grossProfit", "units"],
+};
+
+const targetOverviewPriorities: Record<AnalysisTargetKpiId, AnalysisOverviewPriority> = {
+  "total-revenue": "sales",
+  result: "profitability",
+  "gross-margin": "profitability",
+  "total-costs": "costs",
+  "total-units": "products",
+};
+
+const goalOverviewPriorities: Record<AnalysisPrimaryGoal, AnalysisOverviewPriority | null> = {
+  "grow-sales": "sales",
+  "improve-profit": "profitability",
+  "control-costs": "costs",
+  "top-products": "products",
+  "early-warning": "sales",
+  overview: null,
+};
+
+const focusOverviewPriorities: Record<AnalysisFocusArea, AnalysisOverviewPriority> = {
+  sales: "sales",
+  profitability: "profitability",
+  costs: "costs",
+  products: "products",
+  trends: "sales",
+  changes: "sales",
+};
+
+const reportSectionTopics: Partial<Record<InsightReportSectionKey, readonly AnalysisFocusArea[]>> = {
+  "central-metrics": ["sales", "profitability"],
+  development: ["trends", "changes", "sales"],
+  "positive-drivers": ["products", "sales", "profitability"],
+  "negative-drivers": ["products", "changes", "costs"],
+  "costs-profitability": ["costs", "profitability"],
+  risks: ["changes", "costs"],
+  opportunities: ["products", "sales", "profitability"],
+  "recommended-focus": ["changes"],
+};
+
 export function createEmptyAnalysisPreferences(): AnalysisPreferences {
   return { focusAreas: [], primaryGoal: null, targets: [] };
 }
@@ -174,6 +263,76 @@ export function hasAnalysisPreferences(preferences: AnalysisPreferences) {
     || preferences.primaryGoal
     || preferences.targets.length,
   );
+}
+
+function topicPreferenceScore(topic: AnalysisFocusArea, preferences: AnalysisPreferences) {
+  let score = 0;
+  preferences.targets.forEach((target, index) => {
+    if (targetTopics[target.kpiId].includes(topic)) score = Math.max(score, 300 - index);
+  });
+  if (preferences.primaryGoal) {
+    const index = goalTopics[preferences.primaryGoal].indexOf(topic);
+    if (index >= 0) score = Math.max(score, 200 - index);
+  }
+  const focusIndex = preferences.focusAreas.indexOf(topic);
+  if (focusIndex >= 0) score = Math.max(score, 100 - focusIndex);
+  return score;
+}
+
+function stablePrioritize<T>(
+  items: readonly T[],
+  score: (item: T) => number,
+) {
+  return items
+    .map((item, index) => ({ item, index, score: score(item) }))
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .map(({ item }) => item);
+}
+
+export function preferredOverviewTrendMetric(
+  preferences: AnalysisPreferences,
+  availableMetrics: readonly AnalysisOverviewTrendMetric[],
+) {
+  if (!availableMetrics.length) return null;
+  if (!hasAnalysisPreferences(preferences)) {
+    return availableMetrics.includes("revenue") ? "revenue" : availableMetrics[0];
+  }
+  const candidates = [
+    ...preferences.targets.flatMap((target) => targetTrendMetrics[target.kpiId]),
+    ...(preferences.primaryGoal ? goalTrendMetrics[preferences.primaryGoal] : []),
+    ...preferences.focusAreas.flatMap((focusArea) => focusTrendMetrics[focusArea]),
+  ];
+  return candidates.find((metric) => availableMetrics.includes(metric))
+    ?? (availableMetrics.includes("revenue") ? "revenue" : availableMetrics[0]);
+}
+
+export function preferredOverviewAnalysis(
+  preferences: AnalysisPreferences,
+  availablePriorities: readonly AnalysisOverviewPriority[],
+) {
+  if (!availablePriorities.length) return null;
+  if (!hasAnalysisPreferences(preferences)) return availablePriorities[0];
+  const candidates = [
+    ...preferences.targets.map((target) => targetOverviewPriorities[target.kpiId]),
+    ...(preferences.primaryGoal && goalOverviewPriorities[preferences.primaryGoal]
+      ? [goalOverviewPriorities[preferences.primaryGoal]]
+      : []),
+    ...preferences.focusAreas.map((focusArea) => focusOverviewPriorities[focusArea]),
+  ];
+  return candidates.find((priority): priority is AnalysisOverviewPriority => (
+    priority !== null && availablePriorities.includes(priority)
+  )) ?? availablePriorities[0];
+}
+
+export function prioritizeOverviewSupportingInsights(
+  insights: readonly AnalysisSupportingInsight[],
+  preferences: AnalysisPreferences,
+) {
+  if (!hasAnalysisPreferences(preferences)) return insights.map((insight) => insight.text);
+  return stablePrioritize(insights, (insight) => insight.topics.reduce(
+    (maximum, topic) => Math.max(maximum, topicPreferenceScore(topic, preferences)),
+    0,
+  )).map((insight) => insight.text);
 }
 
 export function toggleAnalysisFocusArea(
@@ -275,7 +434,7 @@ export function buildAnalysisTargetStatuses(
   preferences: AnalysisPreferences,
   evaluations: Readonly<Record<string, Pick<KpiEvaluation, "available" | "value"> | undefined>>,
 ): AnalysisTargetStatus[] {
-  return preferences.targets.flatMap((target) => {
+  const statuses = preferences.targets.flatMap<AnalysisTargetStatus>((target) => {
     const metric = targetMetricMap.get(target.kpiId);
     const evaluation = evaluations[target.kpiId];
     if (!metric || !evaluation?.available || typeof evaluation.value !== "number" || !Number.isFinite(evaluation.value)) {
@@ -308,6 +467,23 @@ export function buildAnalysisTargetStatuses(
       text,
     }];
   });
+  const statePriority: Record<AnalysisTargetStatus["state"], number> = {
+    behind: 2,
+    matched: 1,
+    "on-track": 0,
+  };
+  return stablePrioritize(statuses, (status) => statePriority[status.state]);
+}
+
+export function addTargetsToExecutiveSummary(
+  sections: readonly InsightReportSection[],
+  targetStatuses: readonly AnalysisTargetStatus[],
+) {
+  if (!targetStatuses.length) return [...sections];
+  const targetSummary = `Målstatus ud fra dine egne mål: ${targetStatuses.map((status) => status.text).join(" ")}`;
+  return sections.map((section) => section.key === "executive-summary"
+    ? { ...section, paragraphs: [targetSummary, ...section.paragraphs] }
+    : section);
 }
 
 function metricPreferenceScore(metric: InsightMetricKey | null, preferences: AnalysisPreferences) {
@@ -328,8 +504,31 @@ function metricPreferenceScore(metric: InsightMetricKey | null, preferences: Ana
 }
 
 function dimensionPreferenceScore(dimension: InsightDimension | null, preferences: AnalysisPreferences) {
-  if (dimension !== "product") return 0;
-  return preferences.focusAreas.includes("products") || preferences.primaryGoal === "top-products" ? 120 : 0;
+  if (dimension !== "product" && dimension !== "category") return 0;
+  if (!preferences.focusAreas.includes("products") && preferences.primaryGoal !== "top-products") return 0;
+  return dimension === "product" ? 140 : 110;
+}
+
+function reorderSectionByEvidence(
+  section: InsightReportSection,
+  orderedEvidenceIds: readonly string[],
+) {
+  if (section.paragraphs.length !== section.evidenceIds.length) return section;
+  const order = new Map(orderedEvidenceIds.map((id, index) => [id, index]));
+  if (!section.evidenceIds.every((id) => order.has(id))) return section;
+  const entries = section.paragraphs.map((paragraph, index) => ({
+    paragraph,
+    evidenceId: section.evidenceIds[index],
+    originalIndex: index,
+  })).sort((left, right) => (
+    (order.get(left.evidenceId) ?? left.originalIndex)
+    - (order.get(right.evidenceId) ?? right.originalIndex)
+  ));
+  return {
+    ...section,
+    paragraphs: entries.map((entry) => entry.paragraph),
+    evidenceIds: entries.map((entry) => entry.evidenceId),
+  };
 }
 
 export function prioritizeInsightAnalysis(
@@ -346,9 +545,38 @@ export function prioritizeInsightAnalysis(
         + dimensionPreferenceScore(evidence?.dimension ?? null, preferences),
     );
   }, 0);
+  const scoreMetric = (metric: InsightMetricKey, dimension: InsightDimension | null = null) => (
+    metricPreferenceScore(metric, preferences) + dimensionPreferenceScore(dimension, preferences)
+  );
+  const snapshot = stablePrioritize(analysis.snapshot, (item) => scoreMetric(item.metric));
+  const changes = stablePrioritize(analysis.changes, (item) => scoreMetric(item.metric));
+  const driverAnalyses = stablePrioritize(analysis.driverAnalyses, (item) => (
+    scoreMetric(item.metric, item.dimension)
+  ));
+  const alignedSections = analysis.report.sections.map((section) => {
+    if (section.key === "central-metrics") {
+      return reorderSectionByEvidence(section, snapshot.map((item) => item.evidenceId));
+    }
+    if (section.key === "development") {
+      return reorderSectionByEvidence(section, changes.map((item) => item.evidenceId));
+    }
+    return section;
+  });
+  const sections = stablePrioritize(alignedSections, (section) => {
+    if (section.key === "executive-summary") return 10_000;
+    if (section.key === "data-basis") return -10_000;
+    const topicScore = (reportSectionTopics[section.key] ?? []).reduce(
+      (maximum, topic) => Math.max(maximum, topicPreferenceScore(topic, preferences)),
+      0,
+    );
+    return topicScore + evidenceScore(section.evidenceIds);
+  });
 
   return {
     ...analysis,
+    snapshot,
+    changes,
+    driverAnalyses,
     observations: [...analysis.observations].sort((left, right) => (
       evidenceScore(right.evidenceIds) - evidenceScore(left.evidenceIds)
       || right.priority - left.priority
@@ -358,6 +586,7 @@ export function prioritizeInsightAnalysis(
       evidenceScore(right.evidenceIds) - evidenceScore(left.evidenceIds)
       || left.id.localeCompare(right.id, "da-DK")
     )),
+    report: { ...analysis.report, sections },
   };
 }
 

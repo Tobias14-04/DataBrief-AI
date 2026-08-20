@@ -31,6 +31,7 @@ import {
   formatDanishPercent,
   formatMetricTooltip,
 } from "@/lib/dashboard-insights";
+import type { AnalysisOverviewPriority } from "@/lib/analysis-preferences";
 import type { DashboardView } from "@/lib/dashboard-navigation";
 
 export type OverviewTrendMetric = "revenue" | "grossProfit" | "units" | "cost";
@@ -330,6 +331,7 @@ function RankedPreviewCard({
   actionLabel,
   actionView,
   onNavigate,
+  className = "",
 }: {
   eyebrow: string;
   title: string;
@@ -342,13 +344,14 @@ function RankedPreviewCard({
   actionLabel: string;
   actionView: DashboardView;
   onNavigate: (view: DashboardView) => void;
+  className?: string;
 }) {
   const visibleItems = items.slice(0, limit);
   const maxValue = Math.max(...visibleItems.map((item) => Math.abs(item.value)), 1);
   const styles = previewToneStyles[tone];
 
   return (
-    <article className="overview-card overview-interactive-card relative flex min-h-[360px] min-w-0 flex-col overflow-hidden rounded-xl">
+    <article className={`overview-card overview-interactive-card relative flex min-h-[360px] min-w-0 flex-col overflow-hidden rounded-xl ${className}`}>
       <span className={`absolute inset-x-0 top-0 h-1 ${styles.accent}`} aria-hidden="true" />
       <header className="flex min-h-[96px] items-start justify-between gap-4 border-b border-slate-200/80 px-5 py-4">
         <div className="min-w-0">
@@ -392,6 +395,7 @@ function EmptyPreviewCard({
   actionLabel,
   actionView,
   onNavigate,
+  className = "",
 }: {
   eyebrow: string;
   title: string;
@@ -403,11 +407,12 @@ function EmptyPreviewCard({
   actionLabel?: string;
   actionView?: DashboardView;
   onNavigate: (view: DashboardView) => void;
+  className?: string;
 }) {
   const styles = previewToneStyles[tone];
 
   return (
-    <article className="overview-card relative flex min-h-[360px] min-w-0 flex-col overflow-hidden rounded-xl">
+    <article className={`overview-card relative flex min-h-[360px] min-w-0 flex-col overflow-hidden rounded-xl ${className}`}>
       <span className={`absolute inset-x-0 top-0 h-1 ${styles.accent}`} aria-hidden="true" />
       <header className="flex min-h-[96px] items-start justify-between gap-4 border-b border-slate-200/80 px-5 py-4">
         <div className="min-w-0">
@@ -436,6 +441,7 @@ export const OverviewAnalysisPreviewGrid = memo(function OverviewAnalysisPreview
   coverageMode,
   costs,
   showCosts,
+  priority,
   onNavigate,
 }: {
   products: OverviewRankedItem[];
@@ -444,6 +450,7 @@ export const OverviewAnalysisPreviewGrid = memo(function OverviewAnalysisPreview
   coverageMode: "grossProfit" | "grossMargin" | "empty";
   costs: OverviewRankedItem[];
   showCosts: boolean;
+  priority: AnalysisOverviewPriority | null;
   onNavigate: (view: DashboardView) => void;
 }) {
   const coverageItems = coverage.map((item) => ({
@@ -472,6 +479,7 @@ export const OverviewAnalysisPreviewGrid = memo(function OverviewAnalysisPreview
           actionLabel="Se produktanalyse"
           actionView="products"
           onNavigate={onNavigate}
+          className={priority === "products" ? "order-first" : ""}
         />
 
         <RankedPreviewCard
@@ -486,6 +494,7 @@ export const OverviewAnalysisPreviewGrid = memo(function OverviewAnalysisPreview
           actionLabel="Se kategorianalyse"
           actionView="categories"
           onNavigate={onNavigate}
+          className={priority === "sales" ? "order-first" : ""}
         />
 
         {coverageMode !== "empty" ? (
@@ -501,6 +510,7 @@ export const OverviewAnalysisPreviewGrid = memo(function OverviewAnalysisPreview
             actionLabel="Se kategorianalyse"
             actionView="categories"
             onNavigate={onNavigate}
+            className={priority === "profitability" ? "order-first" : ""}
           />
         ) : (
           <EmptyPreviewCard
@@ -514,6 +524,7 @@ export const OverviewAnalysisPreviewGrid = memo(function OverviewAnalysisPreview
             actionLabel="Se kategorianalyse"
             actionView="categories"
             onNavigate={onNavigate}
+            className={priority === "profitability" ? "order-first" : ""}
           />
         )}
 
@@ -530,6 +541,7 @@ export const OverviewAnalysisPreviewGrid = memo(function OverviewAnalysisPreview
             actionLabel="Se omkostningsanalyse"
             actionView="costs"
             onNavigate={onNavigate}
+            className={priority === "costs" ? "order-first" : ""}
           />
         ) : (
           <EmptyPreviewCard
@@ -541,6 +553,7 @@ export const OverviewAnalysisPreviewGrid = memo(function OverviewAnalysisPreview
             emptyTitle="Omkostningsdata mangler"
             emptyMessage="Tilføj en kolonne med omkostning eller kostpris for at se fordelingen."
             onNavigate={onNavigate}
+            className={priority === "costs" ? "order-first" : ""}
           />
         )}
       </div>

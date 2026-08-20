@@ -44,6 +44,7 @@ import { PremiumSelect } from "@/components/premium-select";
 import { SmoothMetricValue } from "@/components/smooth-metric-value";
 import { StrategyDashboard } from "@/components/strategy-dashboard";
 import {
+  addTargetsToExecutiveSummary,
   prioritizeInsightAnalysis,
   prioritizeStrategicAnalysis,
   type AnalysisPreferences,
@@ -818,8 +819,8 @@ function InsightsView({
 }) {
   return (
     <div className="space-y-6">
-      <ExecutiveSnapshot items={analysis.snapshot} changes={analysis.changes} />
       <TargetStatusPanel statuses={targetStatuses} />
+      <ExecutiveSnapshot items={analysis.snapshot} changes={analysis.changes} />
       <ChangesPanel changes={analysis.changes} />
       <DriverPanel drivers={analysis.driverAnalyses} analysis={analysis} />
       <AttentionAndFocus
@@ -963,13 +964,15 @@ function ReportView({
   strategy: StrategicAnalysis;
   targetStatuses: readonly AnalysisTargetStatus[];
 }) {
-  const sections = analysis.report.sections.filter((section) => section.available);
+  const sections = addTargetsToExecutiveSummary(
+    analysis.report.sections,
+    targetStatuses,
+  ).filter((section) => section.available);
   const hasStrategicSummary = Object.values(strategy.reportSummary.quadrants)
     .some((items) => items.length > 0)
     || strategy.reportSummary.strategicFocus.length > 0;
   const hasReportContent = sections.some((section) => section.key !== "data-basis")
-    || hasStrategicSummary
-    || targetStatuses.length > 0;
+    || hasStrategicSummary;
   const reportEntries: Array<
     | { kind: "section"; section: InsightReportSection }
     | { kind: "strategy" }
@@ -1018,22 +1021,6 @@ function ReportView({
             </span>
           </div>
         </header>
-
-        {targetStatuses.length ? (
-          <section className="border-b border-slate-100 bg-emerald-50/25 px-5 py-6 shadow-[inset_3px_0_0_#34d399] sm:px-7" aria-labelledby="report-target-status">
-            <div className="grid gap-4 sm:grid-cols-[34px_minmax(0,1fr)]">
-              <span className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-100 text-emerald-800" aria-hidden="true">
-                <Target className="h-4 w-4" />
-              </span>
-              <div>
-                <h3 id="report-target-status" className="text-base font-semibold text-[#0b1c2d]">Dine mål og afvigelser</h3>
-                <div className="mt-2 space-y-2 text-sm leading-6 text-slate-700">
-                  {targetStatuses.map((status) => <p key={status.kpiId}>{status.text}</p>)}
-                </div>
-              </div>
-            </div>
-          </section>
-        ) : null}
 
         {hasReportContent ? (
           <div className="divide-y divide-slate-100">
