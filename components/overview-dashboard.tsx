@@ -149,7 +149,7 @@ const OverviewTrendChart = memo(function OverviewTrendChart({
           axisLine={false}
           tick={chartAxisTick}
           dy={10}
-          minTickGap={24}
+          minTickGap={8}
           interval="preserveStartEnd"
           tickFormatter={(value) => formatDanishMonth(String(value), "short")}
         />
