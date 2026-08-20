@@ -44,6 +44,12 @@ import { PremiumSelect } from "@/components/premium-select";
 import { SmoothMetricValue } from "@/components/smooth-metric-value";
 import { StrategyDashboard } from "@/components/strategy-dashboard";
 import {
+  prioritizeInsightAnalysis,
+  prioritizeStrategicAnalysis,
+  type AnalysisPreferences,
+  type AnalysisTargetStatus,
+} from "@/lib/analysis-preferences";
+import {
   formatDanishCurrency,
   formatDanishNumber,
   formatDanishPercent,
@@ -71,6 +77,8 @@ export type InsightsReportTab = "insights" | "report" | "strategy";
 
 export type InsightsReportDashboardProps = {
   analysis: InsightAnalysis;
+  analysisPreferences: AnalysisPreferences;
+  targetStatuses: readonly AnalysisTargetStatus[];
   activeTab: InsightsReportTab;
   onTabChange: (tab: InsightsReportTab) => void;
   isUpdating?: boolean;
@@ -756,10 +764,62 @@ function AttentionAndFocus({
   );
 }
 
-function InsightsView({ analysis }: { analysis: InsightAnalysis }) {
+function TargetStatusPanel({ statuses }: { statuses: readonly AnalysisTargetStatus[] }) {
+  if (!statuses.length) return null;
+
+  return (
+    <CommandPanel
+      eyebrow="Dine mål"
+      title="Sådan ligger du i forhold til dine mål"
+      description="Sammenholdt med de beregnede nøgletal i den aktuelle visning"
+      icon={Target}
+      tone="neutral"
+      testId="analysis-target-status"
+    >
+      <ul className="grid gap-px bg-slate-100 sm:grid-cols-2 xl:grid-cols-3">
+        {statuses.map((status) => {
+          const statusClass = status.state === "behind"
+            ? "text-orange-700"
+            : status.state === "on-track"
+              ? "text-emerald-700"
+              : "text-slate-600";
+          const statusLabel = status.state === "behind"
+            ? "Kræver opmærksomhed"
+            : status.state === "on-track"
+              ? "På rette vej"
+              : "Målet er nået";
+          return (
+            <li key={status.kpiId} className="min-w-0 bg-white px-5 py-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-slate-500">{status.label}</p>
+                  <SmoothMetricValue
+                    value={status.formattedCurrent}
+                    className="mt-2 text-xl font-semibold tabular-nums text-[#0b1c2d]"
+                  />
+                </div>
+                <span className={`shrink-0 text-[11px] font-semibold ${statusClass}`}>{statusLabel}</span>
+              </div>
+              <p className="mt-3 border-t border-slate-100 pt-3 text-xs leading-5 text-slate-600">{status.text}</p>
+            </li>
+          );
+        })}
+      </ul>
+    </CommandPanel>
+  );
+}
+
+function InsightsView({
+  analysis,
+  targetStatuses,
+}: {
+  analysis: InsightAnalysis;
+  targetStatuses: readonly AnalysisTargetStatus[];
+}) {
   return (
     <div className="space-y-6">
       <ExecutiveSnapshot items={analysis.snapshot} changes={analysis.changes} />
+      <TargetStatusPanel statuses={targetStatuses} />
       <ChangesPanel changes={analysis.changes} />
       <DriverPanel drivers={analysis.driverAnalyses} analysis={analysis} />
       <AttentionAndFocus
@@ -894,13 +954,22 @@ function StrategicReportSummary({
   );
 }
 
-function ReportView({ analysis, strategy }: { analysis: InsightAnalysis; strategy: StrategicAnalysis }) {
+function ReportView({
+  analysis,
+  strategy,
+  targetStatuses,
+}: {
+  analysis: InsightAnalysis;
+  strategy: StrategicAnalysis;
+  targetStatuses: readonly AnalysisTargetStatus[];
+}) {
   const sections = analysis.report.sections.filter((section) => section.available);
   const hasStrategicSummary = Object.values(strategy.reportSummary.quadrants)
     .some((items) => items.length > 0)
     || strategy.reportSummary.strategicFocus.length > 0;
   const hasReportContent = sections.some((section) => section.key !== "data-basis")
-    || hasStrategicSummary;
+    || hasStrategicSummary
+    || targetStatuses.length > 0;
   const reportEntries: Array<
     | { kind: "section"; section: InsightReportSection }
     | { kind: "strategy" }
@@ -949,6 +1018,22 @@ function ReportView({ analysis, strategy }: { analysis: InsightAnalysis; strateg
             </span>
           </div>
         </header>
+
+        {targetStatuses.length ? (
+          <section className="border-b border-slate-100 bg-emerald-50/25 px-5 py-6 shadow-[inset_3px_0_0_#34d399] sm:px-7" aria-labelledby="report-target-status">
+            <div className="grid gap-4 sm:grid-cols-[34px_minmax(0,1fr)]">
+              <span className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-100 text-emerald-800" aria-hidden="true">
+                <Target className="h-4 w-4" />
+              </span>
+              <div>
+                <h3 id="report-target-status" className="text-base font-semibold text-[#0b1c2d]">Dine mål og afvigelser</h3>
+                <div className="mt-2 space-y-2 text-sm leading-6 text-slate-700">
+                  {targetStatuses.map((status) => <p key={status.kpiId}>{status.text}</p>)}
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         {hasReportContent ? (
           <div className="divide-y divide-slate-100">
@@ -1029,6 +1114,8 @@ function ReportView({ analysis, strategy }: { analysis: InsightAnalysis; strateg
 
 export const InsightsReportDashboard = memo(function InsightsReportDashboard({
   analysis,
+  analysisPreferences,
+  targetStatuses,
   activeTab,
   onTabChange,
   isUpdating = false,
@@ -1042,9 +1129,16 @@ export const InsightsReportDashboard = memo(function InsightsReportDashboard({
   const strategyPanelId = `${idPrefix}-strategy-panel`;
   const showUpdateStatus = useDelayedUpdateStatus(isUpdating);
   const { displayedAnalysis, phase, isSwapping } = useSmoothAnalysis(analysis);
+  const prioritizedAnalysis = useMemo(
+    () => prioritizeInsightAnalysis(displayedAnalysis, analysisPreferences),
+    [analysisPreferences, displayedAnalysis],
+  );
   const strategicAnalysis = useMemo(
-    () => buildStrategicAnalysis(displayedAnalysis),
-    [displayedAnalysis],
+    () => prioritizeStrategicAnalysis(
+      buildStrategicAnalysis(displayedAnalysis),
+      analysisPreferences,
+    ),
+    [analysisPreferences, displayedAnalysis],
   );
   const transitionClass = phase === "fading-out"
     ? "insight-data-region-out"
@@ -1110,7 +1204,9 @@ export const InsightsReportDashboard = memo(function InsightsReportDashboard({
         tabIndex={activeTab === "insights" ? 0 : -1}
         className={`insight-data-region ${transitionClass} focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-4`}
       >
-        {activeTab === "insights" ? <InsightsView analysis={displayedAnalysis} /> : null}
+        {activeTab === "insights" ? (
+          <InsightsView analysis={prioritizedAnalysis} targetStatuses={targetStatuses} />
+        ) : null}
       </div>
       <div
         id={reportPanelId}
@@ -1121,7 +1217,11 @@ export const InsightsReportDashboard = memo(function InsightsReportDashboard({
         className={`insight-data-region ${transitionClass} focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-4`}
       >
         {activeTab === "report" ? (
-          <ReportView analysis={displayedAnalysis} strategy={strategicAnalysis} />
+          <ReportView
+            analysis={prioritizedAnalysis}
+            strategy={strategicAnalysis}
+            targetStatuses={targetStatuses}
+          />
         ) : null}
       </div>
       <div

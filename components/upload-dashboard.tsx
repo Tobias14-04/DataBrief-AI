@@ -51,6 +51,7 @@ import {
   useState,
 } from "react";
 import { CategoryAnalysisDashboard } from "@/components/category-analysis-dashboard";
+import { AnalysisPreferencesOnboarding } from "@/components/analysis-preferences-onboarding";
 import { CostIntelligenceDashboard } from "@/components/cost-intelligence-dashboard";
 import { ExcelProcessingView } from "@/components/excel-processing-view";
 import { KpiCustomizer } from "@/components/kpi-customizer";
@@ -164,6 +165,15 @@ import {
 } from "@/lib/data-labels";
 import { demoOperatingCostDefinitions } from "@/lib/demo-dataset";
 import { buildInsightAnalysis } from "@/lib/insight-engine";
+import {
+  availableAnalysisTargetMetrics,
+  buildAnalysisTargetStatuses,
+  createEmptyAnalysisPreferences,
+  hasAnalysisPreferences,
+  preferredAnalysisKpiIds,
+  prioritizeKpiConfiguration,
+  type AnalysisPreferences,
+} from "@/lib/analysis-preferences";
 import type { DashboardView } from "@/lib/dashboard-navigation";
 
 type SaleRow = {
@@ -2481,6 +2491,10 @@ export default function UploadDashboard() {
   const [error, setError] = useState("");
   const [mappingReviewReason, setMappingReviewReason] = useState("");
   const [analysisReadyNotice, setAnalysisReadyNotice] = useState<AnalysisReadyNotice | null>(null);
+  const [showAnalysisOnboarding, setShowAnalysisOnboarding] = useState(false);
+  const [analysisPreferences, setAnalysisPreferences] = useState<AnalysisPreferences>(
+    createEmptyAnalysisPreferences,
+  );
   const [pendingManualImport, setPendingManualImport] = useState(false);
   const [importState, dispatchImport] = useReducer(importProcessingReducer, initialImportProcessingState);
   const importRequestIdRef = useRef(0);
@@ -2703,6 +2717,14 @@ export default function UploadDashboard() {
     ),
     [baseKpiContext, baseKpiDataProfile],
   );
+  const availableTargetMetrics = useMemo(
+    () => availableAnalysisTargetMetrics(baseStandardKpiEvaluations),
+    [baseStandardKpiEvaluations],
+  );
+  const preferenceKpiIds = useMemo(
+    () => preferredAnalysisKpiIds(analysisPreferences),
+    [analysisPreferences],
+  );
   const numericColumns = useMemo(() => {
     const mappedTypes = new Map(
       Object.entries({ ...(data?.feedback.mappedColumns ?? {}), ...(data?.feedback.optionalColumns ?? {}) })
@@ -2718,6 +2740,7 @@ export default function UploadDashboard() {
           ...kpiConfiguration.secondaryKpis,
           ...defaultKpis.primaryKpis,
           ...defaultKpis.secondaryKpis,
+          ...preferenceKpiIds,
         ].filter((id) => !id.startsWith("custom-")),
     [
       defaultKpis.primaryKpis,
@@ -2725,6 +2748,7 @@ export default function UploadDashboard() {
       isKpiCustomizerOpen,
       kpiConfiguration.primaryKpis,
       kpiConfiguration.secondaryKpis,
+      preferenceKpiIds,
     ],
   );
   const standardKpiEvaluations = useMemo(
@@ -2777,16 +2801,28 @@ export default function UploadDashboard() {
     () => normalizeKpiConfiguration(kpiConfiguration, availableKpiIds, defaultKpis),
     [availableKpiIds, defaultKpis, kpiConfiguration],
   );
+  const displayedKpiConfiguration = useMemo(
+    () => prioritizeKpiConfiguration(
+      effectiveKpiConfiguration,
+      analysisPreferences,
+      availableKpiIds,
+    ),
+    [analysisPreferences, availableKpiIds, effectiveKpiConfiguration],
+  );
   const kpiDefinitionMap = useMemo(
     () => new Map(allKpiDefinitions.map((definition) => [definition.id, definition])),
     [allKpiDefinitions],
   );
-  const primaryKpis = effectiveKpiConfiguration.primaryKpis
+  const primaryKpis = displayedKpiConfiguration.primaryKpis
     .map((id) => kpiDefinitionMap.get(id))
     .filter((definition): definition is KpiDefinition => Boolean(definition));
-  const secondaryKpis = effectiveKpiConfiguration.secondaryKpis
+  const secondaryKpis = displayedKpiConfiguration.secondaryKpis
     .map((id) => kpiDefinitionMap.get(id))
     .filter((definition): definition is KpiDefinition => Boolean(definition));
+  const targetStatuses = useMemo(
+    () => buildAnalysisTargetStatuses(analysisPreferences, kpiEvaluations),
+    [analysisPreferences, kpiEvaluations],
+  );
   const primaryKpiGridClass =
     primaryKpis.length === 2
       ? "min-[1360px]:grid-cols-2"
@@ -2883,6 +2919,8 @@ export default function UploadDashboard() {
     setManualMappings(emptyManualMappings);
     setShowManualMapping(false);
     setMappingReviewReason("");
+    setShowAnalysisOnboarding(false);
+    setAnalysisPreferences(createEmptyAnalysisPreferences());
   }
 
   async function processWorkbook(
@@ -2921,6 +2959,8 @@ export default function UploadDashboard() {
       selectSheet(best.name, parsed.analysis);
       if (parsed.autoResult) {
         setData(parsed.autoResult);
+        setAnalysisPreferences(createEmptyAnalysisPreferences());
+        setShowAnalysisOnboarding(true);
         replacementBackupRef.current = null;
         setPendingManualImport(false);
         setAnalysisReadyNotice({
@@ -2995,6 +3035,10 @@ export default function UploadDashboard() {
         manual: true,
       });
       setData(result);
+      if (pendingManualImport) {
+        setAnalysisPreferences(createEmptyAnalysisPreferences());
+        setShowAnalysisOnboarding(true);
+      }
       setShowManualMapping(false);
       setError("");
       setMappingReviewReason("");
@@ -3051,6 +3095,24 @@ export default function UploadDashboard() {
       <ExcelProcessingView
         fileName={importState.fileName}
         status={importState.status}
+      />
+    );
+  }
+
+  if (showAnalysisOnboarding && data) {
+    return (
+      <AnalysisPreferencesOnboarding
+        fileName={data.fileName}
+        rowCount={data.rows.length}
+        availableTargets={availableTargetMetrics}
+        onComplete={(preferences) => {
+          setAnalysisPreferences(preferences);
+          setShowAnalysisOnboarding(false);
+        }}
+        onSkip={() => {
+          setAnalysisPreferences(createEmptyAnalysisPreferences());
+          setShowAnalysisOnboarding(false);
+        }}
       />
     );
   }
@@ -3282,7 +3344,9 @@ export default function UploadDashboard() {
               action={(
                 <div className="flex flex-wrap items-center gap-3 sm:justify-end">
                 <p className="text-xs font-medium text-slate-500">
-                  {hasCustomizedKpis
+                  {hasAnalysisPreferences(analysisPreferences)
+                    ? "Prioriteret efter dine svar"
+                    : hasCustomizedKpis
                     ? `${primaryKpis.length} primære · ${secondaryKpis.length} sekundære`
                     : "Beregnet ud fra de registrerede data"}
                 </p>
@@ -3606,6 +3670,8 @@ export default function UploadDashboard() {
             insightAnalysis ? (
               <InsightsReportDashboard
                 analysis={insightAnalysis}
+                analysisPreferences={analysisPreferences}
+                targetStatuses={targetStatuses}
                 activeTab={insightsTab}
                 onTabChange={setInsightsTab}
                 isUpdating={isFilterUpdatePending}
