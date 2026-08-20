@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildPeriodMenuOptions,
   buildMonthlyReport,
   formatDanishMonth,
   formatMetricTooltip,
@@ -118,6 +119,36 @@ test("danske månedsnavne formateres centralt og sorteres kronologisk", () => {
   assert.ok((monthSortKey("maj 2024") ?? 0) < (monthSortKey("juni 2024") ?? 0));
 });
 
+test("periodemenuen viser nyeste måned først og grupperer år uden at ændre kildelisten", () => {
+  const chronologicalPeriods = [
+    "januar 2024",
+    "december 2024",
+    "januar 2025",
+    "december 2025",
+    "maj 2026",
+    "juni 2026",
+  ];
+  const menuOptions = buildPeriodMenuOptions(chronologicalPeriods);
+
+  assert.deepEqual(menuOptions.map((option) => option.label), [
+    "juni 2026",
+    "maj 2026",
+    "december 2025",
+    "januar 2025",
+    "december 2024",
+    "januar 2024",
+  ]);
+  assert.deepEqual(menuOptions.map((option) => option.year), ["2026", "2026", "2025", "2025", "2024", "2024"]);
+  assert.deepEqual(chronologicalPeriods, [
+    "januar 2024",
+    "december 2024",
+    "januar 2025",
+    "december 2025",
+    "maj 2026",
+    "juni 2026",
+  ]);
+});
+
 test("diagramtooltips viser danske labels og dansk formatering", () => {
   assert.deepEqual(formatMetricTooltip(47_288, "revenue"), ["47.288 kr.", "Omsætning"]);
   assert.deepEqual(formatMetricTooltip(1_015, "units"), ["1.015", "Solgte enheder"]);
@@ -167,3 +198,4 @@ test("den adaptive indtjeningsgraf prioriterer DB, derefter DG og ellers tom til
   assert.equal(getAdaptiveMarginChartMode(false, true), "grossMargin");
   assert.equal(getAdaptiveMarginChartMode(false, false), "empty");
 });
+

@@ -130,6 +130,15 @@ test("Strategi-viewet adskiller interne data fra eksterne forhold og har tilgæn
   assert.match(strategyComponentSource, /aria-controls=\{regionId\}/u);
   assert.match(strategyComponentSource, /role="region"/u);
   assert.match(strategyComponentSource, /lg:grid-cols-2/u);
+  assert.match(strategyComponentSource, /testId="strategy-snapshot"/u);
+  assert.match(strategyComponentSource, /strategy\.findingsByQuadrant\.strength\.slice\(0, 2\)/u);
+  assert.match(strategyComponentSource, /strategy\.findingsByQuadrant\.weakness\.slice\(0, 2\)/u);
+  assert.match(strategyComponentSource, /\.slice\(0, 2\)/u);
+  assert.match(strategyComponentSource, /strategicFocus\.slice\(0, 3\)/u);
+  assert.match(strategyComponentSource, /DEFAULT_FINDING_COUNT = 3/u);
+  assert.match(strategyComponentSource, /Vis alle \$\{formatDanishNumber\(findings\.length\)\}/u);
+  assert.match(strategyComponentSource, /Vis færre/u);
+  assert.match(strategyComponentSource, /aria-label="Dokumentationsmetadata"/u);
 });
 
 test("TOWS vises automatisk som konkrete undersøgelsesområder med synlig sporbarhed", () => {
@@ -141,4 +150,15 @@ test("TOWS vises automatisk som konkrete undersøgelsesområder med synlig sporb
   assert.match(strategyComponentSource, /WT · Svagheder \+ risici/u);
   assert.match(strategyComponentSource, /proposal\.sourceFindingIds\.length/u);
   assert.match(strategyComponentSource, /proposal\.evidenceIds\.length/u);
+  assert.match(strategyEngineSource, /seenEvidencePairs/u);
+  assert.match(strategyEngineSource, /seenTitlePairs/u);
+  assert.match(strategyComponentSource, /self-start overflow-hidden rounded-xl/u);
 });
+
+test("den fælles periodemenu sorterer kun valgmulighederne og viser år som diskrete grupper", () => {
+  assert.match(controlBarSource, /buildPeriodMenuOptions\(options\)/u);
+  assert.match(controlBarSource, /\{allLabels\[field\]\}/u);
+  assert.match(controlBarSource, /option\.year \?\? "Andre perioder"/u);
+  assert.match(uploadSource, /buildPeriodMenuOptions\(monthOptions\)/u);
+});
+

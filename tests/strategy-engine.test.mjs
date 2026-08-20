@@ -444,6 +444,15 @@ test("N: en stabil dominerende omsætningskilde opdages uden at være en ændrin
 test("O: TOWS kobler to selvstændige evidensspor og gentager ikke samme signal", () => {
   const { strategy } = analyze(comprehensiveRows());
   const findingsById = new Map(strategy.findings.map((finding) => [finding.id, finding]));
+  const semanticEvidencePairs = strategy.tows.map((proposal) => (
+    [...new Set(proposal.evidenceIds)].sort().join("|")
+  ));
+
+  assert.equal(
+    new Set(semanticEvidencePairs).size,
+    semanticEvidencePairs.length,
+    "Et TOWS-par må ikke gentages med kilderne i omvendt rækkefølge",
+  );
 
   strategy.tows.forEach((proposal) => {
     const [left, right] = proposal.sourceFindingIds.map((id) => findingsById.get(id));
@@ -718,3 +727,4 @@ test("Z: enhedsændringer uden omsætning bruger enhedsbasen som materialitetsgr
 
   assert.equal(allFindings(strategy).some((finding) => finding.metric === "units"), false);
 });
+

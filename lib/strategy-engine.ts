@@ -362,6 +362,8 @@ function buildTows(
     },
   ];
   const proposals: TowsRecommendation[] = [];
+  const seenEvidencePairs = new Set<string>();
+  const seenTitlePairs = new Set<string>();
 
   for (const configuration of configurations) {
     const combinations = findingsByQuadrant[configuration.left].flatMap((left) => (
@@ -385,12 +387,22 @@ function buildTows(
       || left.right.id.localeCompare(right.right.id, "da-DK")
     ));
 
-    for (const combination of combinations.slice(0, MAX_TOWS_PER_TYPE)) {
+    let addedForType = 0;
+    for (const combination of combinations) {
+      if (addedForType >= MAX_TOWS_PER_TYPE) break;
       const sourceFindingIds = [combination.left.id, combination.right.id];
       const evidenceIds = Array.from(new Set([
         ...combination.left.evidenceIds,
         ...combination.right.evidenceIds,
       ]));
+      const evidencePairKey = [...evidenceIds].sort().join("|");
+      const titlePairKey = [combination.left.title, combination.right.title]
+        .map(normalizeForComparison)
+        .sort()
+        .join("|");
+      if (seenEvidencePairs.has(evidencePairKey) || seenTitlePairs.has(titlePairKey)) continue;
+      seenEvidencePairs.add(evidencePairKey);
+      seenTitlePairs.add(titlePairKey);
       proposals.push({
         id: stableId("tows", configuration.type, ...sourceFindingIds),
         type: configuration.type,
@@ -400,6 +412,7 @@ function buildTows(
         evidenceIds,
         priority: combination.left.priority + combination.right.priority + (combination.sameSubject ? 1 : 0),
       });
+      addedForType += 1;
     }
   }
   const seenTexts = new Set<string>();
@@ -848,3 +861,4 @@ export function buildStrategicAnalysis(analysis: InsightAnalysis): StrategicAnal
     dataBasis,
   };
 }
+

@@ -81,6 +81,33 @@ export function monthSortKey(value: string | Date) {
   return parsed ? new Date(parsed.year, parsed.month, 1).getTime() : null;
 }
 
+export type PeriodMenuOption = {
+  value: string;
+  label: string;
+  year: string | null;
+};
+
+export function buildPeriodMenuOptions(values: readonly string[]): PeriodMenuOption[] {
+  return values
+    .map((value, sourceIndex) => {
+      const sortKey = monthSortKey(value);
+      return {
+        value,
+        label: formatDanishMonth(value),
+        year: sortKey === null ? null : String(new Date(sortKey).getFullYear()),
+        sortKey,
+        sourceIndex,
+      };
+    })
+    .sort((left, right) => {
+      if (left.sortKey !== null && right.sortKey !== null) return right.sortKey - left.sortKey;
+      if (left.sortKey !== null) return -1;
+      if (right.sortKey !== null) return 1;
+      return left.sourceIndex - right.sourceIndex;
+    })
+    .map(({ value, label, year }) => ({ value, label, year }));
+}
+
 export function formatDanishCurrency(value: number) {
   return new Intl.NumberFormat("da-DK", {
     style: "currency",
@@ -220,3 +247,4 @@ export function getAdaptiveMarginChartMode(hasGrossProfit: boolean, hasGrossMarg
   if (hasGrossMargin) return "grossMargin";
   return "empty";
 }
+

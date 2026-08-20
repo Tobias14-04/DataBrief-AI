@@ -59,6 +59,7 @@ test("dashboardets centrale aggregering beregner KPI'er og fordelinger i samme p
   assert.equal(metrics.categoryGroups[0].grossProfitCount, 2);
   assert.equal(metrics.categoryGroups[0].costCount, 2);
   assert.equal(metrics.bestMonth.name, "januar 2026");
+  assert.deepEqual(metrics.monthly.map((month) => month.name), ["januar 2026", "februar 2026"]);
   assert.deepEqual(metrics.monthly.map((month) => month.revenue), [180, 140]);
   assert.deepEqual(metrics.productsByUnits.map((product) => product.name), ["Café latte", "Croissant"]);
 });
@@ -98,3 +99,4 @@ test("dashboardgrupper bruger intern sammenligningsnøgle og original Unicode-la
   assert.equal(metrics.bestProduct.name, "Café");
   assert.equal(metrics.bestProduct.name.includes("Cafe"), false);
 });
+

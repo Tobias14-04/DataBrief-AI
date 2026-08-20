@@ -111,6 +111,7 @@ import {
   type KpiSourceRow,
 } from "@/lib/kpi-customization";
 import {
+  buildPeriodMenuOptions,
   buildMonthlyReport,
   formatDanishCurrency as currency,
   formatDanishMonth,
@@ -2140,7 +2141,7 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
 }) {
   const monthOptions = useMemo(() => uniqueValues(rows, "month"), [rows]);
   const reportMonthOptions = useMemo(
-    () => monthOptions.map((month) => ({ value: month, label: formatDanishMonth(month) })),
+    () => buildPeriodMenuOptions(monthOptions).map(({ value, label }) => ({ value, label })),
     [monthOptions],
   );
   const reportMonth = monthOptions.includes(selectedMonth)
@@ -3485,3 +3486,4 @@ export default function UploadDashboard() {
     </DashboardCommandShell>
   );
 }
+

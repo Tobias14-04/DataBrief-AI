@@ -10,12 +10,13 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { FloatingPopover } from "@/components/floating-popover";
 import {
   reconcileDashboardFilterDraft,
   toggleDashboardFilterValue,
 } from "@/lib/dashboard-filtering";
+import { buildPeriodMenuOptions } from "@/lib/dashboard-insights";
 import { normalizeForComparison } from "@/lib/data-labels";
 
 export type DashboardControlKey = "month" | "product" | "category" | "channel" | "region";
@@ -63,11 +64,19 @@ const FilterMenu = memo(function FilterMenu({
   const popoverRef = useRef<HTMLDivElement>(null);
   const searchable = field === "month" || field === "product" || options.length > 10;
   const normalizedSearch = normalizeForComparison(search);
+  const menuOptions = useMemo(
+    () => field === "month"
+      ? buildPeriodMenuOptions(options)
+      : options.map((option) => ({ value: option, label: option, year: null })),
+    [field, options],
+  );
   const visibleOptions = useMemo(
-    () => options.filter(
-      (option) => !normalizedSearch || normalizeForComparison(option).includes(normalizedSearch),
+    () => menuOptions.filter(
+      (option) => !normalizedSearch
+        || normalizeForComparison(option.label).includes(normalizedSearch)
+        || normalizeForComparison(option.value).includes(normalizedSearch),
     ),
-    [normalizedSearch, options],
+    [menuOptions, normalizedSearch],
   );
   const summary = values.length === 0
     ? allLabels[field]
@@ -137,22 +146,30 @@ const FilterMenu = memo(function FilterMenu({
               {allLabels[field]}
               {!values.length ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : null}
             </button>
-            {visibleOptions.map((option) => {
-              const selected = values.includes(option);
+            {visibleOptions.map((option, index) => {
+              const selected = values.includes(option.value);
+              const previousYear = visibleOptions[index - 1]?.year;
+              const showYearHeading = field === "month" && option.year !== previousYear;
               return (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => onToggle(field, option)}
-                  className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 text-left text-[13px] font-medium transition duration-200 ${
-                    selected ? "bg-cyan-50 text-cyan-800" : "text-slate-600 hover:bg-slate-50 hover:text-ink"
-                  }`}
-                  aria-pressed={selected}
-                  title={option}
-                >
-                  <span className="truncate">{option}</span>
-                  {selected ? <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : null}
-                </button>
+                <Fragment key={option.value}>
+                  {showYearHeading ? (
+                    <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                      {option.year ?? "Andre perioder"}
+                    </p>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => onToggle(field, option.value)}
+                    className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 text-left text-[13px] font-medium transition duration-200 ${
+                      selected ? "bg-cyan-50 text-cyan-800" : "text-slate-600 hover:bg-slate-50 hover:text-ink"
+                    }`}
+                    aria-pressed={selected}
+                    title={option.label}
+                  >
+                    <span className="truncate">{option.label}</span>
+                    {selected ? <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : null}
+                  </button>
+                </Fragment>
               );
             })}
             {!visibleOptions.length ? (
@@ -471,3 +488,4 @@ export const DashboardControlBar = memo(function DashboardControlBar({
     </section>
   );
 });
+
