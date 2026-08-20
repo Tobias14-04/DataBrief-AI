@@ -95,7 +95,8 @@ test("ugyldige Excel-filer får en handlingsanvisende fejl uden tekniske detalje
     INVALID_EXCEL_ERROR_MESSAGE,
     "Filen kunne ikke læses som en Excel-fil.\nDen kan være beskadiget eller blot omdøbt til .xlsx. Prøv en anden fil, eller hent vores eksempelfil.",
   );
-  assert.match(workerSource, /message: INVALID_EXCEL_ERROR_MESSAGE/u);
+  assert.match(uploadSource, /errorMessage: INVALID_EXCEL_ERROR_MESSAGE/u);
+  assert.match(workerSource, /message: request\.errorMessage/u);
   assert.match(uploadSource, /<WorkbookErrorNotice message=\{error\} onDownloadSample=\{downloadSampleExcel\}/u);
   assert.match(uploadSource, /Hent eksempelfil/u);
   assert.doesNotMatch(workerSource, /Filen er ikke en gyldig Excel \.xlsx-fil/u);

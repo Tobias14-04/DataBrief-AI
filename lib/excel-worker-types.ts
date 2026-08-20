@@ -10,6 +10,7 @@ export type ExcelWorkerRequest = {
   type: "parse";
   requestId: number;
   buffer: ArrayBuffer;
+  errorMessage: string;
 };
 
 export type ExcelWorkerResponse =

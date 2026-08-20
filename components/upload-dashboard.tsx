@@ -1093,13 +1093,15 @@ function parseWorkbookInWorker(
       type: "parse",
       requestId,
       buffer,
+      errorMessage: INVALID_EXCEL_ERROR_MESSAGE,
     };
     worker.postMessage(request, [buffer]);
   });
 }
 
 async function analyzeWorkbook(
-  file: File,
+  buffer: ArrayBuffer,
+  fileName: string,
   options: {
     requestId: number;
     workerRef: { current: Worker | null };
@@ -1115,7 +1117,6 @@ async function analyzeWorkbook(
     await waitForBrowserPaint();
   };
 
-  const buffer = await file.arrayBuffer();
   await moveToPhase("detectingSheets");
   const workbook = await parseWorkbookInWorker(buffer, options.requestId, options.workerRef);
 
@@ -1135,7 +1136,7 @@ async function analyzeWorkbook(
 
   await moveToPhase("validating");
   const analysis = {
-    fileName: file.name,
+    fileName,
     detectedSheets: workbook.sheetNames,
     candidates,
     kpiSourceRows: collectWorkbookKpiRows(workbook),
@@ -1162,7 +1163,7 @@ async function analyzeWorkbook(
   await moveToPhase("calculating");
   const autoResult = autoMappingDecision.canOpenDashboard
     ? buildParseResult({
-        fileName: file.name,
+        fileName,
         analysis,
         candidate: best,
         mappings: best.mappings,
@@ -2884,7 +2885,10 @@ export default function UploadDashboard() {
     setMappingReviewReason("");
   }
 
-  async function processWorkbook(file: File, fallbackMessage: string) {
+  async function processWorkbook(
+    source: { fileName: string; readBuffer: () => Promise<ArrayBuffer> },
+    fallbackMessage: string,
+  ) {
     const hadWorkbook = Boolean(data || analysis);
     const replacementBackup = data
       ? replacementBackupRef.current ?? { analysis, selectedSheet, manualMappings }
@@ -2893,14 +2897,15 @@ export default function UploadDashboard() {
     importRequestIdRef.current = requestId;
     excelWorkerRef.current?.terminate();
     excelWorkerRef.current = null;
-    dispatchImport({ type: "start", requestId, fileName: file.name });
+    dispatchImport({ type: "start", requestId, fileName: source.fileName });
     setError("");
     setMappingReviewReason("");
     setAnalysisReadyNotice(null);
 
     try {
       await waitForBrowserPaint();
-      const parsed = await analyzeWorkbook(file, {
+      const buffer = await source.readBuffer();
+      const parsed = await analyzeWorkbook(buffer, source.fileName, {
         requestId,
         workerRef: excelWorkerRef,
         onPhase: (status) => dispatchImport({ type: "progress", requestId, status }),
@@ -2953,18 +2958,24 @@ export default function UploadDashboard() {
       return;
     }
 
-    await processWorkbook(file, "Regnearket kunne ikke behandles.");
+    await processWorkbook(
+      { fileName: file.name, readBuffer: () => file.arrayBuffer() },
+      "Regnearket kunne ikke behandles.",
+    );
     input.value = "";
   }
 
   async function loadDemoDataset() {
     if (isLoading) return;
     const workbook = createSampleWorkbook();
-    const workbookData = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-    const file = new File([workbookData], "DataBrief AI demodata.xlsx", {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-    await processWorkbook(file, "Demodata kunne ikke indlæses.");
+    const workbookData = XLSX.write(workbook, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
+    await processWorkbook(
+      {
+        fileName: "DataBrief AI demodata.xlsx",
+        readBuffer: () => Promise.resolve(workbookData),
+      },
+      "Demodata kunne ikke indlæses.",
+    );
   }
 
   function applyManualMappings() {
