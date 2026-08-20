@@ -88,10 +88,14 @@ import {
 } from "@/components/dashboard-ui";
 import {
   AUTO_MAPPING_CONFIDENCE_THRESHOLD,
+  DATA_RETENTION_NOTICE,
   assessAutoMapping,
+  formatAnalysisReadySummary,
   mappingStatusForSource,
   shouldShowColumnReview,
+  type AnalysisReadyNotice,
 } from "@/lib/auto-mapping-flow";
+import { INVALID_EXCEL_ERROR_MESSAGE } from "@/lib/excel-worker-types";
 import {
   buildKpiDataProfile,
   defaultKpiConfiguration,
@@ -1074,7 +1078,7 @@ function parseWorkbookInWorker(
 
       closeWorker();
       if (event.data.type === "error") {
-        reject(new Error(event.data.message || "Excel-filen kunne ikke læses."));
+        reject(new Error(event.data.message || INVALID_EXCEL_ERROR_MESSAGE));
         return;
       }
       resolve(event.data.workbook);
@@ -1527,7 +1531,7 @@ function ManualMappingPanel({
     ...(requiredMappingsValid && !validRowCount ? ["Ingen gyldige datarækker med de valgte kolonner"] : []),
   ];
   const statusText = missingRequiredFields.length
-    ? `${missingRequiredFields.length} ${missingRequiredFields.length === 1 ? "felt mangler" : "felter mangler"}`
+    ? `${missingRequiredFields.length} nødvendige ${missingRequiredFields.length === 1 ? "felt mangler" : "felter mangler"}`
     : duplicateAssignments.length
       ? `Kontrollér ${duplicateAssignments.length} ${duplicateAssignments.length === 1 ? "felt" : "felter"}`
       : validRowCount
@@ -1545,7 +1549,9 @@ function ManualMappingPanel({
             <p className={`${dashboardEyebrowClass} text-brand-700`}>Datagrundlag</p>
             <h2 id="mapping-title" className="mt-1.5 text-2xl font-semibold leading-tight text-ink sm:text-[28px]">Kontrollér kolonner</h2>
             <p className="mt-2 max-w-2xl text-[15px] leading-6 text-slate-600">
-              Vi har automatisk fundet de vigtigste kolonner. Kontrollér dem herunder.
+              {missingRequiredFields.length
+                ? "Tilknyt de manglende nødvendige felter for at fortsætte. Anbefalede match er markeret nedenfor."
+                : "Alle nødvendige felter er løst. Kontrollér dem, eller fortsæt uden at tilknytte valgfrie felter."}
             </p>
           </div>
           <div className={`inline-flex items-center gap-2 self-start rounded-md border px-3 py-1.5 text-xs font-semibold ${canApply ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
@@ -1566,6 +1572,12 @@ function ManualMappingPanel({
           <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
             <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <span>{error}</span>
+          </div>
+        ) : null}
+        {missingRequiredFields.length ? (
+          <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950" role="status">
+            <p className="font-semibold">{statusText}</p>
+            <p className="mt-0.5 text-xs leading-5 text-amber-800">Tilknyt dem for at fortsætte.</p>
           </div>
         ) : null}
       </div>
@@ -1620,17 +1632,18 @@ function ManualMappingPanel({
           </div>
         </section>
 
-        <details className="group rounded-xl border border-slate-200 bg-[#eef3f5] p-4 sm:p-5" open={!requiredMappingsValid ? true : undefined}>
+        <details className="group rounded-xl border border-slate-200 bg-[#eef3f5] p-4 sm:p-5">
           <summary className="flex cursor-pointer list-none flex-col items-stretch justify-between gap-3 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-100 sm:flex-row sm:items-center sm:gap-4">
             <span className="flex min-w-0 items-center gap-3">
               <span className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-700">3</span>
               <span>
-                <span className="block text-base font-semibold text-ink">Match valgfrie kolonner</span>
-                <span className="mt-0.5 block text-[13px] leading-5 text-slate-500">Tilføj flere dimensioner og økonomiske nøgletal, hvis de findes.</span>
+                <span className="block text-base font-semibold text-ink">Valgfrie kolonner ({optionalMappingFields.length})</span>
+                <span className="mt-0.5 block text-[13px] leading-5 text-slate-500">Du kan fortsætte uden valgfrie felter.</span>
               </span>
             </span>
             <span className="flex w-full shrink-0 items-center justify-between gap-3 border-t border-slate-200/80 pt-3 text-left text-[11px] font-medium text-slate-600 sm:w-auto sm:justify-start sm:border-0 sm:pt-0 sm:text-right">
-              <span className="font-semibold">{optionalMatchedCount} valgfrie felter matchet · {optionalMappingFields.length - optionalMatchedCount} ikke tilknyttet</span>
+              <span className="font-semibold group-open:hidden">Vis valgfrie felter</span>
+              <span className="hidden font-semibold group-open:inline">Skjul valgfrie felter</span>
               <ChevronDown className="h-4 w-4 transition group-open:rotate-180" aria-hidden="true" />
             </span>
           </summary>
@@ -2251,6 +2264,98 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
   );
 });
 
+function WorkbookErrorNotice({
+  message,
+  onDownloadSample,
+  compact = false,
+}: {
+  message: string;
+  onDownloadSample: () => void;
+  compact?: boolean;
+}) {
+  const [title, ...detailParts] = message.split("\n");
+  const detail = detailParts.join(" ");
+
+  return (
+    <div
+      role="alert"
+      className={`flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 text-red-800 sm:flex-row sm:items-start sm:justify-between ${compact ? "px-3 py-2.5 text-xs" : "px-4 py-3 text-sm"}`}
+    >
+      <div className="flex min-w-0 items-start gap-2.5">
+        <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        <div>
+          <p className="font-semibold">{title}</p>
+          {detail ? <p className="mt-1 leading-5 text-red-700">{detail}</p> : null}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onDownloadSample}
+        className="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 self-start rounded-md border border-red-200 bg-white px-3 font-semibold text-red-800 transition hover:border-red-300 hover:bg-red-100/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-200"
+      >
+        <Download className="h-3.5 w-3.5" aria-hidden="true" />
+        Hent eksempelfil
+      </button>
+    </div>
+  );
+}
+
+function AnalysisReadyBanner({
+  notice,
+  onEditMapping,
+  onDismiss,
+}: {
+  notice: AnalysisReadyNotice;
+  onEditMapping: () => void;
+  onDismiss: () => void;
+}) {
+  const mappingStep = notice.manualReview
+    ? "kolonnetilknytning kontrolleret"
+    : "nødvendige kolonner matchet";
+
+  return (
+    <section
+      role="status"
+      aria-labelledby="analysis-ready-title"
+      className="min-w-0 rounded-xl border border-emerald-200 bg-emerald-50/95 px-4 py-3.5 shadow-[0_8px_22px_rgba(16,185,129,0.08)] sm:px-5"
+    >
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-600 text-white">
+            <Check className="h-4 w-4" strokeWidth={3} aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h2 id="analysis-ready-title" className="font-semibold text-emerald-950">
+              {notice.manualReview ? "Klar efter kontrol" : "Klar til analyse"}
+            </h2>
+            <p className="mt-0.5 text-sm text-emerald-900">{formatAnalysisReadySummary(notice)}</p>
+            <p className="mt-1.5 text-xs leading-5 text-emerald-800">
+              Regneark fundet <span aria-hidden="true">→</span> {mappingStep} <span aria-hidden="true">→</span> rækker valideret <span aria-hidden="true">→</span> klar til analyse
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2 pl-11 lg:pl-0">
+          <button
+            type="button"
+            onClick={onEditMapping}
+            className="inline-flex min-h-9 items-center justify-center rounded-md border border-emerald-300 bg-white px-3 text-xs font-semibold text-emerald-900 transition hover:bg-emerald-100/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+          >
+            Se kolonnetilknytning
+          </button>
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md px-3 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+            Luk
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function WorkbookSidebar({
   isCollapsed,
   isLoading,
@@ -2374,9 +2479,16 @@ export default function UploadDashboard() {
   const [showManualMapping, setShowManualMapping] = useState(false);
   const [error, setError] = useState("");
   const [mappingReviewReason, setMappingReviewReason] = useState("");
+  const [analysisReadyNotice, setAnalysisReadyNotice] = useState<AnalysisReadyNotice | null>(null);
+  const [pendingManualImport, setPendingManualImport] = useState(false);
   const [importState, dispatchImport] = useReducer(importProcessingReducer, initialImportProcessingState);
   const importRequestIdRef = useRef(0);
   const excelWorkerRef = useRef<Worker | null>(null);
+  const replacementBackupRef = useRef<{
+    analysis: WorkbookAnalysis | null;
+    selectedSheet: string;
+    manualMappings: ManualMappings;
+  } | null>(null);
   const [filters, setFilters] = useState<DashboardFilters>(emptyDashboardFilters);
   const [reportMonth, setReportMonth] = useState("");
   const [activeView, setActiveView] = useState<DashboardView>("overview");
@@ -2537,11 +2649,10 @@ export default function UploadDashboard() {
   const mappingStatusLabel = getMappingStatusLabel(data?.feedback, analysis);
   const mappingWarning = data?.feedback.warnings.join(" ");
   const detectedCandidate = analysis?.candidates.find((candidate) => candidate.name === selectedSheet) ?? analysis?.candidates[0];
-  const detectedRowCount = allRows.length || (
-    detectedCandidate
-      ? Math.max(0, detectedCandidate.rows.length - detectedCandidate.headerIndex - 1)
-      : 0
-  );
+  const candidateRowCount = detectedCandidate
+    ? Math.max(0, detectedCandidate.rows.length - detectedCandidate.headerIndex - 1)
+    : 0;
+  const detectedRowCount = shouldShowManualMapping ? candidateRowCount : allRows.length || candidateRowCount;
   const hasWorkbook = Boolean(analysis || data);
   const currentKpiContext = useMemo(() => ({
     ...metrics,
@@ -2724,14 +2835,24 @@ export default function UploadDashboard() {
   }, []);
 
   const openCommandFilePicker = useCallback(() => {
-    commandFileInputRef.current?.click();
+    const input = commandFileInputRef.current;
+    if (!input) return;
+    input.value = "";
+    input.click();
   }, []);
 
   const openManualMapping = useCallback(() => {
+    setAnalysisReadyNotice(null);
     setShowManualMapping(true);
   }, []);
 
+  const changeActiveView = useCallback((view: DashboardView) => {
+    setAnalysisReadyNotice(null);
+    setActiveView(view);
+  }, []);
+
   const openInsightsView = useCallback(() => {
+    setAnalysisReadyNotice(null);
     setActiveView("insights");
     setInsightsTab("insights");
   }, []);
@@ -2764,6 +2885,10 @@ export default function UploadDashboard() {
   }
 
   async function processWorkbook(file: File, fallbackMessage: string) {
+    const hadWorkbook = Boolean(data || analysis);
+    const replacementBackup = data
+      ? replacementBackupRef.current ?? { analysis, selectedSheet, manualMappings }
+      : null;
     const requestId = importRequestIdRef.current + 1;
     importRequestIdRef.current = requestId;
     excelWorkerRef.current?.terminate();
@@ -2771,6 +2896,7 @@ export default function UploadDashboard() {
     dispatchImport({ type: "start", requestId, fileName: file.name });
     setError("");
     setMappingReviewReason("");
+    setAnalysisReadyNotice(null);
 
     try {
       await waitForBrowserPaint();
@@ -2788,7 +2914,20 @@ export default function UploadDashboard() {
       const best = parsed.analysis.candidates[0];
       setAnalysis(parsed.analysis);
       selectSheet(best.name, parsed.analysis);
-      setData(parsed.autoResult);
+      if (parsed.autoResult) {
+        setData(parsed.autoResult);
+        replacementBackupRef.current = null;
+        setPendingManualImport(false);
+        setAnalysisReadyNotice({
+          rowCount: parsed.autoResult.rows.length,
+          matchedRequiredFields: requiredMappingFields.length - getMissingFields(best.mappings).length,
+          totalRequiredFields: requiredMappingFields.length,
+          manualReview: false,
+        });
+      } else {
+        replacementBackupRef.current = replacementBackup;
+        setPendingManualImport(true);
+      }
       setShowManualMapping(!parsed.autoResult);
       setMappingReviewReason(parsed.autoResult ? "" : parsed.reviewReasons.join(" "));
       resetDashboardView();
@@ -2799,7 +2938,9 @@ export default function UploadDashboard() {
       }
 
       const message = error instanceof Error ? error.message : fallbackMessage;
-      clearImportedWorkbook();
+      if (!hadWorkbook) {
+        clearImportedWorkbook();
+      }
       setError(message);
       dispatchImport({ type: "fail", requestId, message });
     }
@@ -2846,6 +2987,16 @@ export default function UploadDashboard() {
       setShowManualMapping(false);
       setError("");
       setMappingReviewReason("");
+      replacementBackupRef.current = null;
+      if (pendingManualImport) {
+        setAnalysisReadyNotice({
+          rowCount: result.rows.length,
+          matchedRequiredFields: requiredMappingFields.length - getMissingFields(mappings).length,
+          totalRequiredFields: requiredMappingFields.length,
+          manualReview: true,
+        });
+      }
+      setPendingManualImport(false);
       resetDashboardView();
       dispatchImport({
         type: "complete",
@@ -2853,13 +3004,20 @@ export default function UploadDashboard() {
         needsReview: false,
       });
     } catch (error) {
-      setData(null);
       setError(error instanceof Error ? error.message : "Den manuelle kolonnetilknytning mislykkedes. Kontrollér de valgte kolonner.");
     }
   }
 
   function cancelManualMapping() {
     if (data) {
+      const backup = replacementBackupRef.current;
+      if (backup) {
+        setAnalysis(backup.analysis);
+        setSelectedSheet(backup.selectedSheet);
+        setManualMappings(backup.manualMappings);
+      }
+      replacementBackupRef.current = null;
+      setPendingManualImport(false);
       setShowManualMapping(false);
       setError("");
       setMappingReviewReason("");
@@ -2872,6 +3030,8 @@ export default function UploadDashboard() {
     setShowManualMapping(false);
     setError("");
     setMappingReviewReason("");
+    setPendingManualImport(false);
+    replacementBackupRef.current = null;
     dispatchImport({ type: "reset" });
   }
 
@@ -2940,6 +3100,7 @@ export default function UploadDashboard() {
                 <div>
                   <h2 className="font-semibold text-ink">Vælg dit salgsregneark</h2>
                   <p className="text-sm text-slate-500">Filen behandles lokalt i denne browser.</p>
+                  <p className="mt-1 max-w-xl text-xs leading-5 text-slate-500">{DATA_RETENTION_NOTICE}</p>
                 </div>
               </div>
 
@@ -2965,7 +3126,9 @@ export default function UploadDashboard() {
                 </label>
 
                 {error ? (
-                  <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+                  <div className="mt-4">
+                    <WorkbookErrorNotice message={error} onDownloadSample={downloadSampleExcel} />
+                  </div>
                 ) : null}
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -3021,13 +3184,13 @@ export default function UploadDashboard() {
   return (
     <DashboardCommandShell
       activeView={activeView}
-      fileName={data?.fileName ?? analysis?.fileName ?? "Excel-regneark"}
+      fileName={(shouldShowManualMapping ? analysis?.fileName : data?.fileName) ?? analysis?.fileName ?? "Excel-regneark"}
       sheetName={data?.feedback.salesSheetName ?? selectedSheet}
       rowCount={detectedRowCount}
-      statusLabel={mappingStatusLabel}
-      warning={mappingWarning}
+      statusLabel={shouldShowManualMapping ? "Kræver kontrol" : mappingStatusLabel}
+      warning={shouldShowManualMapping ? mappingReviewReason : mappingWarning}
       mappingMode={shouldShowManualMapping}
-      onViewChange={setActiveView}
+      onViewChange={changeActiveView}
       onUpload={openCommandFilePicker}
       onEditMapping={openManualMapping}
     >
@@ -3066,6 +3229,23 @@ export default function UploadDashboard() {
 
           {!shouldShowManualMapping ? (
           <div className="grid min-w-0 gap-6 min-[1360px]:grid-cols-[minmax(0,1fr)_380px]">
+          {error ? (
+            <div className="min-w-0 min-[1360px]:col-span-2">
+              <WorkbookErrorNotice message={error} onDownloadSample={downloadSampleExcel} />
+            </div>
+          ) : null}
+          {analysisReadyNotice && activeView === "overview" ? (
+            <div className="min-w-0 min-[1360px]:col-span-2">
+              <AnalysisReadyBanner
+                notice={analysisReadyNotice}
+                onEditMapping={() => {
+                  setAnalysisReadyNotice(null);
+                  setShowManualMapping(true);
+                }}
+                onDismiss={() => setAnalysisReadyNotice(null)}
+              />
+            </div>
+          ) : null}
           {activeView !== "dataset" ? (
             <div className="min-w-0 min-[1360px]:col-span-2">
               <DashboardControlBar
@@ -3178,7 +3358,7 @@ export default function UploadDashboard() {
               coverageMode={marginChartMode}
               costs={costsByCategory}
               showCosts={showCosts}
-              onNavigate={setActiveView}
+              onNavigate={changeActiveView}
             />
           </section>
 
@@ -3434,11 +3614,12 @@ export default function UploadDashboard() {
                 <div className="flex flex-wrap gap-2 p-4">
                   <button
                     type="button"
-                    onClick={() => commandFileInputRef.current?.click()}
+                    onClick={openCommandFilePicker}
+                    title="Vælg et nyt regneark. Det nuværende datasæt erstattes først, når den nye fil er indlæst."
                     className="inline-flex h-10 items-center gap-2 rounded-md bg-[#0b1c2d] px-4 text-xs font-semibold text-white transition hover:bg-[#15334d]"
                   >
                     <Upload className="h-4 w-4" aria-hidden="true" />
-                    Upload ny fil
+                    Skift fil…
                   </button>
                   <button
                     type="button"
@@ -3458,7 +3639,7 @@ export default function UploadDashboard() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowManualMapping(true)}
+                    onClick={openManualMapping}
                     className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 transition hover:border-brand-300 hover:text-brand-700"
                   >
                     <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />

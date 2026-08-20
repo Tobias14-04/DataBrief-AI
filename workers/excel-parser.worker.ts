@@ -1,10 +1,11 @@
 /// <reference lib="webworker" />
 
 import * as XLSX from "xlsx";
-import type {
-  ExcelWorkerRequest,
-  ExcelWorkerResponse,
-  ParsedWorkbookRows,
+import {
+  INVALID_EXCEL_ERROR_MESSAGE,
+  type ExcelWorkerRequest,
+  type ExcelWorkerResponse,
+  type ParsedWorkbookRows,
 } from "@/lib/excel-worker-types";
 
 const workerScope = self as DedicatedWorkerGlobalScope;
@@ -18,7 +19,7 @@ workerScope.addEventListener("message", (event: MessageEvent<ExcelWorkerRequest>
   try {
     const signature = new Uint8Array(request.buffer, 0, Math.min(4, request.buffer.byteLength));
     if (signature[0] !== 0x50 || signature[1] !== 0x4b) {
-      throw new Error("Filen er ikke en gyldig Excel .xlsx-fil.");
+      throw new Error(INVALID_EXCEL_ERROR_MESSAGE);
     }
 
     const workbook = XLSX.read(request.buffer, { type: "array", cellDates: true });
@@ -40,11 +41,11 @@ workerScope.addEventListener("message", (event: MessageEvent<ExcelWorkerRequest>
     };
 
     workerScope.postMessage(response);
-  } catch (error) {
+  } catch {
     const response: ExcelWorkerResponse = {
       type: "error",
       requestId: request.requestId,
-      message: error instanceof Error ? error.message : "Excel-filen kunne ikke læses.",
+      message: INVALID_EXCEL_ERROR_MESSAGE,
     };
     workerScope.postMessage(response);
   }

@@ -1,5 +1,30 @@
 export const AUTO_MAPPING_CONFIDENCE_THRESHOLD = 85;
 
+export const DATA_RETENTION_NOTICE =
+  "Data behandles lokalt og gemmes ikke permanent. Din analyse forsvinder, hvis siden genindlæses eller lukkes.";
+
+export type AnalysisReadyNotice = {
+  rowCount: number;
+  matchedRequiredFields: number;
+  totalRequiredFields: number;
+  manualReview: boolean;
+};
+
+export function formatAnalysisReadySummary(notice: AnalysisReadyNotice) {
+  const mappingStatus = notice.manualReview ? "matchet efter kontrol" : "matchet automatisk";
+  return `${notice.rowCount.toLocaleString("da-DK")} rækker · ${notice.matchedRequiredFields}/${notice.totalRequiredFields} nødvendige felter ${mappingStatus}`;
+}
+
+export type ViewScrollTarget = {
+  scrollTo: (options: { top: number; left: number; behavior: "auto" }) => void;
+};
+
+export function resetViewScroll(target: ViewScrollTarget | null | undefined) {
+  if (!target || typeof target.scrollTo !== "function") return false;
+  target.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  return true;
+}
+
 export type MappingAmbiguity = {
   field: string;
   columns: string[];

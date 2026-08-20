@@ -24,7 +24,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { resetViewScroll } from "@/lib/auto-mapping-flow";
 import { getDashboardView, type DashboardView } from "@/lib/dashboard-navigation";
+
+const replaceFileDescription =
+  "Vælg et nyt regneark. Det nuværende datasæt erstattes først, når den nye fil er indlæst.";
 
 const viewIcons: Record<DashboardView, LucideIcon> = {
   overview: LayoutDashboard,
@@ -103,12 +107,14 @@ function NavigationButton({
 function SidebarAction({
   icon: Icon,
   label,
+  description,
   collapsed,
   active = false,
   onClick,
 }: {
   icon: LucideIcon;
   label: string;
+  description?: string;
   collapsed: boolean;
   active?: boolean;
   onClick: () => void;
@@ -118,7 +124,7 @@ function SidebarAction({
       type="button"
       onClick={onClick}
       aria-label={collapsed ? label : undefined}
-      title={collapsed ? label : undefined}
+      title={description ?? (collapsed ? label : undefined)}
       aria-current={active ? "page" : undefined}
       className={`group relative flex h-11 w-full items-center gap-3 overflow-hidden rounded-lg px-3 text-left text-sm font-semibold transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 ${
         active
@@ -228,7 +234,8 @@ function ShellSidebar({
           />
           <SidebarAction
             icon={Upload}
-            label="Upload ny fil"
+            label="Skift fil…"
+            description={replaceFileDescription}
             collapsed={navigationCollapsed}
             onClick={() => {
               onUpload();
@@ -333,6 +340,12 @@ export function DashboardCommandShell({
     const mediumViewport = window.matchMedia("(min-width: 1024px) and (max-width: 1279px)");
     if (mediumViewport.matches) setSidebarCollapsed(true);
   }, []);
+
+  useEffect(() => {
+    if (!resetViewScroll(document.scrollingElement as HTMLElement | null)) {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }
+  }, [activeView, mappingMode]);
 
   useEffect(() => {
     if (!mobileNavigationOpen && !datasetMenuOpen) return;
@@ -444,10 +457,11 @@ export function DashboardCommandShell({
                 <button
                   type="button"
                   onClick={onUpload}
+                  title={replaceFileDescription}
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-cyan-500 px-3.5 text-[13px] font-semibold text-[#062031] shadow-[0_8px_20px_rgba(6,182,212,0.18)] transition-colors duration-200 hover:bg-cyan-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200"
                 >
                   <Upload className="h-4 w-4" aria-hidden="true" />
-                  Skift fil
+                  Skift fil…
                 </button>
               </div>
 
@@ -484,9 +498,10 @@ export function DashboardCommandShell({
                       }}
                       className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-semibold text-slate-700 transition-colors duration-200 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200"
                       role="menuitem"
+                      title={replaceFileDescription}
                     >
                       <Upload className="h-4 w-4 text-cyan-700" aria-hidden="true" />
-                      Skift fil
+                      Skift fil…
                     </button>
                     <Link
                       href="/"
