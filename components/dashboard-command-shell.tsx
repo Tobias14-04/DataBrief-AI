@@ -176,7 +176,7 @@ function ShellSidebar({
           </span>
           {!navigationCollapsed ? (
             <div className="min-w-0">
-              <p className="truncate text-[15px] font-semibold text-white">DataBrief AI</p>
+              <p className="truncate text-[15px] font-semibold text-white">Senvoriq</p>
               <p className="mt-0.5 text-xs font-medium text-slate-400">Sales intelligence</p>
             </div>
           ) : null}

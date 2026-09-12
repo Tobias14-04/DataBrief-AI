@@ -1295,7 +1295,7 @@ function createSampleWorkbook() {
     XLSX.utils.json_to_sheet(budgetRows),
     "Budget",
   );
-  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["Beskrivelse"], ["Eksempelregneark til DataBrief AI"]]), "Beskrivelse");
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["Beskrivelse"], ["Eksempelregneark til Senvoriq"]]), "Beskrivelse");
   return workbook;
 }
 
@@ -3050,7 +3050,7 @@ export default function UploadDashboard() {
     const workbookData = XLSX.write(workbook, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
     await processWorkbook(
       {
-        fileName: "DataBrief AI demodata.xlsx",
+        fileName: "Senvoriq demodata.xlsx",
         readBuffer: () => Promise.resolve(workbookData),
       },
       "Demodata kunne ikke indlæses.",
@@ -3174,7 +3174,7 @@ export default function UploadDashboard() {
               <span className="grid h-10 w-10 place-items-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 text-cyan-200 shadow-[0_10px_24px_rgba(5,18,30,0.2)]">
                 <FileSpreadsheet className="h-5 w-5" aria-hidden="true" />
               </span>
-              <span className="font-semibold text-white">DataBrief AI</span>
+              <span className="font-semibold text-white">Senvoriq</span>
             </div>
           </div>
         </header>
@@ -3275,7 +3275,7 @@ export default function UploadDashboard() {
                 <div className="min-w-0">
                   <h2 className="font-semibold text-ink">Understøttede regneark</h2>
                   <p className="mt-1.5 text-sm leading-6 text-slate-600">
-                    DataBrief AI finder den mest sandsynlige overskriftsrække og tilknytter almindelige salgskolonner automatisk,
+                    Senvoriq finder den mest sandsynlige overskriftsrække og tilknytter almindelige salgskolonner automatisk,
                     også når regnearket har danske kolonnenavne eller starter under en titelrække.
                   </p>
                 </div>

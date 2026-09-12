@@ -1,424 +1,193 @@
 import Link from "next/link";
-import {
-  ArrowRight,
-  BarChart3,
-  Check,
-  FileSpreadsheet,
-  Sparkles,
-  TrendingUp,
-} from "lucide-react";
+import { ArrowRight, BarChart3, Check, FileCheck2, FileSpreadsheet, FileText, ShieldCheck, SlidersHorizontal } from "lucide-react";
 
-const benefits = [
-  {
-    step: "01",
-    action: "Upload",
-    eyebrow: "Overblik over resultater",
-    title: "Salgsnøgletal med det samme",
-    description: "Få et klart overblik over virksomhedens salgsresultater på få sekunder.",
-    detail: "Omsætning, solgte enheder, bedste produkt og bedste måned",
-    icon: TrendingUp,
-    iconClass: "border-brand-100 bg-brand-50 text-brand-700",
-  },
-  {
-    step: "02",
-    action: "Analysér",
-    eyebrow: "Visuel analyse",
-    title: "Diagrammer uden opsætning",
-    description: "Se udviklingen i salget uden formler, pivottabeller eller manuel opbygning af diagrammer.",
-    detail: "Månedlig omsætning, kategorier og produkter",
-    icon: BarChart3,
-    iconClass: "border-orange-100 bg-orange-50 text-accent-600",
-  },
-  {
-    step: "03",
-    action: "Opsummér",
-    eyebrow: "Ledelsesoverblik",
-    title: "Ledelsesresume",
-    description: "Saml de vigtigste resultater i et kort resume, der er klar til at dele.",
-    detail: "Kort ledelsesresume baseret på dine data",
-    icon: Sparkles,
-    iconClass: "border-emerald-100 bg-emerald-50 text-emerald-700",
-  },
+const primaryCta = "inline-flex items-center justify-center gap-2 rounded-lg bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-500";
+const secondaryCta = "inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-ink transition hover:border-brand-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-500";
+
+const steps = [
+  { number: "01", title: "Forstå data", icon: FileSpreadsheet, text: "Senvoriq finder de relevante kolonner og validerer regnearket. Du kan se og rette tilknytningerne, før analysen begynder.", detail: "Automatisk mapping · tydelig validering" },
+  { number: "02", title: "Find driverne", icon: BarChart3, text: "Se, hvor udviklingen er registreret på tværs af produkter, kategorier og de øvrige dimensioner, dine data understøtter.", detail: "Nøgletal · udvikling · bidrag til ændringen" },
+  { number: "03", title: "Prioritér", icon: FileText, text: "Få dokumenterede findings og en ledelsesrapport, der samler de vigtigste ændringer og peger på, hvad du bør undersøge først.", detail: "Prioriterede indsigter · ledelsesoverblik" },
 ];
 
+// Illustrative figures only: April revenue 1,000,000; May 880,000.
+// Category changes sum to -120,000; the first two account for 68%.
+// Contribution margin is 40% in both periods: 400,000 → 352,000.
 const previewStats = [
-  ["Omsætning", "320.748 kr.", "+12,4 % ift. jan."],
-  ["Solgte enheder", "6.474", "+8,1 % i perioden"],
-  ["Bedste kategori", "Drikke", "34 % af omsætningen"],
-  ["Bedste måned", "jun. 2026", "64.280 kr. i omsætning"],
+  { label: "Omsætning", value: "880.000 kr.", detail: "−12 % · −120.000 kr.", tone: "text-orange-700" },
+  { label: "Dækningsgrad", value: "40,0 %", detail: "Uændret · 0,0 procentpoint", tone: "text-brand-700" },
+  { label: "Dækningsbidrag", value: "352.000 kr.", detail: "−48.000 kr. mod april", tone: "text-orange-700" },
 ];
-
-const sampleRows = [
-  ["2026-01-05", "Café latte", "Drikke", "2.714 kr.", "59"],
-  ["2026-02-14", "Kyllingesandwich", "Sandwich", "3.612 kr.", "43"],
-  ["2026-06-22", "Morgenmenu", "Menu", "5.184 kr.", "54"],
+const drivers = [
+  { label: "Tilbehør", value: "−50.400 kr.", width: "42%" },
+  { label: "Kontorartikler", value: "−31.200 kr.", width: "26%" },
+  { label: "Øvrige kategorier", value: "−38.400 kr.", width: "32%" },
 ];
-
-const featureChips = ["Danske og engelske kolonnenavne", "Ingen manuel opsætning", "Behandles i din browser"];
+const mappings = [["Order date", "Dato"], ["Varenavn", "Produkt"], ["Nettoomsætning", "Omsætning"], ["Quantity", "Antal"]];
+const trust = [
+  { icon: ShieldCheck, title: "Lokalt i din browser", text: "Regnearket behandles lokalt. Dine salgsdata sendes ikke til en server for at blive analyseret." },
+  { icon: FileCheck2, title: "Findings med dokumentation", text: "Indsigter bygger på beregnede tal. Du kan se de relevante perioder og det tilhørende datagrundlag." },
+  { icon: SlidersHorizontal, title: "Ingen skjulte antagelser", text: "Manglende data og begrænsninger fremgår tydeligt. Der opfindes hverken tal, benchmarks eller årsager." },
+];
 
 export default function Home() {
   return (
-    <main className="overflow-hidden bg-white">
-      <header className="relative z-20 border-b border-white/60 bg-white/70 backdrop-blur-xl">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
-          <Link href="/" className="flex items-center gap-3" aria-label="DataBrief AI-forside">
-            <span className="grid h-10 w-10 place-items-center rounded-lg bg-ink text-white shadow-[0_10px_24px_rgba(16,32,51,0.18)]">
-              <FileSpreadsheet className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <span className="text-lg font-semibold text-ink">DataBrief AI</span>
+    <div className="bg-white text-ink">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:rounded-lg focus:bg-white focus:p-4">Spring til indhold</a>
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-5 lg:px-8">
+          <Link href="/" className="flex items-center gap-2.5" aria-label="Senvoriq-forside">
+            <span className="grid h-9 w-9 place-items-center rounded-lg bg-ink text-cyan-300"><BarChart3 className="h-5 w-5" aria-hidden="true" /></span>
+            <span className="text-xl font-semibold tracking-tight">Senvoriq</span>
           </Link>
-          <Link
-            href="/upload"
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-ink shadow-sm transition hover:border-brand-500 hover:text-brand-700"
-          >
-            Upload salgsdata
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Link>
+          <nav aria-label="Hovednavigation" className="flex items-center gap-7">
+            <a href="#saadan-fungerer-det" className="hidden text-sm font-medium text-slate-600 hover:text-brand-700 md:block">Sådan fungerer det</a>
+            <a href="#datagrundlag" className="hidden text-sm font-medium text-slate-600 hover:text-brand-700 md:block">Dine data</a>
+            <Link href="/upload" className={primaryCta}>Analysér mine data<ArrowRight className="hidden h-4 w-4 sm:block" aria-hidden="true" /></Link>
+          </nav>
         </div>
       </header>
 
-      <section className="relative isolate border-b border-slate-200/80 bg-[linear-gradient(135deg,#f8fbfc_0%,#f1fbfc_45%,#fff8f3_100%)]">
-        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_78%_20%,rgba(8,145,178,0.14),transparent_28%),radial-gradient(circle_at_8%_85%,rgba(249,115,22,0.10),transparent_24%)]" />
-        <div className="pointer-events-none absolute inset-0 -z-10 opacity-40 [background-image:linear-gradient(rgba(16,32,51,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(16,32,51,0.035)_1px,transparent_1px)] [background-size:48px_48px]" />
-
-        <div className="relative mx-auto grid w-full max-w-7xl items-center gap-12 px-6 py-14 lg:grid-cols-[0.88fr_1.12fr] lg:px-8 lg:py-20">
-          <div className="max-w-xl">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-lg border border-brand-100 bg-white/85 px-3 py-2 text-sm font-semibold text-brand-700 shadow-sm backdrop-blur">
-              <Sparkles className="h-4 w-4" aria-hidden="true" />
-              Gør salgsdata til et klart dashboard
-            </div>
-            <h1 className="text-5xl font-semibold leading-[1.02] text-ink sm:text-6xl lg:text-7xl">
-              DataBrief AI
-            </h1>
-            <p className="mt-5 max-w-lg text-lg leading-8 text-slate-600">
-              Upload dit salgsregneark, og få nøgletal, visuelle tendenser og et klart ledelsesresume med det samme,
-              uden selv at bygge formler eller dashboards.
-            </p>
-            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-              <Link
-                href="/upload"
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-ink px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_32px_rgba(16,32,51,0.22)] transition hover:bg-slate-800"
-              >
-                Upload salgsdata
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </Link>
-              <a
-                href="#sample-structure"
-                className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white/85 px-5 py-3 text-sm font-semibold text-ink shadow-sm backdrop-blur transition hover:border-brand-500 hover:text-brand-700"
-              >
-                Se eksempeldata
-              </a>
-            </div>
-            <div className="mt-7 flex max-w-xl flex-wrap gap-2">
-              {featureChips.map((item) => (
-                <div
-                  key={item}
-                  className="inline-flex items-center gap-2 rounded-lg border border-white/90 bg-white/70 px-3 py-2 text-sm font-medium text-slate-600 shadow-sm backdrop-blur"
-                >
-                  <span className="grid h-4 w-4 place-items-center rounded-full bg-brand-600 text-white">
-                    <Check className="h-2.5 w-2.5" strokeWidth={3} aria-hidden="true" />
-                  </span>
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="relative lg:pl-2">
-            <div className="absolute -inset-4 -z-10 rounded-lg bg-white/50 blur-2xl" />
-            <div className="overflow-hidden rounded-lg border border-slate-200/90 bg-white shadow-[0_30px_80px_rgba(16,32,51,0.16),0_6px_20px_rgba(16,32,51,0.08)]">
-              <div className="flex h-11 items-center justify-between border-b border-slate-200 bg-slate-50/90 px-4">
-                <div className="flex items-center gap-1.5" aria-hidden="true">
-                  <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
-                </div>
-                <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                  <FileSpreadsheet className="h-3.5 w-3.5" aria-hidden="true" />
-                  Café Nord salg.xlsx
-                </div>
-                <div className="w-10" aria-hidden="true" />
+      <main id="main-content">
+        <section className="border-b border-slate-200 bg-paper">
+          <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-10 lg:px-8 lg:py-20">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-700">Fra salgsdata til beslutningsgrundlag</p>
+              <h1 className="mt-5 max-w-xl text-[2.6rem] font-semibold leading-[1.1] tracking-tight sm:text-5xl xl:text-[3.45rem]">Se hvad der driver udviklingen i din forretning.</h1>
+              <p className="mt-6 max-w-lg text-base leading-7 text-slate-600 sm:text-lg sm:leading-8">Senvoriq beregner dine vigtigste nøgletal og viser, hvor ændringer i omsætning, margin og resultat er registreret — med dokumentation fra dine salgsdata og uden BI-opsætning.</p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link href="/upload" className={primaryCta}>Analysér mine data<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
+                <a href="#eksempel" className={secondaryCta}>Se eksempel</a>
               </div>
+              <p className="mt-5 flex items-center gap-2 text-sm text-slate-600"><ShieldCheck className="h-4 w-4 shrink-0 text-brand-700" aria-hidden="true" />Dine data behandles lokalt i browseren.</p>
+              <p className="mt-8 max-w-md border-t border-slate-200 pt-5 text-sm leading-6 text-slate-500">Til mindre virksomheder med mange salgs- og produktlinjer — og uden eget BI- eller datateam.</p>
+            </div>
 
-              <div className="border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-ink">Eksempel på dashboard</p>
-                    <p className="mt-0.5 text-xs text-slate-500">Forhåndsvisning baseret på eksempeldata</p>
-                  </div>
-                  <span className="rounded-lg border border-brand-100 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700">
-                    Eksempeldata
-                  </span>
-                </div>
+            <figure className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-overview-primary" aria-labelledby="preview-caption">
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-ink px-5 py-4 text-white">
+                <span className="flex items-center gap-2 text-sm font-semibold"><BarChart3 className="h-4 w-4 text-cyan-300" aria-hidden="true" />Senvoriq <span className="ml-2 border-l border-white/20 pl-3 font-normal text-slate-300">Overblik</span></span>
+                <span className="rounded-md border border-cyan-300/25 bg-cyan-300/10 px-2 py-1 text-[11px] font-medium text-cyan-200">Eksempeldata</span>
               </div>
-
-              <div className="bg-slate-50/70 p-4 sm:p-5">
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                  {previewStats.map(([label, value, detail], index) => (
-                    <div
-                      key={label}
-                      className="min-w-0 rounded-lg border border-slate-200 bg-white p-3.5 shadow-[0_4px_14px_rgba(16,32,51,0.05)]"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="truncate text-xs font-medium text-slate-500">{label}</p>
-                        <span
-                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                            index === 2 ? "bg-accent-500" : index === 3 ? "bg-emerald-500" : "bg-brand-500"
-                          }`}
-                        />
-                      </div>
-                      <p className="mt-2 truncate text-base font-semibold text-ink sm:text-lg">{value}</p>
-                      <p className="mt-1 truncate text-[11px] text-slate-500">{detail}</p>
+              <div className="bg-[var(--overview-workspace)] p-4 sm:p-5">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600"><span className="font-semibold text-ink">Salg og indtjening</span><span>Maj 2026 mod april 2026</span></div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {previewStats.map((stat) => (
+                    <div key={stat.label} className="min-w-0 rounded-lg border border-[var(--overview-border)] bg-white p-3">
+                      <p className="text-xs text-slate-600">{stat.label}</p>
+                      <p className="mt-2 text-lg font-semibold tabular-nums">{stat.value}</p>
+                      <p className={`mt-2 text-[11px] leading-4 ${stat.tone}`}>{stat.detail}</p>
                     </div>
                   ))}
                 </div>
-
-                <div className="mt-3 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_4px_14px_rgba(16,32,51,0.05)]">
-                  <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-4 py-3">
-                    <div>
-                      <p className="text-sm font-semibold text-ink">Omsætningsudvikling</p>
-                      <p className="text-xs text-slate-500">Månedlig nettoomsætning</p>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700">
-                      <TrendingUp className="h-3.5 w-3.5" aria-hidden="true" />
-                      +22,6 %
-                    </div>
-                  </div>
-                  <div className="relative h-44 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 pb-7 pt-3">
-                    <div className="absolute inset-x-4 top-10 border-t border-dashed border-slate-200" />
-                    <div className="absolute inset-x-4 top-[86px] border-t border-dashed border-slate-200" />
-                    <div className="absolute inset-x-4 bottom-8 border-t border-slate-200" />
-                    <svg
-                      className="absolute inset-x-4 top-3 h-[118px] w-[calc(100%-2rem)]"
-                      viewBox="0 0 520 126"
-                      role="img"
-                      aria-label="Eksempel på stigende omsætning fra januar til juni 2026"
-                      preserveAspectRatio="none"
-                    >
-                      <defs>
-                        <linearGradient id="revenueLine" x1="0" x2="1" y1="0" y2="0">
-                          <stop offset="0%" stopColor="#0891b2" />
-                          <stop offset="76%" stopColor="#0e7490" />
-                          <stop offset="100%" stopColor="#f97316" />
-                        </linearGradient>
-                        <linearGradient id="revenueArea" x1="0" x2="0" y1="0" y2="1">
-                          <stop offset="0%" stopColor="#0891b2" stopOpacity="0.20" />
-                          <stop offset="100%" stopColor="#0891b2" stopOpacity="0.01" />
-                        </linearGradient>
-                      </defs>
-                      <path
-                        d="M4 104 C62 96, 88 84, 108 87 C170 96, 184 62, 210 67 C278 80, 292 46, 316 48 C370 53, 391 38, 418 40 C468 43, 488 21, 516 14 L516 126 L4 126 Z"
-                        fill="url(#revenueArea)"
-                      />
-                      <path
-                        d="M4 104 C62 96, 88 84, 108 87 C170 96, 184 62, 210 67 C278 80, 292 46, 316 48 C370 53, 391 38, 418 40 C468 43, 488 21, 516 14"
-                        fill="none"
-                        stroke="url(#revenueLine)"
-                        strokeLinecap="round"
-                        strokeWidth="4"
-                        vectorEffect="non-scaling-stroke"
-                      />
-                      {[
-                        [4, 104],
-                        [108, 87],
-                        [210, 67],
-                        [316, 48],
-                        [418, 40],
-                        [516, 14],
-                      ].map(([x, y], index) => (
-                        <circle
-                          key={x}
-                          cx={x}
-                          cy={y}
-                          r={index === 5 ? "5" : "3.5"}
-                          fill="#ffffff"
-                          stroke={index === 5 ? "#f97316" : "#0891b2"}
-                          strokeWidth="2.5"
-                          vectorEffect="non-scaling-stroke"
-                        />
-                      ))}
-                    </svg>
-                    <div className="absolute inset-x-4 bottom-2 flex justify-between text-[11px] font-medium text-slate-400">
-                      {["jan.", "feb.", "mar.", "apr.", "maj", "jun."].map((month) => (
-                        <span key={month}>{month}</span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="relative border-b border-slate-200 bg-white">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-brand-50/40 to-transparent" />
-        <div className="relative mx-auto max-w-7xl px-6 py-14 lg:px-8 lg:py-16">
-          <div className="mb-8 grid gap-4 lg:grid-cols-[1fr_0.7fr] lg:items-end">
-            <div>
-              <p className="text-sm font-semibold text-brand-700">Fra regneark til beslutning</p>
-              <h2 className="mt-2 max-w-2xl text-3xl font-semibold leading-tight text-ink sm:text-4xl">
-                Få overblik over det vigtigste.
-              </h2>
-            </div>
-            <p className="max-w-lg text-sm leading-6 text-slate-600 lg:justify-self-end">
-              Når du uploader dine salgsdata, får du et ledelsesklart overblik i tre enkle trin.
-            </p>
-          </div>
-
-          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_18px_50px_rgba(16,32,51,0.08)]">
-            <div className="grid divide-y divide-slate-200 lg:grid-cols-3 lg:divide-x lg:divide-y-0">
-              {benefits.map((benefit) => {
-                const Icon = benefit.icon;
-                return (
-                  <article key={benefit.title} className="relative flex min-h-[250px] flex-col p-5 sm:p-6">
-                    <div className="mb-5 flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-semibold text-brand-700">{benefit.step}</span>
-                        <span className="h-px w-8 bg-brand-100" aria-hidden="true" />
-                        <span className="text-sm font-semibold text-slate-500">{benefit.action}</span>
-                      </div>
-                      <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg border ${benefit.iconClass}`}>
-                        <Icon className="h-5 w-5" aria-hidden="true" />
-                      </div>
-                    </div>
-                    <p className="text-xs font-semibold text-slate-500">{benefit.eyebrow}</p>
-                    <h3 className="mt-1 text-xl font-semibold text-ink">{benefit.title}</h3>
-                    <p className="mt-3 text-sm leading-6 text-slate-600">{benefit.description}</p>
-                    <div className="mt-auto flex items-start gap-2 border-t border-slate-100 pt-4 text-sm font-medium text-ink">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" aria-hidden="true" />
-                      <span>{benefit.detail}</span>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="sample-structure" className="relative border-b border-slate-200 bg-slate-50">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_86%_42%,rgba(8,145,178,0.09),transparent_30%),radial-gradient(circle_at_10%_80%,rgba(249,115,22,0.06),transparent_24%)]" />
-        <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-6 py-16 lg:grid-cols-[0.72fr_1.28fr] lg:px-8 lg:py-20">
-          <div className="max-w-lg lg:pr-4">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-lg border border-brand-100 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 shadow-sm">
-              <span className="h-1.5 w-1.5 rounded-full bg-brand-500" aria-hidden="true" />
-              Bygget til hverdagens regneark
-            </div>
-            <h2 className="text-3xl font-semibold leading-tight text-ink sm:text-4xl">
-              Dit salgsregneark behøver ikke følge vores skabelon.
-            </h2>
-            <p className="mt-4 leading-7 text-slate-600">
-              Upload almindelige salgsdata med danske eller engelske kolonnenavne. DataBrief AI finder det relevante
-              ark, tilknytter kolonnerne og omdanner rækkerne til et klart dashboard.
-            </p>
-            <div className="mt-6 grid gap-3 text-sm text-slate-600">
-              {[
-                "Finder det rette ark og den korrekte overskriftsrække",
-                "Tilknytter danske og engelske salgskolonner",
-                "Behandler data direkte i browseren",
-              ].map((item) => (
-                <div key={item} className="flex items-start gap-3">
-                  <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white text-brand-700 shadow-sm">
-                    <Check className="h-3 w-3" strokeWidth={3} aria-hidden="true" />
-                  </span>
-                  <span>{item}</span>
-                </div>
-              ))}
-            </div>
-            <Link
-              href="/upload"
-              className="mt-7 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-ink shadow-sm transition hover:border-brand-500 hover:text-brand-700"
-            >
-              Prøv med dit regneark
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Link>
-          </div>
-
-          <div className="overflow-hidden rounded-lg border border-slate-200 border-t-2 border-t-brand-500 bg-white shadow-[0_24px_60px_rgba(16,32,51,0.13)]">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-gradient-to-r from-white via-white to-brand-50/40 px-5 py-4">
-              <div className="flex items-center gap-3">
-                <span className="grid h-9 w-9 place-items-center rounded-lg bg-emerald-50 text-emerald-700">
-                  <FileSpreadsheet className="h-5 w-5" aria-hidden="true" />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold text-ink">Registreret automatisk</p>
-                  <p className="text-xs text-slate-500">Eksempelregneark · Café Nord · Salgsdata</p>
-                </div>
-              </div>
-              <span className="rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                Klar til analyse
-              </span>
-            </div>
-
-            <div className="grid border-b border-slate-200 bg-slate-50/80 sm:grid-cols-3 sm:divide-x sm:divide-slate-200">
-              {["Danske kolonner registreret", "Klar til analyse", "Ingen skabelon nødvendig"].map((status) => (
-                <div key={status} className="flex items-center gap-2 border-b border-slate-200 px-4 py-3 text-xs font-medium text-slate-600 last:border-b-0 sm:border-b-0">
-                  <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-emerald-100 text-emerald-700">
-                    <Check className="h-2.5 w-2.5" strokeWidth={3} aria-hidden="true" />
-                  </span>
-                  {status}
-                </div>
-              ))}
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] border-collapse text-left text-sm">
-                <thead className="bg-white text-slate-600">
-                  <tr>
-                    {["Dato", "Produkt", "Kategori", "Nettoomsætning", "Antal"].map((column) => (
-                      <th key={column} className="border-b border-slate-200 px-5 py-3.5 font-semibold">
-                        {column}
-                      </th>
+                <div className="mt-3 rounded-lg border border-[var(--overview-border)] bg-white p-4">
+                  <div className="flex items-center justify-between gap-2"><h2 className="text-sm font-semibold">Hvor ligger omsætningsfaldet?</h2><span className="text-[11px] text-slate-500">Kategorier</span></div>
+                  <p className="mt-1 text-xs text-slate-500">Bidrag til ændringen · i alt −120.000 kr.</p>
+                  <ul className="mt-4 space-y-3">
+                    {drivers.map((driver) => (
+                      <li key={driver.label}>
+                        <div className="mb-1.5 flex justify-between gap-3 text-xs"><span className="text-slate-600">{driver.label}</span><span className="font-medium tabular-nums">{driver.value}</span></div>
+                        <div className="h-2 overflow-hidden rounded-sm bg-slate-100" aria-hidden="true"><div className="h-full rounded-sm bg-brand-500" style={{ width: driver.width }} /></div>
+                      </li>
                     ))}
-                  </tr>
-                </thead>
+                  </ul>
+                </div>
+                <div className="mt-3 rounded-lg border border-[var(--overview-border)] border-l-[3px] border-l-brand-500 bg-white p-4">
+                  <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-brand-700"><FileCheck2 className="h-4 w-4" aria-hidden="true" />Prioriteret indsigt</p>
+                  <p className="mt-2 text-sm font-semibold leading-6">To kategorier står for 68 % af faldet.</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">Tilbehør og Kontorartikler falder samlet 81.600 kr. Start med at undersøge udviklingen i disse kategorier.</p>
+                  <p className="mt-3 border-t border-slate-100 pt-2 text-[11px] text-slate-500">Grundlag: omsætning pr. kategori · april og maj 2026</p>
+                </div>
+                <div className="mt-3 flex items-center gap-3 rounded-lg bg-ink p-3 text-white"><FileText className="h-5 w-5 shrink-0 text-cyan-300" aria-hidden="true" /><div><p className="text-xs font-semibold">Ledelsesrapport</p><p className="mt-0.5 text-[11px] text-slate-300">Nøgletal, prioriterede findings og datagrundlag samlet.</p></div></div>
+              </div>
+              <figcaption id="preview-caption" className="border-t border-slate-200 px-5 py-3 text-[11px] leading-5 text-slate-500">Illustrativt produktpreview med fiktive eksempeldata. Ikke en kundecase.</figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section id="saadan-fungerer-det" className="scroll-mt-8 border-b border-slate-200">
+          <div className="mx-auto max-w-7xl px-6 py-16 lg:px-8 lg:py-20">
+            <p className="text-sm font-semibold text-brand-700">Tre lag i dit beslutningsgrundlag</p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Fra regneark til det, du bør undersøge.</h2>
+            <div className="mt-9 grid gap-6 md:grid-cols-3">
+              {steps.map(({ number, title, icon: Icon, text, detail }) => (
+                <article key={number} className="rounded-xl border border-slate-200 p-6">
+                  <div className="flex items-center justify-between"><span className="text-xs font-semibold tracking-widest text-brand-700">{number}</span><Icon className="h-5 w-5 text-brand-600" aria-hidden="true" /></div>
+                  <h3 className="mt-5 text-xl font-semibold">{title}</h3>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">{text}</p>
+                  <p className="mt-5 border-t border-slate-100 pt-4 text-xs leading-5 text-slate-500">{detail}</p>
+                </article>
+              ))}
+            </div>
+            <div className="mt-6 flex items-start gap-4 rounded-xl bg-paper p-6">
+              <SlidersHorizontal className="mt-1 h-5 w-5 shrink-0 text-brand-700" aria-hidden="true" />
+              <div><h3 className="text-sm font-semibold">Dit fokus bestemmer rækkefølgen.</h3><p className="mt-1 max-w-4xl text-sm leading-6 text-slate-600">Fortæl, hvad du vil følge og forbedre, og tilføj eventuelt KPI-mål. Senvoriq prioriterer dit overblik, dine indsigter og din rapport ud fra svarene. Tal og dokumentation er de samme.</p></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="eksempel" className="scroll-mt-8 border-b border-slate-200 bg-paper">
+          <div className="mx-auto max-w-7xl px-6 py-16 lg:px-8 lg:py-20">
+            <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
+              <div><p className="text-sm font-semibold text-brand-700">Fra nøgletal til dokumenteret indsigt</p><h2 className="mt-3 max-w-2xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Ikke bare hvad der skete — men hvor ændringen kommer fra.</h2></div>
+              <p className="max-w-md text-sm leading-6 text-slate-600">Et dashboard viser udviklingen. Senvoriq forbinder nøgletallene med bidragene fra dine produkter og kategorier, så du ved, hvor du skal se nærmere.</p>
+            </div>
+            <p className="mt-8 inline-flex rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">Eksempeldata · maj mod april 2026 · samme eksempel som ovenfor</p>
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <article className="rounded-xl border border-slate-200 bg-white p-6">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">01 · Ændringen</p><p className="mt-5 text-3xl font-semibold tabular-nums">−12 %</p><h3 className="mt-3 font-semibold">Omsætningen er faldet.</h3><p className="mt-2 text-sm leading-6 text-slate-600">Fra 1.000.000 kr. til 880.000 kr. Det er et fald på 120.000 kr.</p>
+              </article>
+              <article className="rounded-xl border border-brand-100 bg-white p-6">
+                <p className="text-xs font-semibold uppercase tracking-wider text-brand-700">02 · Bidragene</p><p className="mt-5 text-3xl font-semibold tabular-nums text-brand-700">68 %</p><h3 className="mt-3 font-semibold">Faldet er koncentreret i to kategorier.</h3><p className="mt-2 text-sm leading-6 text-slate-600">Tilbehør og Kontorartikler står for 81.600 kr. af det samlede fald på 120.000 kr.</p>
+              </article>
+              <article className="rounded-xl border border-slate-200 bg-white p-6">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">03 · Sammenhængen</p><p className="mt-5 text-3xl font-semibold tabular-nums">40,0 %</p><h3 className="mt-3 font-semibold">Dækningsgraden er stabil.</h3><p className="mt-2 text-sm leading-6 text-slate-600">Dækningsbidraget falder 48.000 kr., mens dækningsgraden er uændret. Undersøg antal, priser og produktmix nærmere.</p>
+              </article>
+            </div>
+            <p className="mt-5 max-w-3xl text-xs leading-6 text-slate-500">Driveranalysen viser, hvor ændringen er registreret. Den fastslår ikke årsagen. En stabil dækningsgrad dokumenterer eksempelvis ikke i sig selv en ændring i volumen.</p>
+          </div>
+        </section>
+
+        <section id="datagrundlag" className="scroll-mt-8 border-b border-slate-200">
+          <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-16 lg:grid-cols-2 lg:px-8 lg:py-20">
+            <div>
+              <p className="text-sm font-semibold text-brand-700">Bygget til hverdagens regneark</p>
+              <h2 className="mt-3 max-w-lg text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Brug de data, du allerede arbejder med.</h2>
+              <p className="mt-5 max-w-lg leading-7 text-slate-600">Du behøver ikke en fast skabelon. Senvoriq genkender danske og engelske kolonnenavne og foreslår automatisk, hvordan de skal tilknyttes.</p>
+              <ul className="mt-6 space-y-3">
+                {["Se præcis, hvilke kolonner der er matchet.", "Ret tilknytningerne, når der er behov for det.", "Få besked om manglende eller ugyldige data."].map((text) => (
+                  <li key={text} className="flex items-start gap-3 text-sm leading-6 text-slate-600"><Check className="mt-1 h-4 w-4 shrink-0 text-brand-700" aria-hidden="true" />{text}</li>
+                ))}
+              </ul>
+            </div>
+            <figure className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft">
+              <div className="flex items-center gap-3 border-b border-slate-200 bg-paper px-6 py-5"><FileSpreadsheet className="h-5 w-5 text-brand-700" aria-hidden="true" /><div><p className="text-sm font-semibold">Kolonnetilknytning</p><p className="mt-1 text-xs text-slate-500">Eksempel på automatisk mapping</p></div></div>
+              <table className="w-full text-left text-sm">
+                <thead><tr className="border-b border-slate-200 text-xs text-slate-500"><th scope="col" className="px-6 py-4 font-medium">I dit regneark</th><th scope="col" className="px-6 py-4 font-medium">Tilknyttet felt</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
-                  {sampleRows.map((row) => (
-                    <tr key={row.join("-")} className="transition hover:bg-brand-50/35">
-                      {row.map((cell, index) => (
-                        <td
-                          key={cell}
-                          className={`px-5 py-4 ${index === 1 ? "font-medium text-ink" : "text-slate-600"}`}
-                        >
-                          {cell}
-                        </td>
-                      ))}
-                    </tr>
+                  {mappings.map(([source, target]) => (
+                    <tr key={source}><td className="px-6 py-4 text-slate-600">{source}</td><td className="px-6 py-4"><span className="inline-flex items-center gap-2 rounded-md bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700"><Check className="h-3 w-3" aria-hidden="true" />{target}</span></td></tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-3 text-xs text-slate-500">
-              <span>Eksempelrækker fra et cafésalgsregneark</span>
-              <span className="font-medium text-brand-700">Danske og engelske kolonnenavne understøttes</span>
-            </div>
+              <figcaption className="border-t border-slate-200 bg-paper px-6 py-4 text-xs leading-5 text-slate-500">Du kan gennemgå og rette matchene. Analysen afhænger af de felter og perioder, regnearket indeholder.</figcaption>
+            </figure>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="relative isolate overflow-hidden border-t border-white/10 bg-[linear-gradient(120deg,#102033_0%,#0d2b3a_52%,#103647_100%)] text-white">
-        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_76%_18%,rgba(8,145,178,0.22),transparent_28%),radial-gradient(circle_at_12%_100%,rgba(249,115,22,0.10),transparent_24%)]" />
-        <div className="pointer-events-none absolute inset-0 -z-10 opacity-[0.15] [background-image:linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:48px_48px]" />
-        <div className="mx-auto flex max-w-6xl flex-col gap-7 px-6 py-16 lg:flex-row lg:items-end lg:justify-start lg:gap-10 lg:px-8">
-          <div className="max-w-2xl">
-            <p className="text-sm font-semibold text-cyan-200">Se DataBrief AI med dine egne data</p>
-            <h2 className="mt-2 text-3xl font-semibold leading-tight sm:text-4xl">
-              Klar til at gøre dit regneark til et dashboard?
-            </h2>
-            <p className="mt-3 max-w-xl leading-7 text-slate-300">
-              Upload dine salgsdata, og få nøgletal, diagrammer og et kort ledelsesresume på få sekunder.
-            </p>
+        <section aria-label="Et gennemskueligt datagrundlag" className="mx-auto grid max-w-7xl gap-8 px-6 py-12 md:grid-cols-3 lg:px-8">
+          {trust.map(({ icon: Icon, title, text }) => (
+            <div key={title}><Icon className="h-5 w-5 text-brand-700" aria-hidden="true" /><h2 className="mt-3 text-sm font-semibold">{title}</h2><p className="mt-2 text-sm leading-6 text-slate-600">{text}</p></div>
+          ))}
+        </section>
+
+        <section className="bg-ink text-white">
+          <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-8 px-6 py-16 lg:flex-row lg:items-center lg:px-8">
+            <div><h2 className="max-w-xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Se hvad der faktisk driver dine tal.</h2><p className="mt-4 max-w-xl leading-7 text-slate-300">Upload dit salgsregneark og få et dokumenteret overblik på få minutter.</p></div>
+            <Link href="/upload" className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-cyan-300 px-6 py-3.5 text-sm font-semibold text-ink transition hover:bg-cyan-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300">Analysér mine data<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
           </div>
-          <Link
-            href="/upload"
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold text-ink shadow-[0_14px_32px_rgba(0,0,0,0.22)] transition hover:bg-brand-50 sm:w-auto"
-          >
-            Upload salgsdata
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Link>
-        </div>
-      </section>
-    </main>
+        </section>
+      </main>
+      <footer className="bg-ink text-slate-400"><div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 border-t border-white/10 px-6 py-6 text-xs lg:px-8"><span className="font-semibold text-slate-200">Senvoriq</span><span>Salgsdata. Dokumenteret indsigt. Bedre beslutningsgrundlag.</span></div></footer>
+    </div>
   );
 }

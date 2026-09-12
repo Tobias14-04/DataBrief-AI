@@ -142,7 +142,7 @@ export const AnalysisPreferencesOnboarding = memo(function AnalysisPreferencesOn
               <FileSpreadsheet className="h-5 w-5" aria-hidden="true" />
             </span>
             <div>
-              <p className="font-semibold text-white">DataBrief AI</p>
+              <p className="font-semibold text-white">Senvoriq</p>
               <p className="text-xs text-slate-300">Dit regneark er klar</p>
             </div>
           </div>

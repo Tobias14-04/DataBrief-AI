@@ -76,7 +76,7 @@ export function ExcelProcessingView({ fileName, status }: ExcelProcessingViewPro
             <FileSpreadsheet className="h-[18px] w-[18px]" aria-hidden="true" />
           </span>
           <div className="hidden xl:block">
-            <p className="text-sm font-semibold text-white">DataBrief AI</p>
+            <p className="text-sm font-semibold text-white">Senvoriq</p>
             <p className="mt-0.5 text-xs text-slate-400">Behandler regneark</p>
           </div>
         </div>
