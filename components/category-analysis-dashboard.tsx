@@ -93,7 +93,7 @@ function downloadCategoryCsv(
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = "databrief-kategorier.csv";
+  anchor.download = "senvoriq-kategorier.csv";
   anchor.click();
   URL.revokeObjectURL(url);
 }

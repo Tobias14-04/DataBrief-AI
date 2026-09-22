@@ -1301,7 +1301,7 @@ function createSampleWorkbook() {
 
 function downloadSampleExcel() {
   const workbook = createSampleWorkbook();
-  XLSX.writeFile(workbook, "databrief-ai-eksempelregneark.xlsx");
+  XLSX.writeFile(workbook, "senvoriq-eksempelregneark.xlsx");
 }
 
 const kpiIconMap: Record<KpiIcon, LucideIcon> = {

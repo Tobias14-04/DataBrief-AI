@@ -1029,7 +1029,7 @@ function downloadCostCsv(
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = "databrief-omkostninger.csv";
+  anchor.download = "senvoriq-omkostninger.csv";
   anchor.click();
   URL.revokeObjectURL(url);
 }
