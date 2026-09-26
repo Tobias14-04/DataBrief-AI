@@ -14,6 +14,7 @@ import {
   normalizeForComparison,
 } from "./data-labels.ts";
 import { normalizeColumnHeader, salesColumnAliases } from "./spreadsheet-fields.ts";
+import { isFiniteNumber, parseNumericValue, parsePercentageValue, safeRatio } from "./numeric-foundation.ts";
 
 export type KpiCategory =
   | "Salg"
@@ -273,21 +274,8 @@ const normalizedSourceRowCache = new WeakMap<Record<string, unknown>, Normalized
 const normalizedSourceSchemaCache = new Map<string, NormalizedKpiSourceSchema>();
 const MAX_CACHED_SOURCE_SCHEMAS = 64;
 
-function toNumericValue(value: unknown) {
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (typeof value !== "string") return null;
-  const text = value.trim();
-  if (!text) return null;
-  const isPercent = text.includes("%");
-  const cleaned = text.replace(/\s/g, "").replace(/[^\d,.-]/g, "");
-  const normalized = cleaned.includes(",") && cleaned.includes(".")
-    ? cleaned.lastIndexOf(",") > cleaned.lastIndexOf(".")
-      ? cleaned.replace(/\./g, "").replace(",", ".")
-      : cleaned.replace(/,/g, "")
-    : cleaned.replace(",", ".");
-  const parsed = Number(normalized);
-  if (!Number.isFinite(parsed)) return null;
-  return isPercent && parsed > 1 ? parsed / 100 : parsed;
+function toNumericValue(value: unknown, field?: KpiDataField) {
+  return field === "grossMargin" ? parsePercentageValue(value) : parseNumericValue(value);
 }
 
 export function matchKpiField(column: string): KpiDataField | null {
@@ -331,7 +319,7 @@ function normalizeKpiSourceRow(sourceValues: Record<string, unknown>): Normalize
       const value = sourceValues[column];
       if (value === "" || value === null || value === undefined) return;
       (normalized.rawValues[field] ??= []).push(value);
-      const numericValue = toNumericValue(value);
+      const numericValue = toNumericValue(value, field);
       if (numericValue !== null) (normalized.numericValues[field] ??= []).push(numericValue);
       if (!(field in normalized.values)) {
         normalized.values[field] = value;
@@ -386,7 +374,7 @@ export function buildKpiDataProfile(
     if (values.length) {
       (rawValues[field] ??= []).push(...values);
       values.forEach((value) => {
-        const numericValue = toNumericValue(value);
+        const numericValue = toNumericValue(value, field);
         if (numericValue !== null) (numericValues[field] ??= []).push(numericValue);
       });
       if (!matchedColumns[field]?.length) {
@@ -481,8 +469,9 @@ function uniqueCount(profile: KpiDataProfile, field: KpiDataField) {
 }
 
 function ratio(numerator: number, denominator: number, label: string) {
-  if (!denominator) throw new Error(`${label} kan ikke beregnes, fordi grundlaget er 0.`);
-  return numerator / denominator;
+  const result = safeRatio(numerator, denominator);
+  if (result === null) throw new Error(`${label} kan ikke beregnes ud fra det aktuelle grundlag.`);
+  return result;
 }
 
 function average(values: number[], label: string) {
@@ -491,7 +480,7 @@ function average(values: number[], label: string) {
 }
 
 function rowNumber(row: KpiDataProfile["rows"][number], field: KpiDataField) {
-  return toNumericValue(row.values[field]);
+  return toNumericValue(row.values[field], field);
 }
 
 function rowText(row: KpiDataProfile["rows"][number], field: KpiDataField) {
@@ -764,7 +753,7 @@ export const standardKpiDefinitions: RegisteredKpiDefinition[] = [
   defineKpi({ id: "total-revenue", name: "Samlet omsætning", description: "Summen af den registrerede omsætning", category: "Salg", level: "recommended", placement: "primary", format: "currency", icon: "revenue", color: "cyan", requirements: requirements(["revenue"]), calculate: ({ context }) => ({ value: context.totalRevenue, detail: "Beregnet ud fra omsætningskolonnen" }) }),
   defineKpi({ id: "total-units", name: "Samlet antal solgte enheder", description: "Summen af den registrerede antalskolonne", category: "Salg", level: "recommended", placement: "primary", format: "integer", icon: "units", color: "navy", requirements: requirements(["units"]), calculate: ({ context }) => ({ value: context.totalUnits, detail: "Beregnet ud fra antalskolonnen" }) }),
   defineKpi({ id: "gross-profit", name: "Dækningsbidrag", description: "Omsætning efter variable omkostninger", category: "Indtjening", level: "recommended", placement: "primary", format: "currency", icon: "profit", color: "green", requirements: requirements(["grossProfit"]), calculate: ({ context }) => ({ value: context.totalGrossProfit, detail: "Beregnet ud fra dækningsbidraget" }) }),
-  defineKpi({ id: "gross-margin", name: "Dækningsgrad", description: "Dækningsbidrag som andel af omsætningen", category: "Indtjening", format: "percent", decimals: 1, icon: "profit", color: "green", requirements: requirements(["revenue"], [{ fields: ["grossProfit", "grossMargin"], label: "Dækningsbidrag eller dækningsgrad" }]), calculate: ({ context }) => ({ value: context.grossMargin, detail: "Beregnet ud fra dækningsdata" }) }),
+  defineKpi({ id: "gross-margin", name: "Dækningsgrad", description: "Dækningsbidrag som andel af omsætningen", category: "Indtjening", format: "percent", decimals: 1, icon: "profit", color: "green", requirements: requirements(["revenue"], [{ fields: ["grossProfit", "grossMargin"], label: "Dækningsbidrag eller dækningsgrad" }]), calculate: ({ context }) => { if (context.grossMargin === null) throw new Error(context.grossMarginReason ?? "Dækningsgrad er ikke tilgængelig i den aktuelle visning."); return { value: context.grossMargin, detail: "Beregnet ud fra dækningsdata" }; } }),
   defineKpi({ id: "total-costs", name: "Samlede omkostninger", description: "Registrerede omkostninger i den aktuelle visning", category: "Indtjening", format: "currency", icon: "target", color: "orange", requirements: requirements([], [{ fields: ["cost", "grossProfit"], label: "Omkostninger eller dækningsbidrag" }]), calculate: ({ context }) => ({ value: context.totalCosts, detail: "Beregnet ud fra omkostningsdata" }) }),
   defineKpi({ id: "result", name: "Resultat", description: "Omsætning minus registrerede omkostninger", category: "Indtjening", format: "currency", icon: "profit", color: "green", requirements: requirements(["revenue"], [{ fields: ["cost", "grossProfit"], label: "Omkostninger eller dækningsbidrag" }]), calculate: ({ context }) => ({ value: context.actualResult, detail: "Omsætning minus omkostninger" }) }),
   defineKpi({ id: "revenue-vs-budget", name: "Omsætning mod budget", description: "Forskel mellem faktisk og budgetteret omsætning", category: "Budget", placement: "primary", format: "currency", icon: "target", color: "orange", requirements: requirements(["revenue", "budgetRevenue"]), calculate: ({ context }) => ({ value: context.revenueVsBudget, detail: "Faktisk omsætning sammenholdt med budget" }) }),
@@ -895,6 +884,9 @@ export function evaluateRegisteredKpi(
   }
   try {
     const result = definition.calculate({ context, profile });
+    if (typeof result.value === "number" && !isFiniteNumber(result.value)) {
+      throw new Error("Beregningen gav ikke et gyldigt endeligt tal.");
+    }
     return { available: true, value: result.value, detail: result.detail, missingFields: [], matchedFields: status.matched };
   } catch (error) {
     const reason = error instanceof Error ? error.message : "Beregningen kunne ikke udføres.";

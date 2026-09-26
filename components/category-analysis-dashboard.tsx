@@ -190,9 +190,9 @@ function CategoryRanking({
   if (!visibleRows.length) {
     return (
       <CommandEmptyState
-        title={valueKey === "grossMargin" ? "Dækningsbidrag mangler" : "Ingen kategoriomsætning"}
+        title={valueKey === "grossMargin" ? "Dækningsgrad er utilgængelig" : "Ingen kategoriomsætning"}
         message={valueKey === "grossMargin"
-          ? "Dækningsgrad kræver registreret dækningsbidrag og positiv omsætning."
+          ? "Dækningsgrad kræver komplet dækningsbidrag eller dækningsgrad og omsætning forskellig fra 0."
           : "Der er ingen kategorier med omsætning i den aktuelle visning."}
         tone={tone}
       />
@@ -317,14 +317,16 @@ export function CategoryAnalysisDashboard({
   );
   const analysisHasCategories = analysis.hasCategories;
   const analysisHasGrossProfit = analysis.hasGrossProfit;
+  const analysisHasGrossMargin = analysis.hasGrossMargin;
   const analysisHasCosts = analysis.hasCosts;
   const availableColumns = useMemo(
     () => getAvailableCategoryColumns({
       hasCategories: analysisHasCategories,
       hasGrossProfit: analysisHasGrossProfit,
+      hasGrossMargin: analysisHasGrossMargin,
       hasCosts: analysisHasCosts,
     }),
-    [analysisHasCategories, analysisHasCosts, analysisHasGrossProfit],
+    [analysisHasCategories, analysisHasCosts, analysisHasGrossProfit, analysisHasGrossMargin],
   );
   const [selectedColumns, setSelectedColumns] = useState<CategoryColumnKey[]>(availableColumns);
   const [columnsHydrated, setColumnsHydrated] = useState(false);
@@ -364,13 +366,15 @@ export function CategoryAnalysisDashboard({
   const enabledMetricOptions = useMemo(
     () => categoryMetricOptions.map((option) => ({
       ...option,
-      disabled: (option.value === "grossProfit" || option.value === "grossMargin")
+      disabled: option.value === "grossProfit"
         ? !analysis.hasGrossProfit
+        : option.value === "grossMargin"
+          ? !analysis.hasGrossMargin
         : (option.value === "cost" || option.value === "costShare")
           ? !analysis.hasCosts
           : false,
     })),
-    [analysis.hasCosts, analysis.hasGrossProfit],
+    [analysis.hasCosts, analysis.hasGrossProfit, analysis.hasGrossMargin],
   );
   const effectiveSortKey = enabledMetricOptions.find((option) => (
     option.value === sortKey && !option.disabled

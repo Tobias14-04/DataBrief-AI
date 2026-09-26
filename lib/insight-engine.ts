@@ -5,7 +5,9 @@ import {
   formatDanishMonth,
   monthSortKey,
 } from "./dashboard-insights.ts";
-import { resolveRegisteredCost, safeRatio } from "./cost-intelligence.ts";
+import { resolveRegisteredCost } from "./cost-intelligence.ts";
+import { resolveGrossMargin } from "./gross-margin.ts";
+import { isFiniteNumber as finite, safeRatio } from "./numeric-foundation.ts";
 import {
   chooseRepresentativeLabel,
   comparableLabel,
@@ -265,10 +267,6 @@ function createAccumulator(): Accumulator {
   };
 }
 
-function finite(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
-}
-
 function addRow(target: Accumulator, row: InsightSourceRow) {
   target.rowCount += 1;
   if (finite(row.revenue)) {
@@ -316,11 +314,7 @@ function metricValue(accumulator: Accumulator, metric: InsightMetricKey): number
     : null;
   if (metric === "grossProfit") value = grossProfitAvailable ? accumulator.grossProfit : null;
   if (metric === "grossMargin") {
-    value = grossProfitAvailable && revenueAvailable
-      ? safeRatio(accumulator.grossProfit, accumulator.revenue)
-      : adequate(accumulator.marginCount, accumulator.rowCount)
-        ? safeRatio(accumulator.weightedMargin, accumulator.marginRevenue)
-        : null;
+    value = resolveGrossMargin(accumulator).value;
   }
   if (metric === "cost") value = costAvailable ? accumulator.cost : null;
   if (metric === "result") value = revenueAvailable && costAvailable
@@ -335,6 +329,9 @@ function metricValue(accumulator: Accumulator, metric: InsightMetricKey): number
 function metricCoverage(accumulator: Accumulator, metric: InsightMetricKey) {
   if (metric === "units" || metric === "averagePrice") return coverage(accumulator.unitsCount, accumulator.rowCount);
   if (metric === "grossProfit" || metric === "grossMargin") {
+    if (metric === "grossMargin") {
+      return resolveGrossMargin(accumulator).value === null ? 0 : 1;
+    }
     return Math.max(
       coverage(accumulator.grossProfitCount, accumulator.rowCount),
       coverage(accumulator.marginCount, accumulator.rowCount),

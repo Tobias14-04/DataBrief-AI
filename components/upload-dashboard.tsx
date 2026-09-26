@@ -156,6 +156,7 @@ import {
   type DashboardFilters,
 } from "@/lib/dashboard-filtering";
 import { calculateDashboardMetrics } from "@/lib/dashboard-metrics";
+import { isFiniteNumber, parseNumericValue, parsePercentageValue } from "@/lib/numeric-foundation";
 import { buildCostIntelligence } from "@/lib/cost-intelligence";
 import {
   chooseRepresentativeLabel,
@@ -443,28 +444,7 @@ const sampleRows = demoMonths.flatMap((month, monthOffset) =>
 );
 
 function toNumber(value: unknown) {
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : null;
-  }
-
-  const text = String(value ?? "").trim();
-  if (!text) {
-    return null;
-  }
-
-  const isPercent = text.includes("%");
-  const normalized = text
-    .replace(/\s/g, "")
-    .replace(/[^\d,.-]/g, "")
-    .replace(/\.(?=\d{3}(\D|$))/g, "")
-    .replace(",", ".");
-  const parsed = Number(normalized);
-
-  if (!Number.isFinite(parsed)) {
-    return null;
-  }
-
-  return isPercent && parsed > 1 ? parsed / 100 : parsed;
+  return parseNumericValue(value);
 }
 
 function toDate(value: unknown) {
@@ -700,7 +680,10 @@ function getRevenue(row: Record<string, unknown>, mappings: FieldMappings) {
   const units = toNumber(getCell(row, mappings, "units"));
   const unitPrice = toNumber(getCell(row, mappings, "unitPrice"));
   if (units !== null && unitPrice !== null) {
-    return { value: units * unitPrice, source: `${mappings.units ?? "Antal"} × ${mappings.unitPrice ?? "Pris"}` };
+    const calculatedRevenue = units * unitPrice;
+    if (isFiniteNumber(calculatedRevenue)) {
+      return { value: calculatedRevenue, source: `${mappings.units ?? "Antal"} × ${mappings.unitPrice ?? "Pris"}` };
+    }
   }
 
   return { value: null, source: "" };
@@ -784,8 +767,7 @@ function parseSalesRows(candidate: SheetCandidate, mappings = candidate.mappings
       const units = toNumber(getCell(row, mappings, "units"));
       const revenue = getRevenue(row, mappings);
       const grossProfit = toNumber(getCell(row, mappings, "grossProfit"));
-      const rawGrossMargin = toNumber(getCell(row, mappings, "grossMargin"));
-      const grossMargin = rawGrossMargin !== null && rawGrossMargin > 1 ? rawGrossMargin / 100 : rawGrossMargin;
+      const grossMargin = parsePercentageValue(getCell(row, mappings, "grossMargin"));
       const cost = toNumber(getCell(row, mappings, "cost"));
 
       const isBlankRow = !rawDate && !product && !category && units === null && revenue.value === null;
@@ -1221,8 +1203,12 @@ function buildExecutiveSummary(
   }
 
   const isFiltered = Boolean(context.activeFilters?.length);
-  const profitabilityInsight = metrics.hasGrossProfit
+  const profitabilityInsight = metrics.grossMarginSource === "gross-profit" && metrics.grossMargin !== null
     ? `Dækningsbidraget er ${currency(metrics.totalGrossProfit)} med en dækningsgrad på ${percent(metrics.grossMargin)}.`
+    : metrics.grossMarginSource === "weighted-margin" && metrics.grossMargin !== null
+      ? `Dækningsgraden er ${percent(metrics.grossMargin)} beregnet som et omsætningsvægtet gennemsnit.`
+      : metrics.hasGrossProfit || metrics.hasGrossMargin
+        ? metrics.grossMarginReason ?? "Dækningsgrad er utilgængelig i den aktuelle visning."
     : metrics.hasCosts
       ? `Det aktuelle resultat er ${currency(metrics.actualResult)} efter omkostninger på ${currency(metrics.totalCosts)}`
       : `${formatDanishMonth(metrics.bestMonth.name)} er den stærkeste måned med en omsætning på ${currency(metrics.bestMonth.revenue)}`;
@@ -1240,7 +1226,7 @@ function buildExecutiveSummary(
     },
     {
       text: profitabilityInsight,
-      topics: metrics.hasGrossProfit
+      topics: metrics.hasGrossProfit || metrics.hasGrossMargin
         ? ["profitability"]
         : metrics.hasCosts
           ? ["costs", "profitability"]
@@ -2228,9 +2214,9 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
         revenue: reportMetrics.totalRevenue,
         rowCount: reportMetrics.rowCount,
         units: reportMetrics.totalUnits,
-        grossProfit: reportMetrics.hasGrossProfit ? reportMetrics.totalGrossProfit : null,
-        grossMargin: !reportMetrics.hasGrossProfit && reportMetrics.hasGrossMargin ? reportMetrics.grossMargin : null,
-        result: !reportMetrics.hasGrossProfit && !reportMetrics.hasGrossMargin && reportMetrics.hasCosts
+        grossProfit: reportMetrics.grossMarginSource === "gross-profit" ? reportMetrics.totalGrossProfit : null,
+        grossMargin: reportMetrics.grossMarginSource === "weighted-margin" ? reportMetrics.grossMargin : null,
+        result: reportMetrics.grossMarginSource === null && !reportMetrics.hasGrossProfit && !reportMetrics.hasGrossMargin && reportMetrics.hasCosts
           ? reportMetrics.actualResult
           : null,
         budget: hasBudget ? { deviation, status: budgetStatus } : null,
@@ -2570,7 +2556,7 @@ export default function UploadDashboard() {
   const hasData = allRows.length > 0;
   const hasFilteredData = metrics.rowCount > 0;
   const marginChartMode = hasData
-    ? getAdaptiveMarginChartMode(baseMetrics.hasGrossProfit, baseMetrics.hasGrossMargin)
+    ? getAdaptiveMarginChartMode(baseMetrics.grossMarginSource === "gross-profit", baseMetrics.grossMarginSource === "weighted-margin")
     : "empty";
   const marginChartData = marginChartMode === "grossProfit"
     ? metrics.grossProfitByCategory

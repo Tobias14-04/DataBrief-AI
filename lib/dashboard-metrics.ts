@@ -3,6 +3,8 @@ import {
   chooseRepresentativeLabel,
   comparableLabel,
 } from "./data-labels.ts";
+import { addGrossMarginRow, createGrossMarginBasis, resolveGrossMargin, type GrossMarginBasis } from "./gross-margin.ts";
+import { isFiniteNumber } from "./numeric-foundation.ts";
 
 export type DashboardMetricRow = {
   date: Date | null;
@@ -23,6 +25,9 @@ type GroupedValue = {
   grossProfit: number;
   cost: number;
   grossMargin?: number;
+  grossMarginCount?: number;
+  weightedGrossMargin?: number;
+  revenueCount?: number;
   rowCount?: number;
   grossProfitCount?: number;
   costCount?: number;
@@ -43,8 +48,7 @@ export function calculateDashboardMetrics(
   options: { useWorkbookTotals?: boolean; budgetScale?: number } = {},
 ) {
   type GroupAccumulator = GroupedValue & {
-    grossMarginTotal: number;
-    grossMarginCount: number;
+    marginBasis: GrossMarginBasis;
   };
 
   const products = new Map<string, GroupAccumulator>();
@@ -53,8 +57,7 @@ export function calculateDashboardMetrics(
   let totalRevenue = 0;
   let totalUnits = 0;
   let totalGrossProfit = 0;
-  let grossMarginTotal = 0;
-  let grossMarginCount = 0;
+  const marginBasis = createGrossMarginBasis();
   let rowCosts = 0;
   let hasGrossProfit = false;
   let hasGrossMargin = false;
@@ -71,40 +74,35 @@ export function calculateDashboardMetrics(
       units: 0,
       grossProfit: 0,
       cost: 0,
-      grossMarginTotal: 0,
-      grossMarginCount: 0,
+      marginBasis: createGrossMarginBasis(),
       rowCount: 0,
       grossProfitCount: 0,
       costCount: 0,
     };
     current.name = chooseRepresentativeLabel(current.name, identity.label);
-    current.revenue += row.revenue;
+    current.revenue += isFiniteNumber(row.revenue) ? row.revenue : 0;
     current.units += row.units;
-    current.grossProfit += row.grossProfit ?? 0;
+    current.grossProfit += isFiniteNumber(row.grossProfit) ? row.grossProfit : 0;
     current.cost += row.grossProfit !== null ? row.revenue - row.grossProfit : (row.cost ?? 0);
     current.rowCount = (current.rowCount ?? 0) + 1;
-    if (row.grossProfit !== null) {
+    if (isFiniteNumber(row.grossProfit)) {
       current.grossProfitCount = (current.grossProfitCount ?? 0) + 1;
     }
     if (row.cost !== null || row.grossProfit !== null) {
       current.costCount = (current.costCount ?? 0) + 1;
     }
-    if (row.grossMargin !== null) {
-      current.grossMarginTotal += row.grossMargin;
-      current.grossMarginCount += 1;
-    }
+    addGrossMarginRow(current.marginBasis, row);
     groups.set(identity.key, current);
   }
 
   rows.forEach((row, index) => {
-    totalRevenue += row.revenue;
+    totalRevenue += isFiniteNumber(row.revenue) ? row.revenue : 0;
     totalUnits += row.units;
-    totalGrossProfit += row.grossProfit ?? 0;
-    if (row.grossProfit !== null) hasGrossProfit = true;
-    if (row.grossMargin !== null) {
+    totalGrossProfit += isFiniteNumber(row.grossProfit) ? row.grossProfit : 0;
+    if (isFiniteNumber(row.grossProfit)) hasGrossProfit = true;
+    addGrossMarginRow(marginBasis, row);
+    if (isFiniteNumber(row.grossMargin)) {
       hasGrossMargin = true;
-      grossMarginTotal += row.grossMargin;
-      grossMarginCount += 1;
     }
     if (row.cost !== null || row.grossProfit !== null) hasRowCosts = true;
     if (row.product.trim()) hasProductData = true;
@@ -137,13 +135,15 @@ export function calculateDashboardMetrics(
   });
 
   const finalizeGroups = (groups: Map<string, GroupAccumulator>) =>
-    Array.from(groups.values()).map(({ grossMarginTotal: marginTotal, grossMarginCount: marginCount, ...group }) => ({
+    Array.from(groups.values()).map(({ marginBasis: groupBasis, ...group }) => ({
       ...group,
-      grossMargin: marginCount ? marginTotal / marginCount : undefined,
+      grossMargin: resolveGrossMargin(groupBasis).value ?? undefined,
+      grossMarginCount: groupBasis.marginCount,
+      weightedGrossMargin: groupBasis.weightedMargin,
+      revenueCount: groupBasis.revenueCount,
     }));
 
-  const weightedGrossMargin = totalRevenue ? totalGrossProfit / totalRevenue : 0;
-  const averageGrossMargin = grossMarginTotal / Math.max(grossMarginCount, 1);
+  const grossMarginResult = resolveGrossMargin(marginBasis);
   const totalCosts = options.useWorkbookTotals !== false && feedback?.costs ? feedback.costs.total : rowCosts;
   const actualResult = totalRevenue - totalCosts;
   const productValues = finalizeGroups(products);
@@ -169,7 +169,9 @@ export function calculateDashboardMetrics(
     totalRevenue,
     totalUnits,
     totalGrossProfit,
-    grossMargin: hasGrossProfit ? weightedGrossMargin : averageGrossMargin,
+    grossMargin: grossMarginResult.value,
+    grossMarginReason: grossMarginResult.reason,
+    grossMarginSource: grossMarginResult.source,
     hasGrossProfit,
     hasGrossMargin,
     hasCosts: Boolean((options.useWorkbookTotals !== false && feedback?.costs) || hasRowCosts),

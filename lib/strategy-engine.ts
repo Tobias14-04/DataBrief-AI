@@ -4,6 +4,7 @@ import {
   formatDanishPercent,
 } from "./dashboard-insights.ts";
 import { normalizeForComparison } from "./data-labels.ts";
+import { isFiniteNumber as finite, safeRatio } from "./numeric-foundation.ts";
 import type {
   InsightAnalysis,
   InsightDimension,
@@ -97,16 +98,6 @@ const reliabilityRank: Record<InsightReliability, number> = {
   medium: 1,
   high: 2,
 };
-
-function finite(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
-}
-
-function safeRatio(numerator: number, denominator: number) {
-  if (!finite(numerator) || !finite(denominator) || denominator === 0) return null;
-  const value = numerator / denominator;
-  return finite(value) ? value : null;
-}
 
 function stableId(...parts: string[]) {
   return parts.map((part) => {

@@ -135,13 +135,8 @@ export function resolveRegisteredCost(row: CostIntelligenceRow) {
   return null;
 }
 
-export function safeRatio(numerator: number, denominator: number) {
-  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) {
-    return null;
-  }
-  const value = numerator / denominator;
-  return Number.isFinite(value) ? value : null;
-}
+export { safeRatio } from "./numeric-foundation.ts";
+import { safeRatio } from "./numeric-foundation.ts";
 
 export function calculateCostBudgetVariance(actual: number, budget: number) {
   const variance = actual - budget;

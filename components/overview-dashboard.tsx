@@ -453,9 +453,9 @@ export const OverviewAnalysisPreviewGrid = memo(function OverviewAnalysisPreview
   priority: AnalysisOverviewPriority | null;
   onNavigate: (view: DashboardView) => void;
 }) {
-  const coverageItems = coverage.map((item) => ({
+  const coverageItems = coverage.filter((item) => coverageMode !== "grossMargin" || Number.isFinite(item.grossMargin)).map((item) => ({
     name: item.name,
-    value: coverageMode === "grossMargin" ? (item.grossMargin ?? 0) : item.grossProfit,
+    value: coverageMode === "grossMargin" ? item.grossMargin! : item.grossProfit,
   }));
 
   return (
@@ -501,7 +501,7 @@ export const OverviewAnalysisPreviewGrid = memo(function OverviewAnalysisPreview
           <RankedPreviewCard
             eyebrow="Indtjening"
             title={coverageMode === "grossMargin" ? "Dækningsgrad pr. kategori" : "Dækningsbidrag pr. kategori"}
-            description={coverageMode === "grossMargin" ? "Gennemsnitlig dækningsgrad" : "Bidrag til den samlede indtjening"}
+            description={coverageMode === "grossMargin" ? "Omsætningsvægtet dækningsgrad" : "Bidrag til den samlede indtjening"}
             icon={TrendingUp}
             tone="positive"
             items={coverageItems}

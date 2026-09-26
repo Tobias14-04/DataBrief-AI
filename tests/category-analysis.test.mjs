@@ -235,7 +235,7 @@ test("0 omsætning og manglende datagrundlag giver ingen misvisende procentsats"
   assert.equal(analysis.rows[0].costShare, null);
   assert.deepEqual(
     getAvailableCategoryColumns(analysis),
-    ["name", "revenue", "revenueShare", "grossProfit", "grossMargin"],
+    ["name", "revenue", "revenueShare", "grossProfit"],
   );
 });
 

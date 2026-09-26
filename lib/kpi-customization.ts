@@ -4,6 +4,7 @@ import {
   type KpiCategory,
   type KpiDataProfile,
 } from "./kpi-registry.ts";
+import { parseNumericValue } from "./numeric-foundation.ts";
 
 export {
   buildKpiDataProfile,
@@ -67,7 +68,8 @@ export type StandardKpiContext = {
   totalRevenue: number;
   totalUnits: number;
   totalGrossProfit: number;
-  grossMargin: number;
+  grossMargin: number | null;
+  grossMarginReason?: string | null;
   totalCosts: number;
   actualResult: number;
   revenueVsBudget: number;
@@ -127,18 +129,7 @@ export function evaluateStandardKpis(
 }
 
 function toNumericValue(value: unknown) {
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (typeof value !== "string") return null;
-  const cleaned = value.trim().replace(/\s/g, "").replace(/[^\d,.-]/g, "");
-  if (!cleaned) return null;
-  const normalized = cleaned.includes(",") && cleaned.includes(".")
-    ? cleaned.lastIndexOf(",") > cleaned.lastIndexOf(".")
-      ? cleaned.replace(/\./g, "").replace(",", ".")
-      : cleaned.replace(/,/g, "")
-    : cleaned.replace(",", ".");
-  const parsed = Number(normalized);
-  if (!Number.isFinite(parsed)) return null;
-  return value.includes("%") ? parsed / 100 : parsed;
+  return parseNumericValue(value);
 }
 
 export function getNumericColumns(rows: KpiSourceRow[]) {
@@ -169,14 +160,17 @@ function evaluateAggregate(formula: Extract<KpiFormula, { type: "aggregate" }>, 
     throw new Error(`Kolonnen ‘${formula.column}’ kan ikke bruges med ${formula.function}, da den ikke indeholder numeriske værdier.`);
   }
   if (!numericValues.length) return 0;
+  let result: number;
   switch (formula.function) {
-    case "SUM": return numericValues.reduce((sum, value) => sum + value, 0);
-    case "AVG": return numericValues.reduce((sum, value) => sum + value, 0) / numericValues.length;
-    case "COUNT": return numericValues.length;
-    case "COUNT_UNIQUE": return new Set(numericValues).size;
-    case "MIN": return Math.min(...numericValues);
-    case "MAX": return Math.max(...numericValues);
+    case "SUM": result = numericValues.reduce((sum, value) => sum + value, 0); break;
+    case "AVG": result = numericValues.reduce((sum, value) => sum + value, 0) / numericValues.length; break;
+    case "COUNT": result = numericValues.length; break;
+    case "COUNT_UNIQUE": result = new Set(numericValues).size; break;
+    case "MIN": result = Math.min(...numericValues); break;
+    case "MAX": result = Math.max(...numericValues); break;
   }
+  if (!Number.isFinite(result)) throw new Error("Beregningen gav ikke et gyldigt endeligt tal.");
+  return result;
 }
 
 export function evaluateFormula(formula: KpiFormula, rows: KpiSourceRow[], depth = 0): number {
@@ -191,10 +185,12 @@ export function evaluateFormula(formula: KpiFormula, rows: KpiSourceRow[], depth
   const left = evaluateFormula(formula.left, rows, depth + 1);
   const right = evaluateFormula(formula.right, rows, depth + 1);
   if (formula.operator === "/" && right === 0) throw new Error("Beregningen kan ikke udføres, fordi nævneren er 0 i den aktuelle visning.");
-  if (formula.operator === "+") return left + right;
-  if (formula.operator === "-") return left - right;
-  if (formula.operator === "*") return left * right;
-  return left / right;
+  const result = formula.operator === "+" ? left + right
+    : formula.operator === "-" ? left - right
+      : formula.operator === "*" ? left * right
+        : left / right;
+  if (!Number.isFinite(result)) throw new Error("Beregningen gav ikke et gyldigt endeligt tal.");
+  return result;
 }
 
 export function formulaToText(formula: KpiFormula): string {

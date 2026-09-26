@@ -1,4 +1,6 @@
 import { buildExcelCompatibleCsv, displayLabel, normalizeForComparison } from "./data-labels.ts";
+import { resolveGrossMargin, type GrossMarginBasis } from "./gross-margin.ts";
+import { isFiniteNumber, safeRatio } from "./numeric-foundation.ts";
 
 export type CategoryMetricKey =
   | "revenue"
@@ -18,6 +20,10 @@ export type CategoryMetricInput = {
   cost: number;
   rowCount?: number;
   grossProfitCount?: number;
+  grossMargin?: number | null;
+  grossMarginCount?: number;
+  weightedGrossMargin?: number;
+  revenueCount?: number;
   costCount?: number;
 };
 
@@ -174,10 +180,22 @@ export function buildCategoryAnalysis(
       const name = displayLabel(category.name, "");
       const revenue = finiteOrNull(category.revenue) ?? 0;
       const rowCount = Math.max(0, Math.trunc(category.rowCount ?? 0));
-      const grossProfitCount = Math.max(
+      const grossProfitCount = hasGrossProfit ? Math.max(
         0,
         Math.trunc(category.grossProfitCount ?? (rowCount ? 0 : 1)),
-      );
+      ) : 0;
+      const revenueCount = Math.max(0, Math.trunc(category.revenueCount ?? (rowCount || 1)));
+      const grossMarginCount = Math.max(0, Math.trunc(category.grossMarginCount ?? (isFiniteNumber(category.grossMargin) ? (rowCount || 1) : 0)));
+      const basis: GrossMarginBasis = {
+        rowCount: rowCount || 1,
+        revenue,
+        revenueCount,
+        grossProfit: finiteOrNull(category.grossProfit) ?? 0,
+        grossProfitCount,
+        weightedMargin: finiteOrNull(category.weightedGrossMargin)
+          ?? (isFiniteNumber(category.grossMargin) ? category.grossMargin * revenue : 0),
+        marginCount: grossMarginCount,
+      };
       const costCount = Math.max(
         0,
         Math.trunc(category.costCount ?? (rowCount ? 0 : 1)),
@@ -196,6 +214,7 @@ export function buildCategoryAnalysis(
           : null,
         cost: costAvailable ? finiteOrNull(category.cost) : null,
         rowCount,
+        marginBasis: basis,
       };
     })
     .filter((category) => category.name);
@@ -209,12 +228,10 @@ export function buildCategoryAnalysis(
     && normalized.every((category) => category.cost !== null);
   const rows: CategoryAnalysisRow[] = normalized.map((category) => ({
     ...category,
-    revenueShare: totalRevenue !== 0 ? category.revenue / totalRevenue : null,
-    grossMargin: category.grossProfit !== null && category.revenue > 0
-      ? category.grossProfit / category.revenue
-      : null,
-    costShare: hasCompleteCostCoverage && category.cost !== null && totalCosts !== 0
-      ? category.cost / totalCosts
+    revenueShare: safeRatio(category.revenue, totalRevenue),
+    grossMargin: resolveGrossMargin(category.marginBasis).value,
+    costShare: hasCompleteCostCoverage && category.cost !== null
+      ? safeRatio(category.cost, totalCosts)
       : null,
   }));
   const grossMarginRows = rows.filter((row) => row.grossMargin !== null);
@@ -229,17 +246,16 @@ export function buildCategoryAnalysis(
     && lowestGrossMarginValue !== null
     ? highestGrossMarginValue - lowestGrossMarginValue
     : null;
-  const comparableGrossMarginRevenue = grossMarginRows.reduce(
-    (sum, row) => sum + row.revenue,
-    0,
-  );
-  const comparableGrossProfit = grossMarginRows.reduce(
-    (sum, row) => sum + (row.grossProfit ?? 0),
-    0,
-  );
-  const aggregateGrossMargin = comparableGrossMarginRevenue > 0
-    ? comparableGrossProfit / comparableGrossMarginRevenue
-    : null;
+  const aggregateBasis = normalized.reduce<GrossMarginBasis>((total, category) => ({
+    rowCount: total.rowCount + category.marginBasis.rowCount,
+    revenue: total.revenue + category.marginBasis.revenue,
+    revenueCount: total.revenueCount + category.marginBasis.revenueCount,
+    grossProfit: total.grossProfit + category.marginBasis.grossProfit,
+    grossProfitCount: total.grossProfitCount + category.marginBasis.grossProfitCount,
+    weightedMargin: total.weightedMargin + category.marginBasis.weightedMargin,
+    marginCount: total.marginCount + category.marginBasis.marginCount,
+  }), { rowCount: 0, revenue: 0, revenueCount: 0, grossProfit: 0, grossProfitCount: 0, weightedMargin: 0, marginCount: 0 });
+  const aggregateGrossMargin = resolveGrossMargin(aggregateBasis).value;
   const largestRevenueShareLeaders = getCategoryMetricLeaders(rows, "revenueShare");
   const highestGrossMarginLeaders = getCategoryMetricLeaders(rows, "grossMargin");
   const largestCostShareLeaders = getCategoryMetricLeaders(rows, "costShare");
@@ -251,6 +267,7 @@ export function buildCategoryAnalysis(
     totalGrossProfit,
     hasCategories: rows.length > 0,
     hasGrossProfit,
+    hasGrossMargin: grossMarginRows.length > 0,
     hasCosts,
     hasCompleteCostCoverage,
     aggregateGrossMargin,
@@ -372,13 +389,14 @@ export function filterCategoryRows(
 }
 
 export function getAvailableCategoryColumns(
-  analysis: Pick<CategoryAnalysis, "hasCategories" | "hasGrossProfit" | "hasCosts">,
+  analysis: Pick<CategoryAnalysis, "hasCategories" | "hasGrossProfit" | "hasGrossMargin" | "hasCosts">,
 ) {
   return CATEGORY_COLUMN_ORDER.filter((key) => {
     if (key === "name" || key === "revenue" || key === "revenueShare") {
       return analysis.hasCategories;
     }
-    if (key === "grossProfit" || key === "grossMargin") return analysis.hasGrossProfit;
+    if (key === "grossProfit") return analysis.hasGrossProfit;
+    if (key === "grossMargin") return analysis.hasGrossMargin;
     return analysis.hasCosts;
   });
 }
