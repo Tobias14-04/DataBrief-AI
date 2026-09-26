@@ -65,6 +65,7 @@ import {
   type CostDetailRow,
   type CostIntelligence,
 } from "@/lib/cost-intelligence";
+import { describeCostBasis } from "@/lib/result-basis";
 import {
   buildBudgetVariancePresentation,
   buildCostDetailCsv,
@@ -254,10 +255,8 @@ function CostKpiGrid({ analysis }: { analysis: CostIntelligence }) {
   const cards = [
     {
       label: "Samlede omkostninger",
-      value: currency(analysis.totalCosts),
-      detail: analysis.distributionSource === "workbook"
-        ? "Samlet fra det registrerede omkostningsark"
-        : `Baseret på ${number(analysis.rowCount)} filtrerede rækker`,
+      value: analysis.totalCosts === null ? "Utilgængeligt" : currency(analysis.totalCosts),
+      detail: `${describeCostBasis(analysis.costBasis)}.${analysis.costBasis.reason ? ` ${analysis.costBasis.reason}` : ""}`,
       icon: WalletCards,
       tone: "warning" as const,
     },
@@ -270,15 +269,13 @@ function CostKpiGrid({ analysis }: { analysis: CostIntelligence }) {
           tone: analysis.costShare <= 0.6 ? "positive" as const : "warning" as const,
         }
       : null,
-    analysis.actualResult !== null
-      ? {
-          label: "Resultat",
-          value: currency(analysis.actualResult),
-          detail: "Omsætning minus samlede omkostninger",
-          icon: TrendingUp,
-          tone: analysis.actualResult >= 0 ? "positive" as const : "warning" as const,
-        }
-      : null,
+    {
+      label: "Resultat",
+      value: analysis.actualResult === null ? "Utilgængeligt" : currency(analysis.actualResult),
+      detail: analysis.costBasis.reason ?? "Omsætning minus samlede omkostninger",
+      icon: TrendingUp,
+      tone: analysis.actualResult !== null && analysis.actualResult >= 0 ? "positive" as const : "warning" as const,
+    },
     analysis.comparison
       ? {
           label: "Ændring",
@@ -718,6 +715,18 @@ function CostDistributionPanel({ analysis }: { analysis: CostIntelligence }) {
     [analysis.detailRows],
   );
 
+  if (!items.length) {
+    return (
+      <CommandPanel title="Omkostningsfordeling" icon={WalletCards} tone="neutral" testId="cost-distribution-panel">
+        <CommandEmptyState
+          title="Fordeling utilgængelig"
+          message={analysis.costBasis.reason ?? "Det dokumenterede omkostningsgrundlag kan ikke fordeles sikkert på kategorier."}
+          tone="neutral"
+        />
+      </CommandPanel>
+    );
+  }
+
   return (
     <CommandPanel
       title="Omkostningsfordeling"
@@ -766,6 +775,17 @@ function comparisonConclusion(analysis: CostIntelligence) {
 }
 
 function RevenueCostPanel({ analysis }: { analysis: CostIntelligence }) {
+  if (!analysis.hasCostTimeline) {
+    return (
+      <CommandPanel title="Omsætning kontra omkostninger" icon={CircleDollarSign} tone="neutral">
+        <CommandEmptyState
+          title="Resultatgraf utilgængelig"
+          message={analysis.costBasis.reason ?? "Omkostningerne kan ikke fordeles sikkert på perioderne i det aktuelle scope."}
+          tone="neutral"
+        />
+      </CommandPanel>
+    );
+  }
   if (!analysis.hasRevenue) {
     return (
       <CommandPanel title="Omsætning kontra omkostninger" icon={CircleDollarSign} tone="brand">
@@ -1294,7 +1314,7 @@ export const CostIntelligenceDashboard = memo(function CostIntelligenceDashboard
 }: {
   analysis: CostIntelligence;
 }) {
-  if (!analysis.rowCount || (!analysis.hasRowCosts && !analysis.distribution.length)) {
+  if (!analysis.rowCount) {
     return (
       <CommandPanel title="Omkostningsdata" icon={WalletCards} tone="warning">
         <CommandEmptyState
@@ -1317,8 +1337,8 @@ export const CostIntelligenceDashboard = memo(function CostIntelligenceDashboard
           ) : (
             <CommandPanel title="Omkostningsudvikling" icon={TrendingUp} tone="warning">
               <CommandEmptyState
-                title="Tidsserie mangler"
-                message="Tilføj måned eller dato samt omkostning i salgsdata for at se udviklingen over tid."
+                title="Omkostningsgraf utilgængelig"
+                message={analysis.costBasis.reason ?? `${describeCostBasis(analysis.costBasis)}. Omkostningerne kan ikke fordeles sikkert på perioderne.`}
                 tone="warning"
               />
             </CommandPanel>

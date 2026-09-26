@@ -10,6 +10,7 @@ import {
   comparableLabel,
   normalizeForComparison,
 } from "./data-labels.ts";
+import { resolveCostBasis, type CostBasis } from "./result-basis.ts";
 
 export const COST_BUDGET_THRESHOLDS = {
   materialOverrun: 0.08,
@@ -43,8 +44,8 @@ export type CostPeriod = {
   name: string;
   sortKey: number;
   revenue: number;
-  cost: number;
-  result: number;
+  cost: number | null;
+  result: number | null;
   grossProfit: number;
   units: number;
   rowCount: number;
@@ -108,12 +109,14 @@ type DimensionAccumulator = {
   rowCount: number;
 };
 
-type PeriodAccumulator = Omit<CostPeriod, "result" | "costShare" | "previousCost"> & {
+type PeriodAccumulator = Omit<CostPeriod, "cost" | "result" | "costShare" | "previousCost"> & {
+  cost: number;
   categories: Map<string, DimensionAccumulator>;
   products: Map<string, DimensionAccumulator>;
 };
 
 export type CostIntelligenceOptions = {
+  costBasis?: CostBasis;
   totalCosts?: number | null;
   distribution?: CostDistributionInput[];
   budgetCosts?: number | null;
@@ -126,11 +129,11 @@ function finiteOrZero(value: number | null | undefined) {
 }
 
 export function resolveRegisteredCost(row: CostIntelligenceRow) {
-  if (typeof row.grossProfit === "number" && Number.isFinite(row.grossProfit) && Number.isFinite(row.revenue)) {
-    return row.revenue - row.grossProfit;
-  }
   if (typeof row.cost === "number" && Number.isFinite(row.cost)) {
     return row.cost;
+  }
+  if (typeof row.grossProfit === "number" && Number.isFinite(row.grossProfit) && Number.isFinite(row.revenue)) {
+    return row.revenue - row.grossProfit;
   }
   return null;
 }
@@ -283,6 +286,7 @@ export function buildCostIntelligence(
   let hasRevenue = false;
   let hasUnits = false;
   let hasGrossProfit = false;
+  let completeRowCosts = rows.length > 0;
 
   rows.forEach((row, index) => {
     const revenue = finiteOrZero(row.revenue);
@@ -307,6 +311,7 @@ export function buildCostIntelligence(
     hasUnits ||= Number.isFinite(row.units);
     hasGrossProfit ||= typeof row.grossProfit === "number" && Number.isFinite(row.grossProfit);
     hasRowCosts ||= resolvedCost !== null;
+    completeRowCosts &&= typeof row.cost === "number" && Number.isFinite(row.cost);
     trackedCosts += cost;
     totalRevenue += revenue;
     totalUnits += units;
@@ -327,29 +332,36 @@ export function buildCostIntelligence(
   });
 
   const periodAccumulators = Array.from(periods.values()).sort((a, b) => a.sortKey - b.sortKey);
+  const costBasis = options.costBasis ?? resolveCostBasis(rows, {
+    workbook: typeof options.totalCosts === "number" && Number.isFinite(options.totalCosts)
+      ? { total: options.totalCosts }
+      : null,
+  });
+  const canPeriodizeCosts = costBasis.status === "available" && costBasis.source === "row-cost" && completeRowCosts;
   const periodSeries: CostPeriod[] = periodAccumulators.map((period, index) => ({
     name: period.name,
     sortKey: period.sortKey,
     revenue: period.revenue,
-    cost: period.cost,
-    result: period.revenue - period.cost,
+    cost: canPeriodizeCosts ? period.cost : null,
+    result: canPeriodizeCosts ? period.revenue - period.cost : null,
     grossProfit: period.grossProfit,
     units: period.units,
     rowCount: period.rowCount,
-    costShare: hasRevenue ? safeRatio(period.cost, period.revenue) : null,
-    previousCost: index > 0 ? periodAccumulators[index - 1]?.cost ?? null : null,
+    costShare: canPeriodizeCosts && hasRevenue ? safeRatio(period.cost, period.revenue) : null,
+    previousCost: canPeriodizeCosts && index > 0 ? periodAccumulators[index - 1]?.cost ?? null : null,
   }));
 
-  const providedTotal = typeof options.totalCosts === "number" && Number.isFinite(options.totalCosts)
-    ? options.totalCosts
-    : null;
-  const totalCosts = providedTotal ?? trackedCosts;
-  const actualResult = hasRevenue ? totalRevenue - totalCosts : null;
+  const totalCosts = costBasis.totalCosts;
+  const actualResult = costBasis.result;
   const costShare = hasRevenue ? safeRatio(totalCosts, totalRevenue) : null;
   const providedDistributionGroups = groupDistributionInputs(options.distribution ?? []);
   const providedDistribution = Array.from(providedDistributionGroups.values());
   const budgetDistributionGroups = groupDistributionInputs(options.budgetDistribution ?? [], true);
-  const rawDistribution = providedDistribution.length
+  const rawDistribution = costBasis.status === "unavailable" || costBasis.source === "workbook-additional"
+    ? []
+    : costBasis.source === "workbook-total" || costBasis.source === "workbook-components"
+      ? providedDistribution
+      : providedDistribution.length
     ? providedDistribution
     : dimensionValues(categories)
         .filter((item) => item.cost !== 0)
@@ -370,7 +382,7 @@ export function buildCostIntelligence(
   const previousCostShare = previousAccumulator && hasRevenue
     ? safeRatio(previousAccumulator.cost, previousAccumulator.revenue)
     : null;
-  const comparison: CostComparison | null = hasRowCosts && latestAccumulator && previousAccumulator
+  const comparison: CostComparison | null = canPeriodizeCosts && latestAccumulator && previousAccumulator
     ? {
         currentPeriod: latestAccumulator.name,
         previousPeriod: previousAccumulator.name,
@@ -403,7 +415,7 @@ export function buildCostIntelligence(
   const hasProductDimension = products.size > 1
     && !products.has(normalizeForComparison("Ukategoriseret"));
   const profitabilityDimension = hasProductDimension ? "product" : "category";
-  const profitability = hasRowCosts
+  const profitability = canPeriodizeCosts
     ? buildProfitability(
         hasProductDimension ? products : categories,
         totalRevenue,
@@ -415,7 +427,7 @@ export function buildCostIntelligence(
     && options.budgetCosts > 0
     ? options.budgetCosts
     : null;
-  const budget = budgetCosts === null ? null : calculateCostBudgetVariance(totalCosts, budgetCosts);
+  const budget = budgetCosts === null || totalCosts === null ? null : calculateCostBudgetVariance(totalCosts, budgetCosts);
   const detailBudget = (name: string, current: number) => {
     const budgetItem = budgetDistributionGroups.get(normalizeForComparison(name));
     const categoryBudget = budgetItem?.cost ?? null;
@@ -425,7 +437,9 @@ export function buildCostIntelligence(
     };
   };
 
-  const detailSource = providedDistribution.length
+  const detailSource = costBasis.status === "unavailable" || costBasis.source === "workbook-additional"
+    ? []
+    : providedDistribution.length
     ? distribution.map((item) => ({
         ...item,
         current: item.cost,
@@ -478,6 +492,7 @@ export function buildCostIntelligence(
 
   return {
     rowCount: rows.length,
+    costBasis,
     hasRowCosts,
     hasRevenue,
     hasUnits,
@@ -491,7 +506,7 @@ export function buildCostIntelligence(
     costShare,
     periods: periodSeries,
     distribution,
-    distributionSource: providedDistribution.length ? "workbook" as const : "rows" as const,
+    distributionSource: costBasis.source === "workbook-total" || costBasis.source === "workbook-components" ? "workbook" as const : "rows" as const,
     comparison,
     changeDimension: useCategoryChanges ? "category" as const : "product" as const,
     changeDrivers,
@@ -502,9 +517,9 @@ export function buildCostIntelligence(
     profitability,
     profitabilityMinimumRevenue: Math.max(1, Math.abs(totalRevenue) * PROFITABILITY_MINIMUM_REVENUE_SHARE),
     detailRows: detailSource,
-    hasCostTimeline: hasRowCosts && periodSeries.length > 0,
+    hasCostTimeline: canPeriodizeCosts && periodSeries.length > 0,
     hasComparison: Boolean(comparison),
-    costCoverageRatio: totalCosts ? safeRatio(trackedCosts, totalCosts) : null,
+    costCoverageRatio: safeRatio(trackedCosts, totalCosts),
   };
 }
 

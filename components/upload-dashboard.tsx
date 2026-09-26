@@ -158,6 +158,7 @@ import {
 import { calculateDashboardMetrics } from "@/lib/dashboard-metrics";
 import { isFiniteNumber, parseNumericValue, parsePercentageValue } from "@/lib/numeric-foundation";
 import { buildCostIntelligence } from "@/lib/cost-intelligence";
+import { describeCostBasis } from "@/lib/result-basis";
 import {
   chooseRepresentativeLabel,
   comparableLabel,
@@ -212,6 +213,7 @@ type MonthValue = GroupedValue & {
 
 type OptionalSheetSummary = {
   sheetName: string;
+  kind: "total" | "components" | "additional" | "variable";
   total: number;
   byCategory: GroupedValue[];
 };
@@ -928,51 +930,66 @@ function groupRowsByMonth(rows: SaleRow[]) {
 }
 
 function parseCostSheet(workbook: ParsedWorkbookRows) {
-  const costSheetName = workbook.sheetNames.find((name) => normalizeHeader(name).includes("omkost") || normalizeHeader(name).includes("cost"));
-  if (!costSheetName) {
-    return undefined;
-  }
+  const summaries = workbook.sheetNames
+    .filter((name) => {
+      const normalized = normalizeHeader(name);
+      return (normalized.includes("omkost") || normalized.includes("cost")) && !normalized.includes("budget");
+    })
+    .map((sheetName): OptionalSheetSummary | null => {
+      const rows = workbook.sheets[sheetName] ?? [];
+      const headerIndex = detectHeaderRow(rows).index;
+      const headers = rowToHeaders(rows[headerIndex] ?? []);
+      const categoryHeader = findMatchingHeader(headers, "category") ??
+        headers.find((header) => ["type", "omkostningskategori", "costcategory"].includes(normalizeHeader(header)));
+      const costHeader = findMatchingHeader(headers, "cost");
+      if (!costHeader) return null;
 
-  const rows = workbook.sheets[costSheetName] ?? [];
-  const headerIndex = detectHeaderRow(rows).index;
-  const headers = rowToHeaders(rows[headerIndex] ?? []);
-  const categoryHeader =
-    findMatchingHeader(headers, "category") ??
-    headers.find((header) => ["type", "omkostningskategori", "costcategory"].includes(normalizeHeader(header)));
-  const costHeader = findMatchingHeader(headers, "cost");
+      const groups = new Map<string, GroupedValue>();
+      let total = 0;
+      let costValueCount = 0;
+      rowsToRecords(rows, headerIndex, headers).forEach((row) => {
+        const value = toNumber(row[costHeader]);
+        if (value === null) return;
+        costValueCount += 1;
+        const identity = comparableLabel(categoryHeader ? row[categoryHeader] : "Omkostninger", "Omkostninger");
+        const current = groups.get(identity.key) ?? {
+          name: identity.label, revenue: 0, units: 0, grossProfit: 0, cost: 0,
+        };
+        current.name = chooseRepresentativeLabel(current.name, identity.label);
+        current.cost += value;
+        groups.set(identity.key, current);
+        total += value;
+      });
+      if (costValueCount === 0) return null;
 
-  if (!costHeader) {
-    return undefined;
-  }
+      const normalizedName = normalizeHeader(sheetName);
+      const kind: OptionalSheetSummary["kind"] = /^(variable|var)/u.test(normalizedName)
+        ? "variable"
+        : /^(ovrige|faste|other|fixed)/u.test(normalizedName) ? "additional" : "total";
+      return { sheetName, kind, total, byCategory: Array.from(groups.values()) };
+    })
+    .filter((summary): summary is OptionalSheetSummary => summary !== null);
 
-  const groups = new Map<string, GroupedValue>();
-  let total = 0;
-
-  rowsToRecords(rows, headerIndex, headers).forEach((row) => {
-    const value = toNumber(row[costHeader]);
-    if (value === null) {
-      return;
-    }
-
-    const rawCategory = categoryHeader ? row[categoryHeader] : "Omkostninger";
-    const identity = comparableLabel(rawCategory, "Omkostninger");
-    const current = groups.get(identity.key) ?? {
-      name: identity.label,
-      revenue: 0,
-      units: 0,
-      grossProfit: 0,
-      cost: 0,
+  const total = summaries.find((summary) => summary.kind === "total");
+  if (total) return total;
+  const variable = summaries.filter((summary) => summary.kind === "variable");
+  const additional = summaries.filter((summary) => summary.kind === "additional");
+  if (variable.length && additional.length) {
+    const components = [...variable, ...additional];
+    return {
+      sheetName: components.map((summary) => summary.sheetName).join(" + "),
+      kind: "components" as const,
+      total: components.reduce((sum, summary) => sum + summary.total, 0),
+      byCategory: components.flatMap((summary) => summary.byCategory),
     };
-    current.name = chooseRepresentativeLabel(current.name, identity.label);
-    current.cost += Math.abs(value);
-    groups.set(identity.key, current);
-    total += Math.abs(value);
-  });
-
+  }
+  const remaining = additional.length ? additional : variable;
+  if (remaining.length <= 1) return remaining[0];
   return {
-    sheetName: costSheetName,
-    total,
-    byCategory: Array.from(groups.values()).sort((a, b) => b.cost - a.cost),
+    sheetName: remaining.map((summary) => summary.sheetName).join(" + "),
+    kind: remaining[0].kind,
+    total: remaining.reduce((sum, summary) => sum + summary.total, 0),
+    byCategory: remaining.flatMap((summary) => summary.byCategory),
   };
 }
 
@@ -1179,7 +1196,7 @@ async function analyzeWorkbook(
 function calculateMetrics(
   rows: SaleRow[],
   feedback?: MappingFeedback,
-  options: { useWorkbookTotals?: boolean; budgetScale?: number } = {},
+  options: { fullRows?: readonly SaleRow[]; budgetScale?: number } = {},
 ) {
   return calculateDashboardMetrics(rows, feedback, options);
 }
@@ -1209,8 +1226,10 @@ function buildExecutiveSummary(
       ? `Dækningsgraden er ${percent(metrics.grossMargin)} beregnet som et omsætningsvægtet gennemsnit.`
       : metrics.hasGrossProfit || metrics.hasGrossMargin
         ? metrics.grossMarginReason ?? "Dækningsgrad er utilgængelig i den aktuelle visning."
-    : metrics.hasCosts
-      ? `Det aktuelle resultat er ${currency(metrics.actualResult)} efter omkostninger på ${currency(metrics.totalCosts)}`
+    : metrics.hasCosts && metrics.actualResult !== null && metrics.totalCosts !== null
+      ? `Det aktuelle resultat er ${currency(metrics.actualResult)} efter omkostninger på ${currency(metrics.totalCosts)}.`
+      : metrics.costBasis.reason
+        ? `Resultat er utilgængeligt. ${metrics.costBasis.reason}`
       : `${formatDanishMonth(metrics.bestMonth.name)} er den stærkeste måned med en omsætning på ${currency(metrics.bestMonth.revenue)}`;
   const conclusion = feedback?.budget
     ? `Omsætningen ligger ${currency(Math.abs(metrics.revenueVsBudget))} ${metrics.revenueVsBudget >= 0 ? "over" : "under"} budgettet i denne visning.`
@@ -1232,7 +1251,7 @@ function buildExecutiveSummary(
           ? ["costs", "profitability"]
           : ["trends", "sales"],
     },
-    ...(metrics.hasGrossProfit && metrics.hasCosts ? [{
+    ...(metrics.hasGrossProfit && metrics.hasCosts && metrics.totalCosts !== null && metrics.actualResult !== null ? [{
       text: `Omkostningerne er ${currency(metrics.totalCosts)}, og det aktuelle resultat er ${currency(metrics.actualResult)}.`,
       topics: ["costs"] as const,
     }] : []),
@@ -2194,7 +2213,7 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
     const monthCount = Math.max(monthOptions.length, 1);
     const segmentShare = rowsInMonth ? matchingRows.length / rowsInMonth : 0;
     const budgetScale = (1 / monthCount) * segmentShare;
-    const reportMetrics = calculateMetrics(matchingRows, feedback, { useWorkbookTotals: false, budgetScale });
+    const reportMetrics = calculateMetrics(matchingRows, feedback, { fullRows: rows, budgetScale });
     const hasBudget = Boolean(feedback?.budget && matchingRows.length);
     const deviation = reportMetrics.revenueVsBudget;
     const tolerance = Math.max(1, reportMetrics.budgetRevenue * 0.01);
@@ -2216,9 +2235,7 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
         units: reportMetrics.totalUnits,
         grossProfit: reportMetrics.grossMarginSource === "gross-profit" ? reportMetrics.totalGrossProfit : null,
         grossMargin: reportMetrics.grossMarginSource === "weighted-margin" ? reportMetrics.grossMargin : null,
-        result: reportMetrics.grossMarginSource === null && !reportMetrics.hasGrossProfit && !reportMetrics.hasGrossMargin && reportMetrics.hasCosts
-          ? reportMetrics.actualResult
-          : null,
+        costBasis: reportMetrics.costBasis,
         budget: hasBudget ? { deviation, status: budgetStatus } : null,
       }),
     };
@@ -2280,6 +2297,12 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
             ? report.summary
             : `Ingen rækker matcher de aktuelle filtre for ${formatDanishMonth(reportMonth)}.`}
         </p>
+        {report.costBasis ? (
+          <p className="mt-2 pl-4 text-[11px] leading-5 text-slate-500">
+            Resultatgrundlag: {describeCostBasis(report.costBasis)}.
+            {report.costBasis.reason ? ` ${report.costBasis.reason}` : ""}
+          </p>
+        ) : null}
       </div>
     </section>
   );
@@ -2541,8 +2564,8 @@ export default function UploadDashboard() {
   const budgetScale = allRows.length && isFiltered ? filteredRows.length / allRows.length : 1;
   const baseMetrics = useMemo(() => calculateMetrics(allRows, data?.feedback), [allRows, data?.feedback]);
   const metrics = useMemo(
-    () => calculateMetrics(filteredRows, data?.feedback, { useWorkbookTotals: !isFiltered, budgetScale }),
-    [budgetScale, data?.feedback, filteredRows, isFiltered],
+    () => calculateMetrics(filteredRows, data?.feedback, { fullRows: allRows, budgetScale }),
+    [allRows, budgetScale, data?.feedback, filteredRows],
   );
   const executiveSummary = useMemo(
     () => buildExecutiveSummary(
@@ -2565,9 +2588,12 @@ export default function UploadDashboard() {
       : [];
   const showCosts = hasData && (Boolean(data?.feedback.costs) || baseMetrics.hasCosts);
   const showBudget = hasData && Boolean(data?.feedback.budget);
-  const costsByCategory = isFiltered
-    ? metrics.costsByCategory
-    : (data?.feedback.costs?.byCategory ?? metrics.costsByCategory);
+  const costsByCategory = useMemo(() => metrics.costBasis.status === "unavailable" || metrics.costBasis.source === "workbook-additional"
+    ? []
+    : metrics.costBasis.source === "workbook-total" || metrics.costBasis.source === "workbook-components"
+      ? data?.feedback.costs?.byCategory ?? []
+      : metrics.costsByCategory,
+  [data?.feedback.costs?.byCategory, metrics.costBasis, metrics.costsByCategory]);
   const availableOverviewAnalyses = useMemo(() => [
     ...(metrics.productsByUnits.length ? ["products" as const] : []),
     ...(metrics.categories.length ? ["sales" as const] : []),
@@ -2589,9 +2615,9 @@ export default function UploadDashboard() {
     const available: TrendMetric[] = ["revenue"];
     if (baseMetrics.hasGrossProfit) available.push("grossProfit");
     if (baseMetrics.hasUnitsData) available.push("units");
-    if (baseMetrics.hasCosts) available.push("cost");
+    if (baseMetrics.costBasis.source === "row-cost" && baseMetrics.hasCosts) available.push("cost");
     return available;
-  }, [baseMetrics.hasCosts, baseMetrics.hasGrossProfit, baseMetrics.hasUnitsData]);
+  }, [baseMetrics.costBasis.source, baseMetrics.hasCosts, baseMetrics.hasGrossProfit, baseMetrics.hasUnitsData]);
   const activeTrendMetric = availableTrendMetrics.includes(trendMetric) ? trendMetric : "revenue";
   const activeTrendDefinition = trendMetricDefinitions[activeTrendMetric];
   const trendMetricOptions = useMemo(
@@ -2609,8 +2635,8 @@ export default function UploadDashboard() {
   const costIntelligence = useMemo(
     () => activeView === "costs"
       ? buildCostIntelligence(filteredRows, {
-          totalCosts: metrics.totalCosts,
-          distribution: !isFiltered && data?.feedback.costs
+          costBasis: metrics.costBasis,
+          distribution: (metrics.costBasis.source === "workbook-total" || metrics.costBasis.source === "workbook-components") && metrics.costBasis.status === "available" && data?.feedback.costs
             ? data.feedback.costs.byCategory.map((item) => ({ name: item.name, cost: item.cost }))
             : undefined,
           budgetCosts: data?.feedback.budget?.costs ? metrics.budgetCosts : null,
@@ -2628,7 +2654,7 @@ export default function UploadDashboard() {
       filteredRows,
       isFiltered,
       metrics.budgetCosts,
-      metrics.totalCosts,
+      metrics.costBasis,
     ],
   );
   const insightSourceRows = useMemo(
@@ -2644,12 +2670,12 @@ export default function UploadDashboard() {
           sourceName: data?.feedback.salesSheetName ?? selectedSheet ?? "Salgsdata",
           totalRowCount: allRows.length,
           activeFilterLabels,
-          costDistribution: showCosts
+          costDistribution: showCosts && metrics.costBasis.status === "available"
             ? costsByCategory.map((item) => ({ name: item.name, cost: item.cost }))
             : undefined,
-          actualCost: metrics.hasCosts ? metrics.totalCosts : null,
+          costSource: metrics.costBasis,
           actualCostBasis: metrics.hasCosts
-            ? !isFiltered && data?.feedback.costs ? "registered" : "row-derived"
+            ? metrics.costBasis.source.startsWith("workbook") ? "registered" : "row-derived"
             : undefined,
           budget: showBudget
             ? {
@@ -2666,7 +2692,6 @@ export default function UploadDashboard() {
       allRows.length,
       activeView,
       costsByCategory,
-      data?.feedback.costs,
       data?.feedback.salesSheetName,
       deferredFilters.month,
       insightSourceRows,
@@ -2675,7 +2700,7 @@ export default function UploadDashboard() {
       metrics.budgetCosts,
       metrics.budgetResult,
       metrics.budgetRevenue,
-      metrics.totalCosts,
+      metrics.costBasis,
       selectedSheet,
       showBudget,
       showCosts,
@@ -3644,7 +3669,7 @@ export default function UploadDashboard() {
                           <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700">{currency(month.revenue)}</td>
                           <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700">{number(month.units)}</td>
                           <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700">{baseMetrics.hasGrossProfit ? currency(month.grossProfit) : "–"}</td>
-                          <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700 sm:px-6">{baseMetrics.hasCosts ? currency(month.cost) : "–"}</td>
+                          <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700 sm:px-6">{metrics.costBasis.source === "row-cost" && metrics.hasCosts ? currency(month.cost) : "–"}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -3668,7 +3693,7 @@ export default function UploadDashboard() {
               categories={metrics.categoryGroups}
               hasSourceCategories={baseMetrics.categoryGroups.length > 0}
               hasGrossProfit={baseMetrics.hasGrossProfit}
-              hasCosts={baseMetrics.hasCosts}
+              hasCosts={metrics.costBasis.source === "row-cost" && metrics.hasCosts}
             />
           ) : null}
 

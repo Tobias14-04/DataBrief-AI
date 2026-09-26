@@ -5,6 +5,7 @@ import {
 } from "./data-labels.ts";
 import { addGrossMarginRow, createGrossMarginBasis, resolveGrossMargin, type GrossMarginBasis } from "./gross-margin.ts";
 import { isFiniteNumber } from "./numeric-foundation.ts";
+import { resolveCostBasis, type WorkbookCostSource } from "./result-basis.ts";
 
 export type DashboardMetricRow = {
   date: Date | null;
@@ -38,14 +39,14 @@ type MonthValue = GroupedValue & {
 };
 
 type DashboardMetricFeedback = {
-  costs?: { total: number };
+  costs?: WorkbookCostSource;
   budget?: { revenue: number; costs: number };
 };
 
 export function calculateDashboardMetrics(
   rows: DashboardMetricRow[],
   feedback?: DashboardMetricFeedback,
-  options: { useWorkbookTotals?: boolean; budgetScale?: number } = {},
+  options: { fullRows?: readonly DashboardMetricRow[]; budgetScale?: number } = {},
 ) {
   type GroupAccumulator = GroupedValue & {
     marginBasis: GrossMarginBasis;
@@ -58,10 +59,8 @@ export function calculateDashboardMetrics(
   let totalUnits = 0;
   let totalGrossProfit = 0;
   const marginBasis = createGrossMarginBasis();
-  let rowCosts = 0;
   let hasGrossProfit = false;
   let hasGrossMargin = false;
-  let hasRowCosts = false;
   let hasProductData = false;
   let hasRevenueData = false;
   let hasUnitsData = false;
@@ -83,12 +82,12 @@ export function calculateDashboardMetrics(
     current.revenue += isFiniteNumber(row.revenue) ? row.revenue : 0;
     current.units += row.units;
     current.grossProfit += isFiniteNumber(row.grossProfit) ? row.grossProfit : 0;
-    current.cost += row.grossProfit !== null ? row.revenue - row.grossProfit : (row.cost ?? 0);
+    current.cost += isFiniteNumber(row.cost) ? row.cost : 0;
     current.rowCount = (current.rowCount ?? 0) + 1;
     if (isFiniteNumber(row.grossProfit)) {
       current.grossProfitCount = (current.grossProfitCount ?? 0) + 1;
     }
-    if (row.cost !== null || row.grossProfit !== null) {
+    if (isFiniteNumber(row.cost)) {
       current.costCount = (current.costCount ?? 0) + 1;
     }
     addGrossMarginRow(current.marginBasis, row);
@@ -104,11 +103,9 @@ export function calculateDashboardMetrics(
     if (isFiniteNumber(row.grossMargin)) {
       hasGrossMargin = true;
     }
-    if (row.cost !== null || row.grossProfit !== null) hasRowCosts = true;
     if (row.product.trim()) hasProductData = true;
     if (Number.isFinite(row.revenue)) hasRevenueData = true;
     if (Number.isFinite(row.units)) hasUnitsData = true;
-    rowCosts += row.grossProfit !== null ? row.revenue - row.grossProfit : (row.cost ?? 0);
 
     addGroup(products, row.product, row);
     addGroup(categories, row.category, row);
@@ -144,8 +141,9 @@ export function calculateDashboardMetrics(
     }));
 
   const grossMarginResult = resolveGrossMargin(marginBasis);
-  const totalCosts = options.useWorkbookTotals !== false && feedback?.costs ? feedback.costs.total : rowCosts;
-  const actualResult = totalRevenue - totalCosts;
+  const costBasis = resolveCostBasis(rows, { fullRows: options.fullRows, workbook: feedback?.costs });
+  const totalCosts = costBasis.totalCosts;
+  const actualResult = costBasis.result;
   const productValues = finalizeGroups(products);
   const categoryValues = finalizeGroups(categories).sort((a, b) => b.revenue - a.revenue);
   const productsByRevenue = [...productValues].sort((a, b) => b.revenue - a.revenue);
@@ -174,7 +172,8 @@ export function calculateDashboardMetrics(
     grossMarginSource: grossMarginResult.source,
     hasGrossProfit,
     hasGrossMargin,
-    hasCosts: Boolean((options.useWorkbookTotals !== false && feedback?.costs) || hasRowCosts),
+    hasCosts: costBasis.status === "available",
+    costBasis,
     totalCosts,
     actualResult,
     budgetRevenue,

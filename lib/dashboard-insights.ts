@@ -179,6 +179,7 @@ export type MonthlyReportInput = {
   grossProfit?: number | null;
   grossMargin?: number | null;
   result?: number | null;
+  costBasis?: import("./result-basis.ts").CostBasis | null;
   budget?: {
     deviation: number;
     status: "På budget" | "Over budgettet" | "Under budgettet";
@@ -218,6 +219,16 @@ export function buildMonthlyReport(input: MonthlyReportInput) {
   }
   metrics.push({ key: "rows", label: dashboardMetricLabels.rows, value: formatDanishNumber(input.rowCount) });
 
+  if (input.costBasis) {
+    const result = input.costBasis.result;
+    const existingResult = metrics.some((metric) => metric.key === "result");
+    if (!existingResult) metrics.push({
+      key: "result",
+      label: "Resultat",
+      value: result === null ? "Utilgængeligt" : formatDanishCurrency(result),
+    });
+  }
+
   const month = formatDanishMonth(input.month);
   let summary = `I ${month} var omsætningen ${formatDanishCurrency(input.revenue)}`;
 
@@ -237,7 +248,7 @@ export function buildMonthlyReport(input: MonthlyReportInput) {
   }
   summary += `, baseret på ${rowText(input.rowCount)}`;
 
-  return { metrics, summary: `${summary}.` };
+  return { metrics, summary: `${summary}.`, costBasis: input.costBasis ?? null };
 }
 
 export type AdaptiveMarginChartMode = "grossProfit" | "grossMargin" | "empty";

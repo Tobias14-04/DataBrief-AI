@@ -5,9 +5,9 @@ import {
   formatDanishMonth,
   monthSortKey,
 } from "./dashboard-insights.ts";
-import { resolveRegisteredCost } from "./cost-intelligence.ts";
 import { resolveGrossMargin } from "./gross-margin.ts";
 import { isFiniteNumber as finite, safeRatio } from "./numeric-foundation.ts";
+import { describeCostBasis, type CostBasis } from "./result-basis.ts";
 import {
   chooseRepresentativeLabel,
   comparableLabel,
@@ -65,6 +65,7 @@ export type InsightAnalysisOptions = {
   costDistribution?: readonly InsightCostDistributionFact[];
   actualCost?: number | null;
   actualCostBasis?: "registered" | "row-derived";
+  costSource?: CostBasis;
 };
 
 export type InsightPeriodReference = {
@@ -194,6 +195,7 @@ export type InsightAnalysis = {
     hasComparison: boolean;
     budgetBasis: "registered" | "proportional" | null;
     costBasis: "registered" | "row-derived" | null;
+    costSource: CostBasis | null;
   };
   currentPeriod: InsightPeriodReference | null;
   comparisonPeriod: InsightPeriodReference | null;
@@ -286,7 +288,7 @@ function addRow(target: Accumulator, row: InsightSourceRow) {
     target.marginRevenue += row.revenue;
     target.marginCount += 1;
   }
-  const cost = resolveRegisteredCost(row);
+  const cost = finite(row.cost) ? row.cost : null;
   if (cost !== null && Number.isFinite(cost)) {
     target.cost += cost;
     target.costCount += 1;
@@ -775,23 +777,33 @@ export function buildInsightAnalysis(
   const evidence: InsightEvidence[] = [];
   const snapshot: InsightSnapshotItem[] = [];
   const changes: InsightMetricChange[] = [];
-  const actualCost = finite(options.actualCost) ? options.actualCost : null;
+  const actualCost = options.costSource
+    ? options.costSource.totalCosts
+    : finite(options.actualCost) ? options.actualCost : null;
   const actualCostBasis = actualCost === null ? null : options.actualCostBasis ?? "row-derived";
-  const suppressPeriodizedCostMetrics = actualCostBasis === "registered";
+  const suppressPeriodizedCostMetrics = Boolean(options.costSource && (options.costSource.status === "unavailable" || options.costSource.source !== "row-cost"))
+    || actualCostBasis === "registered";
   const usesActualCost = (metric: InsightMetricKey) => (
-    actualCost !== null && (metric === "cost" || metric === "result" || metric === "costShare")
+    (actualCost !== null || options.costSource !== undefined)
+      && (metric === "cost" || metric === "result" || metric === "costShare")
   );
   const scopeMetricValue = (metric: InsightMetricKey) => {
     if (!scope) return null;
-    if (actualCost === null || !usesActualCost(metric)) return metricValue(scope, metric);
+    if (!usesActualCost(metric)) return metricValue(scope, metric);
+    if (actualCost === null) return null;
     if (metric === "cost") return actualCost;
     const revenue = metricValue(scope, "revenue");
     if (revenue === null) return null;
-    return metric === "result" ? revenue - actualCost : safeRatio(actualCost, revenue);
+    if (metric === "result") {
+      const result = revenue - actualCost;
+      return finite(result) ? result : null;
+    }
+    return safeRatio(actualCost, revenue);
   };
   const scopeMetricCoverage = (metric: InsightMetricKey) => {
     if (!scope) return 0;
     if (usesActualCost(metric)) {
+      if (actualCost === null) return 0;
       return metric === "cost"
         ? 1
         : Math.min(1, metricCoverage(scope, "revenue"));
@@ -1166,6 +1178,8 @@ export function buildInsightAnalysis(
       ...(actualCostBasis
         ? [`Omkostningsgrundlag: ${actualCostBasis === "registered" ? "registreret omkostningsopgørelse" : "filtrerede salgsrækker"}.`]
         : []),
+      ...(options.costSource?.reason ? [`Resultat utilgængeligt: ${options.costSource.reason}`] : []),
+      ...(options.costSource ? [`Resultatgrundlag: ${describeCostBasis(options.costSource)}.`] : []),
     ],
   });
   const snapshotEvidenceIds = snapshot.map((item) => item.evidenceId);
@@ -1224,6 +1238,7 @@ export function buildInsightAnalysis(
       hasComparison: Boolean(previous),
       budgetBasis: budget?.basis ?? null,
       costBasis: actualCostBasis,
+      costSource: options.costSource ?? null,
     },
     currentPeriod,
     comparisonPeriod,

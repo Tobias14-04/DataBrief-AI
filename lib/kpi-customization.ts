@@ -70,8 +70,9 @@ export type StandardKpiContext = {
   totalGrossProfit: number;
   grossMargin: number | null;
   grossMarginReason?: string | null;
-  totalCosts: number;
-  actualResult: number;
+  totalCosts: number | null;
+  actualResult: number | null;
+  costBasis?: { reason: string | null };
   revenueVsBudget: number;
   budgetRevenue: number;
   budgetCosts: number;

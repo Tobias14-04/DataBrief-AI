@@ -76,7 +76,9 @@ test("demodata med budget og omkostningskategorier bruger registrerede workbook-
   const summary = buildCostInsightSummary(analysis);
   assert.match(summary.insights[0], /^Løn er den største omkostningsdriver/u);
   assert.match(summary.insights[1], /over omkostningsbudgettet/u);
-  assert.match(summary.insights[2], /^Fra januar 2026 til februar 2026/u);
+  assert.equal(analysis.hasCostTimeline, false);
+  assert.equal(analysis.comparison, null);
+  assert.equal(analysis.periods.every((period) => period.cost === null && period.result === null), true);
 });
 
 test("fil 07-lignende datasæt med 7.500 rækker aggregeres i en kompakt pipeline", () => {
@@ -235,12 +237,14 @@ test("budgetstatus, sammenligningsændringer og små procentgrundlag er robuste"
   assert.equal(analysis.changeDrivers.find((item) => item.name === "Lille")?.changePercent, null);
 });
 
-test("dækningsbidrag bruges som dokumenteret fallback for registreret omkostning", () => {
+test("dækningsbidrag dokumenterer variable omkostninger, men ikke fuldt resultat", () => {
   const input = row({ revenue: 200, grossProfit: 125, cost: null });
   const analysis = buildCostIntelligence([input]);
 
   assert.equal(resolveRegisteredCost(input), 75);
-  assert.equal(analysis.totalCosts, 75);
+  assert.equal(analysis.totalCosts, null);
+  assert.equal(analysis.actualResult, null);
+  assert.equal(analysis.costBasis.source, "variable-only");
   assert.equal(analysis.totalGrossProfit, 125);
   assert.equal(analysis.hasGrossProfit, true);
 });
@@ -272,8 +276,8 @@ test("Omkostninger-sidens KPI, fordeling, insights og tabel viser Løn med ø", 
   assert.equal(analysis.distribution[0].name, "Løn");
   assert.equal(analysis.distribution[0].cost, 240);
   assert.equal(analysis.detailRows[0].name, "Løn");
-  assert.equal(analysis.changeDrivers[0].name, "Månedsløn");
-  assert.equal(analysis.profitability[0].name, "Månedsløn");
+  assert.equal(analysis.changeDrivers.length, 0);
+  assert.equal(analysis.profitability.length, 0);
   assert.equal(summary.insights[0].startsWith("Løn er den største omkostningsdriver"), true);
   assert.equal(summary.insights.some((insight) => insight.includes("Lon")), false);
 });
