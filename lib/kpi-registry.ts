@@ -13,7 +13,8 @@ import {
   comparableLabel,
   normalizeForComparison,
 } from "./data-labels.ts";
-import { growthChange, resolvePeriodComparison } from "./period-comparison.ts";
+import { inferBoundaryPartialMonths, resolvePeriodComparison, resolveYearOverYearComparison, summarizeComparisonMetric } from "./period-comparison.ts";
+import { formatDanishMonth, monthSortKey } from "./dashboard-insights.ts";
 import { isVariableRowCostHeader, normalizeColumnHeader, salesColumnAliases } from "./spreadsheet-fields.ts";
 import { isFiniteNumber, parseNumericValue, parsePercentageValue, safeRatio } from "./numeric-foundation.ts";
 
@@ -441,9 +442,7 @@ type KpiProfileAnalysisCache = {
   groupedSums: Map<string, RankedValue[]>;
   groupedCounts: Map<KpiDataField, RankedValue[]>;
   groupedRatios: Map<string, RankedValue[]>;
-  groupedGrowth: Map<KpiDataField, RankedValue[]>;
   periodRevenue: Map<PeriodUnit, PeriodRevenueValue[]>;
-  periodGrowthRates: Map<PeriodUnit, RankedValue[]>;
   parsedDates: WeakMap<KpiDataProfile["rows"][number], Date | null>;
 };
 
@@ -470,9 +469,7 @@ function getProfileAnalysisCache(profile: KpiDataProfile) {
     groupedSums: new Map(),
     groupedCounts: new Map(),
     groupedRatios: new Map(),
-    groupedGrowth: new Map(),
     periodRevenue: new Map(),
-    periodGrowthRates: new Map(),
     parsedDates: new WeakMap(),
   };
   profileAnalysisCaches.set(profile, cache);
@@ -559,6 +556,26 @@ function groupedSums(profile: KpiDataProfile, groupField: KpiDataField, valueFie
   const result = Array.from(groups, ([key, value]) => ({ key, ...value }));
   cache.groupedSums.set(cacheKey, result);
   return result;
+}
+
+function documentedProductRows(profile: KpiDataProfile, field: "grossProfit" | "netProfit") {
+  const rows = profile.rows.filter((row) => rowText(row, "product") !== null);
+  if (!rows.length || rows.some((row) => rowNumber(row, field) === null)) {
+    throw new Error(field === "netProfit"
+      ? "Nettoresultat skal være dokumenteret for alle produkter i det aktuelle scope."
+      : "Dækningsbidrag skal være dokumenteret for alle produkter i det aktuelle scope.");
+  }
+  return rows;
+}
+
+function documentedVariableUnitCost(profile: KpiDataProfile) {
+  const rows = profile.rows.filter((row) => rowNumber(row, "revenue") !== null || rowNumber(row, "units") !== null);
+  if (!rows.length || rows.some((row) => rowNumber(row, "units") === null || rowNumber(row, "variableCost") === null)) {
+    throw new Error("Antal og variable rækkeomkostninger skal være dokumenteret for alle salgsrækker.");
+  }
+  const variableCosts = rows.reduce((total, row) => total + rowNumber(row, "variableCost")!, 0);
+  const units = rows.reduce((total, row) => total + rowNumber(row, "units")!, 0);
+  return ratio(variableCosts, units, "Gennemsnitlig variabel kostpris");
 }
 
 function rankedGroup<T extends { name: string; value: number }>(
@@ -661,21 +678,78 @@ function periodRevenue(profile: KpiDataProfile, unit: PeriodUnit) {
   return result;
 }
 
-function periodGrowthRates(profile: KpiDataProfile, unit: PeriodUnit) {
-  const cache = getProfileAnalysisCache(profile);
-  const cached = cache.periodGrowthRates.get(unit);
-  if (cached) return cached;
-  const periods = periodRevenue(profile, unit);
-  const result = periods.slice(1).flatMap((period, index) => {
-    if (unit === "month") {
-      const comparison = resolvePeriodComparison(periods.map((item) => item.key), { selectedMonths: [period.key] });
-      if (comparison.status !== "available") return [];
-    }
-    const percentage = growthChange(period.value, periods[index].value).percentage;
-    return percentage === null ? [] : [{ name: period.label, value: percentage }];
+type GrowthRow = { month: string; date: Date | null; revenue: number; product: string | null };
+
+function growthRows(profile: KpiDataProfile): GrowthRow[] {
+  return profile.rows.flatMap((row) => {
+    const revenue = rowNumber(row, "revenue");
+    const date = profileRowDate(profile, row);
+    const month = date ? datePeriod(date, "month").key : rowText(row, "month");
+    return revenue === null || !month || monthSortKey(month) === null
+      ? [] : [{ month, date, revenue, product: rowText(row, "product") }];
   });
-  cache.periodGrowthRates.set(unit, result);
-  return result;
+}
+
+function growthScope(context: StandardKpiContext, profile: KpiDataProfile) {
+  const rows = growthRows(context.comparisonProfile ?? profile);
+  const months = [...new Set(rows.map((row) => formatDanishMonth(row.month)))]
+    .sort((left, right) => monthSortKey(left)! - monthSortKey(right)!);
+  const partialMonths = context.partialMonths ?? inferBoundaryPartialMonths(rows);
+  return { rows, months, partialMonths };
+}
+
+function monthlyGrowthRates(context: StandardKpiContext, profile: KpiDataProfile) {
+  const { rows, months, partialMonths } = growthScope(context, profile);
+  const selected = context.selectedMonths?.length ? context.selectedMonths : null;
+  if (selected) {
+    const selection = resolvePeriodComparison(months, { selectedMonths: selected, partialMonths });
+    if (selection.status !== "available") throw new Error(selection.reason ?? "Periodevalget kan ikke sammenlignes.");
+  }
+  const candidates = selected ?? months;
+  const rates = candidates.flatMap((month) => {
+    const comparison = resolvePeriodComparison(months, { selectedMonths: [month], partialMonths });
+    const growth = summarizeComparisonMetric(rows, comparison, (row) => row.revenue);
+    return growth?.percentage === null || growth === null
+      ? [] : [{ name: comparison.currentLabel!, value: growth.percentage, label: growth.label }];
+  });
+  if (!rates.length) throw new Error("Ingen sammenlignelige hele kalendermåneder med procentvis vækst; baseline 0, delmåneder eller manglende måneder kan være årsagen.");
+  return rates;
+}
+
+function yearOverYearGrowth(context: StandardKpiContext, profile: KpiDataProfile) {
+  const { rows, months, partialMonths } = growthScope(context, profile);
+  const comparison = resolveYearOverYearComparison(months, { selectedMonths: context.selectedMonths, partialMonths });
+  if (comparison.status !== "available") throw new Error(comparison.reason ?? "År-over-år-perioderne er ikke sammenlignelige.");
+  const growth = summarizeComparisonMetric(rows, comparison, (row) => row.revenue);
+  if (!growth || growth.percentage === null) throw new Error(`År-over-år-vækst er utilgængelig ved baseline 0 eller ufuldstændige perioder (${comparison.label}).`);
+  return { value: growth.percentage, detail: growth.label };
+}
+
+function fastestGrowingProduct(context: StandardKpiContext, profile: KpiDataProfile) {
+  const { rows, months, partialMonths } = growthScope(context, profile);
+  const comparison = context.periodComparison ?? resolvePeriodComparison(months, {
+    selectedMonths: context.selectedMonths, partialMonths,
+  });
+  if (comparison.status !== "available") throw new Error(comparison.reason ?? "Produktvækst kræver to sammenlignelige perioder.");
+  const requiredMonths = [...comparison.previousMonths, ...comparison.currentMonths].map(monthSortKey);
+  const products = new Map<string, { name: string; rows: GrowthRow[]; months: Set<number> }>();
+  rows.forEach((row) => {
+    if (!row.product) return;
+    const identity = comparableLabel(row.product);
+    const current = products.get(identity.key) ?? { name: identity.label, rows: [], months: new Set<number>() };
+    current.name = chooseRepresentativeLabel(current.name, identity.label);
+    current.rows.push(row);
+    current.months.add(monthSortKey(row.month)!);
+    products.set(identity.key, current);
+  });
+  const comparable = [...products.values()].flatMap((product) => {
+    if (!requiredMonths.every((month) => month !== null && product.months.has(month))) return [];
+    const growth = summarizeComparisonMetric(product.rows, comparison, (row) => row.revenue);
+    return growth?.percentage === null || growth === null ? []
+      : [{ name: product.name, value: growth.percentage, label: growth.label }];
+  });
+  const best = rankedGroup(comparable, "highest", "Produktvækst");
+  return { value: best.name, detail: `${(best.value * 100).toLocaleString("da-DK", { maximumFractionDigits: 1 })} % omsætningsvækst · ${best.label}` };
 }
 
 function groupedRatio(
@@ -719,37 +793,6 @@ function groupedCounts(profile: KpiDataProfile, groupField: KpiDataField) {
   });
   const result = Array.from(groups, ([key, value]) => ({ key, ...value }));
   cache.groupedCounts.set(groupField, result);
-  return result;
-}
-
-function groupedGrowth(profile: KpiDataProfile, groupField: KpiDataField) {
-  const cache = getProfileAnalysisCache(profile);
-  const cached = cache.groupedGrowth.get(groupField);
-  if (cached) return cached;
-  const groups = new Map<string, { name: string; periods: Map<string, number> }>();
-  profile.rows.forEach((row) => {
-    const group = rowText(row, groupField);
-    const revenue = rowNumber(row, "revenue");
-    const date = profileRowDate(profile, row);
-    const period = date ? datePeriod(date, "month") : fallbackPeriod(row, "month");
-    if (!group || revenue === null || !period) return;
-    const identity = comparableLabel(group);
-    const current = groups.get(identity.key) ?? {
-      name: identity.label,
-      periods: new Map<string, number>(),
-    };
-    current.name = chooseRepresentativeLabel(current.name, identity.label);
-    current.periods.set(period.key, (current.periods.get(period.key) ?? 0) + revenue);
-    groups.set(identity.key, current);
-  });
-  const result = Array.from(groups, ([key, group]) => {
-    const periods = Array.from(group.periods.entries()).sort(([a], [b]) => a.localeCompare(b, "da"));
-    if (periods.length < 2) return null;
-    const first = periods[0][1];
-    const last = periods.at(-1)![1];
-    return { key, name: group.name, value: ratio(last - first, first, `${group.name}s vækst`) };
-  }).filter((item): item is { key: string; name: string; value: number } => item !== null);
-  cache.groupedGrowth.set(groupField, result);
   return result;
 }
 
@@ -852,26 +895,27 @@ export const standardKpiDefinitions: RegisteredKpiDefinition[] = [
   defineKpi({ id: "best-sales-week", name: "Bedste uge", description: "Ugen med den højeste samlede omsætning", category: "Tid og perioder", format: "text", icon: "target", color: "cyan", requirements: requirements(["revenue"], [{ fields: ["date", "week"], label: "Dato eller uge" }]), calculate: ({ profile }) => { const best = rankedGroup(periodRevenue(profile, "week"), "highest", "Bedste uge"); return { value: best.label, detail: `${best.value.toLocaleString("da-DK")} kr. i omsætning` }; } }),
   defineKpi({ id: "best-quarter", name: "Bedste kvartal", description: "Kvartalet med den højeste samlede omsætning", category: "Tid og perioder", format: "text", icon: "target", color: "cyan", requirements: requirements(["revenue"], [{ fields: ["date", "quarter"], label: "Dato eller kvartal" }]), calculate: ({ profile }) => { const best = rankedGroup(periodRevenue(profile, "quarter"), "highest", "Bedste kvartal"); return { value: best.label, detail: `${best.value.toLocaleString("da-DK")} kr. i omsætning` }; } }),
   defineKpi({ id: "best-year", name: "Bedste år", description: "Året med den højeste samlede omsætning", category: "Tid og perioder", format: "text", icon: "target", color: "cyan", requirements: requirements(["revenue"], [{ fields: ["date", "year"], label: "Dato eller år" }]), calculate: ({ profile }) => { const best = rankedGroup(periodRevenue(profile, "year"), "highest", "Bedste år"); return { value: best.label, detail: `${best.value.toLocaleString("da-DK")} kr. i omsætning` }; } }),
-  defineKpi({ id: "fastest-growth-period", name: "Hurtigste vækstperiode", description: "Måneden med den største vækst fra måneden før", category: "Tid og perioder", level: "advanced", format: "text", icon: "revenue", color: "green", requirements: requirements(["revenue"], [{ fields: ["date", "month"], label: "Dato eller måned" }]), calculate: ({ profile }) => { const best = rankedGroup(periodGrowthRates(profile, "month"), "highest", "Hurtigste vækstperiode"); return { value: best.name, detail: `${(best.value * 100).toLocaleString("da-DK", { maximumFractionDigits: 1 })} % vækst` }; } }),
+  defineKpi({ id: "fastest-growth-period", name: "Hurtigste vækstperiode", description: "Største vækst mellem to sammenlignelige hele kalendermåneder", category: "Tid og perioder", level: "advanced", format: "text", icon: "revenue", color: "green", requirements: requirements(["revenue"], [{ fields: ["date", "month"], label: "Dato eller måned" }]), calculate: ({ context, profile }) => { const best = rankedGroup(monthlyGrowthRates(context, profile), "highest", "Hurtigste vækstperiode"); return { value: best.name, detail: `${(best.value * 100).toLocaleString("da-DK", { maximumFractionDigits: 1 })} % vækst · ${best.label}` }; } }),
   defineKpi({ id: "slowest-period", name: "Langsomste periode", description: "Måneden med den laveste omsætning", category: "Tid og perioder", format: "text", icon: "target", color: "orange", requirements: requirements(["revenue"], [{ fields: ["date", "month"], label: "Dato eller måned" }]), calculate: ({ profile }) => { const period = rankedGroup(periodRevenue(profile, "month"), "lowest", "Langsomste periode"); return { value: period.label, detail: `${period.value.toLocaleString("da-DK")} kr. i omsætning` }; } }),
   defineKpi({ id: "month-over-month-growth", name: "Periodevækst i omsætning", description: "Væksten i den fælles sammenligningsperiode", category: "Tid og perioder", level: "recommended", format: "percent", decimals: 1, icon: "revenue", color: "green", requirements: requirements(["revenue"], [{ fields: ["date", "month"], label: "Dato eller måned" }]), calculate: ({ context }) => documentedRevenueGrowth(context) }),
-  defineKpi({ id: "year-over-year-growth", name: "År-over-år-vækst", description: "Væksten fra næstseneste til seneste år", category: "Tid og perioder", level: "advanced", format: "percent", decimals: 1, icon: "revenue", color: "green", requirements: requirements(["revenue"], [{ fields: ["date", "year"], label: "Dato eller år" }]), calculate: ({ profile }) => { const periods = periodRevenue(profile, "year"); if (periods.length < 2) throw new Error("År-over-år-vækst kræver mindst to år."); const previous = periods.at(-2)!; const latest = periods.at(-1)!; return { value: ratio(latest.value - previous.value, previous.value, "År-over-år-vækst"), detail: `${previous.label} til ${latest.label}` }; } }),
-  defineKpi({ id: "average-monthly-growth", name: "Gennemsnitlig månedlig vækst", description: "Gennemsnittet af de månedlige vækstrater", category: "Tid og perioder", level: "advanced", format: "percent", decimals: 1, icon: "calculator", color: "green", requirements: requirements(["revenue"], [{ fields: ["date", "month"], label: "Dato eller måned" }]), calculate: ({ profile }) => { const rates = periodGrowthRates(profile, "month"); return { value: average(rates.map((rate) => rate.value), "Gennemsnitlig månedlig vækst"), detail: `Beregnet på ${rates.length} periodeskift` }; } }),
-  defineKpi({ id: "most-profitable-product", name: "Mest rentable produkt", description: "Produktet med det højeste samlede resultat", category: "Produkter", level: "recommended", format: "text", icon: "profit", color: "green", requirements: requirements(["product"], [{ fields: ["grossProfit", "netProfit"], label: "Dækningsbidrag eller resultat" }]), calculate: ({ profile }) => { const field = hasField(profile, "grossProfit") ? "grossProfit" : "netProfit"; const product = rankedGroup(groupedSums(profile, "product", field), "highest", "Mest rentable produkt"); return { value: product.name, detail: `${product.value.toLocaleString("da-DK")} kr. i indtjening` }; } }),
+  defineKpi({ id: "year-over-year-growth", name: "År-over-år-vækst", description: "Samme sammenhængende måneder i to på hinanden følgende år (YTD ved delår)", category: "Tid og perioder", level: "advanced", format: "percent", decimals: 1, icon: "revenue", color: "green", requirements: requirements(["revenue"], [{ fields: ["date", "month"], label: "Dato eller måned" }]), calculate: ({ context, profile }) => yearOverYearGrowth(context, profile) }),
+  defineKpi({ id: "average-monthly-growth", name: "Gennemsnitlig månedlig vækst", description: "Gennemsnit af sammenlignelige måned-til-måned-vækstrater", category: "Tid og perioder", level: "advanced", format: "percent", decimals: 1, icon: "calculator", color: "green", requirements: requirements(["revenue"], [{ fields: ["date", "month"], label: "Dato eller måned" }]), calculate: ({ context, profile }) => { const rates = monthlyGrowthRates(context, profile); return { value: average(rates.map((rate) => rate.value), "Gennemsnitlig månedlig vækst"), detail: `${rates.length} sammenlignelige månedsskift: ${rates.map((rate) => rate.label).join(", ")}` }; } }),
+  defineKpi({ id: "most-profitable-product", name: "Produkt med højeste nettoresultat", description: "Produktet med det højeste dokumenterede nettoresultat", category: "Produkter", level: "recommended", format: "text", icon: "profit", color: "green", requirements: requirements(["product", "netProfit"]), calculate: ({ profile }) => { documentedProductRows(profile, "netProfit"); const product = rankedGroup(groupedSums(profile, "product", "netProfit"), "highest", "Produktets nettoresultat"); return { value: product.name, detail: `${product.value.toLocaleString("da-DK")} kr. i dokumenteret nettoresultat` }; } }),
   defineKpi({ id: "most-sold-product", name: "Mest solgte produkt", description: "Produktet med flest solgte enheder", category: "Produkter", level: "recommended", format: "text", icon: "units", color: "cyan", requirements: requirements(["product", "units"]), calculate: ({ profile }) => { const product = rankedGroup(groupedSums(profile, "product", "units"), "highest", "Mest solgte produkt"); return { value: product.name, detail: `${product.value.toLocaleString("da-DK")} solgte enheder` }; } }),
   defineKpi({ id: "least-sold-product", name: "Mindst solgte produkt", description: "Produktet med færrest solgte enheder", category: "Produkter", format: "text", icon: "units", color: "navy", requirements: requirements(["product", "units"]), calculate: ({ profile }) => { const product = rankedGroup(groupedSums(profile, "product", "units"), "lowest", "Mindst solgte produkt"); return { value: product.name, detail: `${product.value.toLocaleString("da-DK")} solgte enheder` }; } }),
   defineKpi({ id: "highest-revenue-product", name: "Produkt med højest omsætning", description: "Produktet med den største samlede omsætning", category: "Produkter", format: "text", icon: "revenue", color: "cyan", requirements: requirements(["product", "revenue"]), calculate: ({ profile }) => { const product = rankedGroup(groupedSums(profile, "product", "revenue"), "highest", "Produktomsætning"); return { value: product.name, detail: `${product.value.toLocaleString("da-DK")} kr. i omsætning` }; } }),
-  defineKpi({ id: "fastest-growing-product", name: "Produkt med størst vækst", description: "Produktet med den højeste vækst mellem første og seneste måned", category: "Produkter", level: "advanced", format: "text", icon: "revenue", color: "green", requirements: requirements(["product", "revenue"], [{ fields: ["date", "month"], label: "Dato eller måned" }]), calculate: ({ profile }) => { const product = rankedGroup(groupedGrowth(profile, "product"), "highest", "Produktvækst"); return { value: product.name, detail: `${(product.value * 100).toLocaleString("da-DK", { maximumFractionDigits: 1 })} % vækst` }; } }),
+  defineKpi({ id: "fastest-growing-product", name: "Produkt med størst omsætningsvækst", description: "Størst vækst på samme fælles P0/P1-periodepar", category: "Produkter", level: "advanced", format: "text", icon: "revenue", color: "green", requirements: requirements(["product", "revenue"], [{ fields: ["date", "month"], label: "Dato eller måned" }]), calculate: ({ context, profile }) => fastestGrowingProduct(context, profile) }),
   defineKpi({ id: "highest-margin-product", name: "Produkt med højeste dækningsgrad", description: "Produktet med det højeste dækningsbidrag relativt til omsætningen", category: "Produkter", level: "advanced", format: "text", icon: "profit", color: "green", requirements: requirements(["product", "revenue", "grossProfit"]), calculate: ({ profile }) => { const product = rankedGroup(groupedRatio(profile, "product", "grossProfit", "revenue"), "highest", "Produktets dækningsgrad"); return { value: product.name, detail: `${(product.value * 100).toLocaleString("da-DK", { maximumFractionDigits: 1 })} % dækningsgrad` }; } }),
-  defineKpi({ id: "highest-gross-profit-product", name: "Produkt med størst dækningsbidrag", description: "Produktet med det højeste samlede dækningsbidrag", category: "Produkter", format: "text", icon: "profit", color: "green", requirements: requirements(["product", "grossProfit"]), calculate: ({ profile }) => { const product = rankedGroup(groupedSums(profile, "product", "grossProfit"), "highest", "Produktets dækningsbidrag"); return { value: product.name, detail: `${product.value.toLocaleString("da-DK")} kr. i dækningsbidrag` }; } }),
+  defineKpi({ id: "highest-gross-profit-product", name: "Produkt med højeste dækningsbidrag", description: "Produktet med det højeste dokumenterede dækningsbidrag", category: "Produkter", level: "recommended", format: "text", icon: "profit", color: "green", requirements: requirements(["product", "grossProfit"]), calculate: ({ profile }) => { documentedProductRows(profile, "grossProfit"); const product = rankedGroup(groupedSums(profile, "product", "grossProfit"), "highest", "Produktets dækningsbidrag"); return { value: product.name, detail: `${product.value.toLocaleString("da-DK")} kr. i dækningsbidrag` }; } }),
   defineKpi({ id: "product-count", name: "Antal produkter", description: "Antallet af unikke produkter i datagrundlaget", category: "Produkter", format: "count", icon: "units", color: "navy", requirements: requirements(["product"]), calculate: ({ profile }) => ({ value: uniqueCount(profile, "product"), detail: "Unikke registrerede produkter" }) }),
-  defineKpi({ id: "average-sales-price", name: "Gennemsnitlig salgspris", description: "Den gennemsnitlige registrerede salgspris pr. enhed", category: "Produkter", format: "currency", decimals: 2, icon: "calculator", color: "cyan", requirements: requirements([], [{ fields: ["unitPrice", "revenue"], label: "Salgspris eller omsætning" }, { fields: ["unitPrice", "units"], label: "Salgspris eller antal" }]), calculate: ({ context, profile }) => ({ value: hasField(profile, "unitPrice") ? average(profile.numericValues.unitPrice ?? [], "Gennemsnitlig salgspris") : ratio(context.totalRevenue, context.totalUnits, "Gennemsnitlig salgspris"), detail: "Gennemsnitlig pris pr. solgt enhed" }) }),
-  defineKpi({ id: "average-unit-cost", name: "Gennemsnitlig kostpris", description: "Den gennemsnitlige registrerede kostpris pr. enhed", category: "Produkter", format: "currency", decimals: 2, icon: "calculator", color: "orange", requirements: requirements([], [{ fields: ["unitCost", "cost"], label: "Kostpris pr. enhed eller omkostninger" }, { fields: ["unitCost", "units"], label: "Kostpris pr. enhed eller antal" }]), calculate: ({ context, profile }) => ({ value: hasField(profile, "unitCost") ? average(profile.numericValues.unitCost ?? [], "Gennemsnitlig kostpris") : ratio(documentedCosts(context), context.totalUnits, "Gennemsnitlig kostpris"), detail: "Gennemsnitlig kostpris pr. solgt enhed" }) }),
+  defineKpi({ id: "average-sales-price", name: "Gennemsnitlig salgspris pr. enhed", description: "Samlet omsætning divideret med samlet antal enheder", category: "Produkter", format: "currency", decimals: 2, icon: "calculator", color: "cyan", requirements: requirements(["revenue", "units"]), calculate: ({ context }) => ({ value: ratio(context.totalRevenue, context.totalUnits, "Gennemsnitlig salgspris"), detail: "Σ omsætning / Σ enheder" }) }),
+  defineKpi({ id: "average-unit-cost", name: "Gennemsnitlig variabel kostpris pr. enhed", description: "Dokumenterede variable rækkeomkostninger divideret med antal enheder", category: "Produkter", format: "currency", decimals: 2, icon: "calculator", color: "orange", requirements: requirements(["units", "variableCost"]), calculate: ({ context, profile }) => ({ value: documentedVariableUnitCost(context.salesProfile ?? profile), detail: "Σ variable rækkeomkostninger / Σ enheder" }) }),
   defineKpi({ id: "average-revenue-product", name: "Omsætning pr. produkt", description: "Gennemsnitlig omsætning pr. unikt produkt", category: "Produkter", format: "currency", decimals: 2, icon: "calculator", color: "cyan", requirements: requirements(["product", "revenue"]), calculate: ({ context, profile }) => ({ value: ratio(context.totalRevenue, uniqueCount(profile, "product"), "Omsætning pr. produkt"), detail: "Gennemsnit pr. unikt produkt" }) }),
-  defineKpi({ id: "average-profit-product", name: "Profit pr. produkt", description: "Gennemsnitligt dækningsbidrag eller resultat pr. produkt", category: "Produkter", format: "currency", decimals: 2, icon: "calculator", color: "green", requirements: requirements(["product"], [{ fields: ["grossProfit", "netProfit"], label: "Dækningsbidrag eller resultat" }]), calculate: ({ context, profile }) => ({ value: ratio(hasField(profile, "grossProfit") ? context.totalGrossProfit : sum(profile, "netProfit"), uniqueCount(profile, "product"), "Profit pr. produkt"), detail: "Gennemsnitlig indtjening pr. produkt" }) }),
+  defineKpi({ id: "average-profit-product", name: "Gennemsnitligt nettoresultat pr. produkt", description: "Dokumenteret nettoresultat divideret med antal unikke produkter", category: "Produkter", format: "currency", decimals: 2, icon: "calculator", color: "green", requirements: requirements(["product", "netProfit"]), calculate: ({ profile }) => { const rows = documentedProductRows(profile, "netProfit"); return { value: ratio(rows.reduce((total, row) => total + rowNumber(row, "netProfit")!, 0), uniqueCount(profile, "product"), "Nettoresultat pr. produkt"), detail: "Σ dokumenteret nettoresultat / antal produkter" }; } }),
+  defineKpi({ id: "average-gross-profit-product", name: "Gennemsnitligt dækningsbidrag pr. produkt", description: "Dokumenteret dækningsbidrag divideret med antal unikke produkter", category: "Produkter", format: "currency", decimals: 2, icon: "calculator", color: "green", requirements: requirements(["product", "grossProfit"]), calculate: ({ profile }) => { const rows = documentedProductRows(profile, "grossProfit"); return { value: ratio(rows.reduce((total, row) => total + rowNumber(row, "grossProfit")!, 0), uniqueCount(profile, "product"), "Dækningsbidrag pr. produkt"), detail: "Σ dækningsbidrag / antal produkter" }; } }),
   defineKpi({ id: "new-customers", name: "Nye kunder", description: "Kunder med første registrerede køb i den seneste måned", category: "Kunder", level: "advanced", format: "count", icon: "units", color: "green", requirements: requirements(["date"], [{ fields: ["customerId", "customerName"], label: "Kunde-id eller kunde" }]), calculate: ({ profile }) => ({ value: newCustomersInLatestMonth(profile), detail: "Første registrerede køb i seneste måned" }) }),
   defineKpi({ id: "returning-customers", name: "Tilbagevendende kunder", description: "Kunder med mere end ét registreret køb", category: "Kunder", format: "count", icon: "units", color: "green", requirements: requirements([], [{ fields: ["customerId", "customerName"], label: "Kunde-id eller kunde" }]), calculate: ({ profile }) => { const field = hasField(profile, "customerId") ? "customerId" : "customerName"; return { value: groupedCounts(profile, field).filter((customer) => customer.value > 1).length, detail: "Kunder med flere registrerede køb" }; } }),
-  defineKpi({ id: "most-profitable-customer", name: "Mest profitable kunde", description: "Kunden med det højeste samlede dækningsbidrag", category: "Kunder", level: "advanced", format: "text", icon: "profit", color: "green", requirements: requirements(["grossProfit"], [{ fields: ["customerId", "customerName"], label: "Kunde-id eller kunde" }]), calculate: ({ profile }) => { const field = hasField(profile, "customerId") ? "customerId" : "customerName"; const customer = rankedGroup(groupedSums(profile, field, "grossProfit"), "highest", "Mest profitable kunde"); return { value: customer.name, detail: `${customer.value.toLocaleString("da-DK")} kr. i dækningsbidrag` }; } }),
+  defineKpi({ id: "most-profitable-customer", name: "Kunde med højeste dækningsbidrag", description: "Kunden med det højeste samlede dækningsbidrag", category: "Kunder", level: "advanced", format: "text", icon: "profit", color: "green", requirements: requirements(["grossProfit"], [{ fields: ["customerId", "customerName"], label: "Kunde-id eller kunde" }]), calculate: ({ profile }) => { const field = hasField(profile, "customerId") ? "customerId" : "customerName"; const customer = rankedGroup(groupedSums(profile, field, "grossProfit"), "highest", "Kundens dækningsbidrag"); return { value: customer.name, detail: `${customer.value.toLocaleString("da-DK")} kr. i dækningsbidrag` }; } }),
   defineKpi({ id: "highest-revenue-customer", name: "Kunde med størst omsætning", description: "Kunden med den højeste samlede omsætning", category: "Kunder", format: "text", icon: "revenue", color: "cyan", requirements: requirements(["revenue"], [{ fields: ["customerId", "customerName"], label: "Kunde-id eller kunde" }]), calculate: ({ profile }) => { const field = hasField(profile, "customerId") ? "customerId" : "customerName"; const customer = rankedGroup(groupedSums(profile, field, "revenue"), "highest", "Kundeomsætning"); return { value: customer.name, detail: `${customer.value.toLocaleString("da-DK")} kr. i omsætning` }; } }),
   defineKpi({ id: "average-purchases-customer", name: "Gennemsnitligt antal køb pr. kunde", description: "Registrerede ordrer eller salg divideret med unikke kunder", category: "Kunder", format: "decimal", decimals: 2, icon: "calculator", color: "purple", requirements: requirements([], [{ fields: ["customerId", "customerName"], label: "Kunde-id eller kunde" }]), calculate: ({ context, profile }) => { const customerField = hasField(profile, "customerId") ? "customerId" : "customerName"; const purchases = hasField(profile, "orderId") ? uniqueCount(profile, "orderId") : context.rowCount; return { value: ratio(purchases, uniqueCount(profile, customerField), "Køb pr. kunde"), detail: "Gennemsnitligt antal registrerede køb" }; } }),
   defineKpi({ id: "profit-margin", name: "Profitmargin", description: "Resultat som andel af omsætningen", category: "Indtjening", level: "recommended", format: "percent", decimals: 1, icon: "profit", color: "green", requirements: requirements(["revenue"], [{ fields: ["cost", "grossProfit", "netProfit"], label: "Omkostninger, dækningsbidrag eller resultat" }]), calculate: ({ context }) => ({ value: ratio(documentedResult(context), context.totalRevenue, "Profitmargin"), detail: "Samme resultatgrundlag divideret med omsætning" }) }),

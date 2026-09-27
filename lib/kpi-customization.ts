@@ -89,6 +89,10 @@ export type StandardKpiContext = {
   monthlyRevenue?: number[];
   periodComparison?: import("./period-comparison.ts").PeriodComparison;
   revenueGrowth?: import("./period-comparison.ts").MetricGrowth | null;
+  comparisonProfile?: KpiDataProfile;
+  salesProfile?: KpiDataProfile;
+  selectedMonths?: readonly string[];
+  partialMonths?: readonly string[];
 };
 
 export type KpiEvaluation = {

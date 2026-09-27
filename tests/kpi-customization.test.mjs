@@ -105,7 +105,8 @@ test("det centrale KPI-register håndterer 7.500 normaliserede rækker uden lang
 
   assert.equal(evaluations["revenue-per-day"].available, true);
   assert.equal(evaluations["revenue-per-month"].available, true);
-  assert.equal(evaluations["fastest-growing-product"].available, true);
+  assert.equal(evaluations["fastest-growing-product"].available, false);
+  assert.match(evaluations["fastest-growing-product"].reason, /delmåned|sammenlign|kalendermåned|mangler/u);
   assert.ok(duration < 1000, `KPI-evalueringen tog ${duration.toFixed(1)} ms`);
 });
 

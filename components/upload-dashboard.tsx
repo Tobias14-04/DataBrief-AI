@@ -2598,6 +2598,18 @@ export default function UploadDashboard() {
     () => summarizeComparisonMetric(comparisonSourceRows, periodComparison, (row) => row.revenue),
     [comparisonSourceRows, periodComparison],
   );
+  const comparisonKpiDataProfile = useMemo(
+    () => buildKpiDataProfile(comparisonSourceRows),
+    [comparisonSourceRows],
+  );
+  const currentSalesKpiDataProfile = useMemo(
+    () => buildKpiDataProfile(filteredRows),
+    [filteredRows],
+  );
+  const baseSalesKpiDataProfile = useMemo(
+    () => buildKpiDataProfile(allRows),
+    [allRows],
+  );
   const executiveSummary = useMemo(
     () => buildExecutiveSummary(
       metrics,
@@ -2764,14 +2776,20 @@ export default function UploadDashboard() {
     monthlyRevenue: metrics.monthly.map((month) => month.revenue),
     periodComparison,
     revenueGrowth,
-  }), [metrics, periodComparison, revenueGrowth, showBudget]);
+    comparisonProfile: comparisonKpiDataProfile,
+    salesProfile: currentSalesKpiDataProfile,
+    selectedMonths: deferredFilters.month,
+    partialMonths,
+  }), [comparisonKpiDataProfile, currentSalesKpiDataProfile, deferredFilters.month, metrics, partialMonths, periodComparison, revenueGrowth, showBudget]);
   const baseKpiContext = useMemo(() => ({
     ...baseMetrics,
     hasBudget: showBudget,
     monthlyRevenue: baseMetrics.monthly.map((month) => month.revenue),
     periodComparison: resolvePeriodComparison(allRows.map((row) => row.month), { partialMonths }),
     revenueGrowth: summarizeComparisonMetric(allRows, resolvePeriodComparison(allRows.map((row) => row.month), { partialMonths }), (row) => row.revenue),
-  }), [allRows, baseMetrics, partialMonths, showBudget]);
+    partialMonths,
+    salesProfile: baseSalesKpiDataProfile,
+  }), [allRows, baseMetrics, baseSalesKpiDataProfile, partialMonths, showBudget]);
   const supplementalKpiRows = useMemo(
     () => (analysis?.kpiSourceRows ?? []).filter(
       (row) => row.sourceValues.__sheet !== data?.feedback.salesSheetName,

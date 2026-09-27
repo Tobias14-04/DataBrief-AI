@@ -78,6 +78,31 @@ export function resolvePeriodComparison(
   return { status: "available", currentMonths, previousMonths, currentLabel, previousLabel, label: comparisonLabel, reason: null };
 }
 
+export function resolveYearOverYearComparison(
+  availableMonths: readonly string[],
+  options: { selectedMonths?: readonly string[]; partialMonths?: readonly string[] } = {},
+): PeriodComparison {
+  const indices = availableMonths.map(monthIndex).filter((index): index is number => index !== null);
+  const latest = indices.length ? Math.max(...indices) : null;
+  const selected = options.selectedMonths?.length
+    ? [...options.selectedMonths]
+    : latest === null ? [] : Array.from({ length: latest % 12 + 1 }, (_, position) => (
+      formatDanishMonth(new Date(Math.floor(latest / 12), position, 1))
+    ));
+  const selectedIndices = selected.map(monthIndex);
+  const previous = selectedIndices.map((index) => index === null ? "" :
+    formatDanishMonth(new Date(Math.floor((index - 12) / 12), (index - 12) % 12, 1)));
+  const comparison = resolvePeriodComparison(availableMonths, {
+    selectedMonths: selected,
+    comparisonMonths: previous,
+    partialMonths: options.partialMonths,
+  });
+  if (selectedIndices.some((index) => index === null) || new Set(selectedIndices.map((index) => index === null ? null : Math.floor(index / 12))).size > 1) {
+    return { ...comparison, status: "unavailable", reason: "År-over-år kræver måneder fra ét sammenhængende kalenderår." };
+  }
+  return comparison;
+}
+
 export function growthChange(current: number, previous: number) {
   const absolute = current - previous;
   return {
