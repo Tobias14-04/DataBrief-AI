@@ -87,6 +87,8 @@ export type StandardKpiContext = {
   bestMonth?: { name: string; revenue: number };
   orderCount?: number;
   monthlyRevenue?: number[];
+  periodComparison?: import("./period-comparison.ts").PeriodComparison;
+  revenueGrowth?: import("./period-comparison.ts").MetricGrowth | null;
 };
 
 export type KpiEvaluation = {

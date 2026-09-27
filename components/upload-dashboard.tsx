@@ -159,6 +159,7 @@ import { calculateDashboardMetrics } from "@/lib/dashboard-metrics";
 import { isFiniteNumber, parseNumericValue, parsePercentageValue } from "@/lib/numeric-foundation";
 import { buildCostIntelligence } from "@/lib/cost-intelligence";
 import { describeCostBasis } from "@/lib/result-basis";
+import { inferBoundaryPartialMonths, resolvePeriodComparison, summarizeComparisonMetric } from "@/lib/period-comparison";
 import {
   chooseRepresentativeLabel,
   comparableLabel,
@@ -2567,6 +2568,19 @@ export default function UploadDashboard() {
     () => calculateMetrics(filteredRows, data?.feedback, { fullRows: allRows, budgetScale }),
     [allRows, budgetScale, data?.feedback, filteredRows],
   );
+  const comparisonSourceRows = useMemo(
+    () => applyDashboardFilters(allRows, deferredFilters, "month"),
+    [allRows, deferredFilters],
+  );
+  const partialMonths = useMemo(() => inferBoundaryPartialMonths(allRows), [allRows]);
+  const periodComparison = useMemo(() => resolvePeriodComparison(
+    comparisonSourceRows.map((row) => row.month),
+    { selectedMonths: deferredFilters.month, partialMonths },
+  ), [comparisonSourceRows, deferredFilters.month, partialMonths]);
+  const revenueGrowth = useMemo(
+    () => summarizeComparisonMetric(comparisonSourceRows, periodComparison, (row) => row.revenue),
+    [comparisonSourceRows, periodComparison],
+  );
   const executiveSummary = useMemo(
     () => buildExecutiveSummary(
       metrics,
@@ -2636,6 +2650,9 @@ export default function UploadDashboard() {
     () => activeView === "costs"
       ? buildCostIntelligence(filteredRows, {
           costBasis: metrics.costBasis,
+          comparisonRows: comparisonSourceRows,
+          selectedMonths: deferredFilters.month,
+          partialMonths,
           distribution: (metrics.costBasis.source === "workbook-total" || metrics.costBasis.source === "workbook-components") && metrics.costBasis.status === "available" && data?.feedback.costs
             ? data.feedback.costs.byCategory.map((item) => ({ name: item.name, cost: item.cost }))
             : undefined,
@@ -2652,21 +2669,25 @@ export default function UploadDashboard() {
       data?.feedback.budget?.costs,
       data?.feedback.costs,
       filteredRows,
+      comparisonSourceRows,
+      deferredFilters.month,
       isFiltered,
       metrics.budgetCosts,
       metrics.costBasis,
+      partialMonths,
     ],
   );
   const insightSourceRows = useMemo(
     () => activeView === "insights"
-      ? applyDashboardFilters(allRows, deferredFilters, "month")
+      ? comparisonSourceRows
       : [],
-    [activeView, allRows, deferredFilters],
+    [activeView, comparisonSourceRows],
   );
   const insightAnalysis = useMemo(
     () => activeView === "insights"
       ? buildInsightAnalysis(insightSourceRows, {
           selectedMonths: deferredFilters.month,
+          partialMonths,
           sourceName: data?.feedback.salesSheetName ?? selectedSheet ?? "Salgsdata",
           totalRowCount: allRows.length,
           activeFilterLabels,
@@ -2701,6 +2722,7 @@ export default function UploadDashboard() {
       metrics.budgetResult,
       metrics.budgetRevenue,
       metrics.costBasis,
+      partialMonths,
       selectedSheet,
       showBudget,
       showCosts,
@@ -2723,12 +2745,16 @@ export default function UploadDashboard() {
     ...metrics,
     hasBudget: showBudget,
     monthlyRevenue: metrics.monthly.map((month) => month.revenue),
-  }), [metrics, showBudget]);
+    periodComparison,
+    revenueGrowth,
+  }), [metrics, periodComparison, revenueGrowth, showBudget]);
   const baseKpiContext = useMemo(() => ({
     ...baseMetrics,
     hasBudget: showBudget,
     monthlyRevenue: baseMetrics.monthly.map((month) => month.revenue),
-  }), [baseMetrics, showBudget]);
+    periodComparison: resolvePeriodComparison(allRows.map((row) => row.month), { partialMonths }),
+    revenueGrowth: summarizeComparisonMetric(allRows, resolvePeriodComparison(allRows.map((row) => row.month), { partialMonths }), (row) => row.revenue),
+  }), [allRows, baseMetrics, partialMonths, showBudget]);
   const supplementalKpiRows = useMemo(
     () => (analysis?.kpiSourceRows ?? []).filter(
       (row) => row.sourceValues.__sheet !== data?.feedback.salesSheetName,

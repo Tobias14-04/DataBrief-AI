@@ -192,6 +192,7 @@ test("periode-, produkt- og kunde-KPI'er bruger de samme filtrerede rækker", ()
     totalUnits: 11,
     totalGrossProfit: 170,
     rowCount: 3,
+    revenueGrowth: { current: 200, previous: 100, absolute: 100, percentage: 1, label: "januar 2026 → februar 2026" },
   };
   assert.equal(evaluateStandardKpi("revenue-per-month", filteredContext, profile).value, 150);
   assert.equal(evaluateStandardKpi("most-sold-product", filteredContext, profile).value, "Croissant");

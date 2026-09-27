@@ -8,6 +8,7 @@ import {
 import { resolveGrossMargin } from "./gross-margin.ts";
 import { isFiniteNumber as finite, safeRatio } from "./numeric-foundation.ts";
 import { describeCostBasis, type CostBasis } from "./result-basis.ts";
+import { growthChange, resolvePeriodComparison } from "./period-comparison.ts";
 import {
   chooseRepresentativeLabel,
   comparableLabel,
@@ -66,6 +67,7 @@ export type InsightAnalysisOptions = {
   actualCost?: number | null;
   actualCostBasis?: "registered" | "row-derived";
   costSource?: CostBasis;
+  partialMonths?: readonly string[];
 };
 
 export type InsightPeriodReference = {
@@ -734,31 +736,24 @@ export function buildInsightAnalysis(
   ));
   const requestedKeys = requestedMonths.map((month) => {
     const sortKey = monthSortKey(month);
-    return sortKey === null || sortKey === undefined
-      ? `text:${normalizeForComparison(formatDanishMonth(month))}`
-      : String(sortKey);
+    return sortKey === null ? `text:${normalizeForComparison(formatDanishMonth(month))}` : String(sortKey);
   });
   const hasSelectedPeriod = requestedMonths.length > 0;
   const selectedPeriods = requestedKeys
     .map((key) => periods.get(key) ?? null)
     .filter((period): period is PeriodAccumulator => Boolean(period))
     .sort((left, right) => left.sortKey - right.sortKey || left.firstIndex - right.firstIndex);
-  const selectedIndices = selectedPeriods
-    .filter((period) => period.sortKey !== Number.MAX_SAFE_INTEGER)
-    .map((period) => orderedPeriods.findIndex((candidate) => candidate.key === period.key))
-    .sort((left, right) => left - right);
-  const selectedIsChronologicalInterval = selectedPeriods.length === requestedMonths.length
-    && selectedIndices.length === selectedPeriods.length
-    && selectedIndices.every((index, position) => index >= 0 && (position === 0 || index === selectedIndices[0] + position));
-  const previousPeriods = selectedIsChronologicalInterval && selectedIndices[0] >= selectedPeriods.length
-    ? orderedPeriods.slice(selectedIndices[0] - selectedPeriods.length, selectedIndices[0])
+  const periodComparison = resolvePeriodComparison(orderedPeriods.map((period) => period.label), {
+    selectedMonths: requestedMonths,
+    partialMonths: options.partialMonths,
+  });
+  const previousPeriods = periodComparison.status === "available"
+    ? periodComparison.previousMonths.map((month) => periods.get(String(monthSortKey(month)))).filter((period): period is PeriodAccumulator => Boolean(period))
     : [];
   const current = hasSelectedPeriod
     ? combinePeriods(selectedPeriods, "selected-periods")
     : orderedPeriods.at(-1) ?? null;
-  const previous = hasSelectedPeriod
-    ? combinePeriods(previousPeriods, "comparison-periods")
-    : orderedPeriods.length > 1 ? orderedPeriods.at(-2) ?? null : null;
+  const previous = combinePeriods(previousPeriods, "comparison-periods");
   const scope = hasSelectedPeriod ? current : overall.rowCount ? overall : null;
   const scopeKey = hasSelectedPeriod
     ? current?.key ?? `selected:${requestedKeys.join("|") || "missing"}`
@@ -820,9 +815,7 @@ export function buildInsightAnalysis(
       const absoluteChange = value - previousValue;
       const isRate = metric === "grossMargin" || metric === "costShare";
       const rateChange = isRate ? absoluteChange : null;
-      const percentChange = !isRate
-        ? percentageChange(value, previousValue, previousValue)
-        : null;
+      const percentChange = !isRate ? growthChange(value, previousValue).percentage : null;
       const id = evidenceId("change", metric, previous.key, current.key);
       const tone = changeTone(metric, absoluteChange);
       const changeLabel = metricChangeLabel(metric, absoluteChange, percentChange, rateChange);
@@ -1180,6 +1173,7 @@ export function buildInsightAnalysis(
         : []),
       ...(options.costSource?.reason ? [`Resultat utilgængeligt: ${options.costSource.reason}`] : []),
       ...(options.costSource ? [`Resultatgrundlag: ${describeCostBasis(options.costSource)}.`] : []),
+      ...(periodComparison.reason ? [`Periodesammenligning utilgængelig: ${periodComparison.reason}`] : []),
     ],
   });
   const snapshotEvidenceIds = snapshot.map((item) => item.evidenceId);

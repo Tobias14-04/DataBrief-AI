@@ -61,7 +61,8 @@ test("driverforklaringen er en tilgængelig disclosure og viser positive samt ne
 });
 
 test("den tunge analysemotor aktiveres kun på Indsigter og genbruger deferred filtre", () => {
-  assert.match(uploadSource, /activeView === "insights"[\s\S]*applyDashboardFilters\(allRows, deferredFilters, "month"\)/u);
+  assert.match(uploadSource, /comparisonSourceRows = useMemo\([\s\S]*applyDashboardFilters\(allRows, deferredFilters, "month"\)/u);
+  assert.match(uploadSource, /activeView === "insights"[\s\S]*comparisonSourceRows/u);
   assert.match(uploadSource, /buildInsightAnalysis\(insightSourceRows/u);
   assert.match(uploadSource, /selectedMonths: deferredFilters\.month/u);
   assert.match(uploadSource, /totalRowCount: allRows\.length/u);

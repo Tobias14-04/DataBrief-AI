@@ -11,6 +11,7 @@ import {
   normalizeForComparison,
 } from "./data-labels.ts";
 import { resolveCostBasis, type CostBasis } from "./result-basis.ts";
+import { growthChange, resolvePeriodComparison } from "./period-comparison.ts";
 
 export const COST_BUDGET_THRESHOLDS = {
   materialOverrun: 0.08,
@@ -117,6 +118,9 @@ type PeriodAccumulator = Omit<CostPeriod, "cost" | "result" | "costShare" | "pre
 
 export type CostIntelligenceOptions = {
   costBasis?: CostBasis;
+  comparisonRows?: readonly CostIntelligenceRow[];
+  selectedMonths?: readonly string[];
+  partialMonths?: readonly string[];
   totalCosts?: number | null;
   distribution?: CostDistributionInput[];
   budgetCosts?: number | null;
@@ -331,13 +335,45 @@ export function buildCostIntelligence(
     periods.set(identity.key, period);
   });
 
+  if (options.comparisonRows) {
+    periods.clear();
+    options.comparisonRows.forEach((row, index) => {
+      const identity = periodIdentity(row, index);
+      const period = periods.get(identity.key) ?? {
+        name: identity.name, sortKey: identity.sortKey, revenue: 0, cost: 0,
+        grossProfit: 0, units: 0, rowCount: 0,
+        categories: new Map<string, DimensionAccumulator>(),
+        products: new Map<string, DimensionAccumulator>(),
+      };
+      const values = {
+        revenue: finiteOrZero(row.revenue),
+        cost: finiteOrZero(row.cost),
+        grossProfit: finiteOrZero(row.grossProfit),
+        units: finiteOrZero(row.units),
+      };
+      period.revenue += values.revenue;
+      period.cost += values.cost;
+      period.grossProfit += values.grossProfit;
+      period.units += values.units;
+      period.rowCount += 1;
+      addDimension(period.categories, row.category, values);
+      addDimension(period.products, row.product, values);
+      periods.set(identity.key, period);
+    });
+  }
+
   const periodAccumulators = Array.from(periods.values()).sort((a, b) => a.sortKey - b.sortKey);
+  const periodComparison = resolvePeriodComparison(periodAccumulators.map((period) => period.name), {
+    selectedMonths: options.selectedMonths,
+    partialMonths: options.partialMonths,
+  });
   const costBasis = options.costBasis ?? resolveCostBasis(rows, {
     workbook: typeof options.totalCosts === "number" && Number.isFinite(options.totalCosts)
       ? { total: options.totalCosts }
       : null,
   });
-  const canPeriodizeCosts = costBasis.status === "available" && costBasis.source === "row-cost" && completeRowCosts;
+  const canPeriodizeCosts = costBasis.status === "available" && costBasis.source === "row-cost" && completeRowCosts
+    && (options.comparisonRows ?? rows).every((row) => typeof row.cost === "number" && Number.isFinite(row.cost));
   const periodSeries: CostPeriod[] = periodAccumulators.map((period, index) => ({
     name: period.name,
     sortKey: period.sortKey,
@@ -348,7 +384,10 @@ export function buildCostIntelligence(
     units: period.units,
     rowCount: period.rowCount,
     costShare: canPeriodizeCosts && hasRevenue ? safeRatio(period.cost, period.revenue) : null,
-    previousCost: canPeriodizeCosts && index > 0 ? periodAccumulators[index - 1]?.cost ?? null : null,
+    previousCost: canPeriodizeCosts && index > 0 && resolvePeriodComparison(
+      periodAccumulators.map((item) => item.name),
+      { selectedMonths: [period.name], partialMonths: options.partialMonths },
+    ).status === "available" ? periodAccumulators[index - 1]?.cost ?? null : null,
   }));
 
   const totalCosts = costBasis.totalCosts;
@@ -374,8 +413,37 @@ export function buildCostIntelligence(
     }))
     .sort((a, b) => Math.abs(b.cost) - Math.abs(a.cost));
 
-  const latestAccumulator = periodAccumulators.at(-1) ?? null;
-  const previousAccumulator = periodAccumulators.at(-2) ?? null;
+  const combineComparisonMonths = (months: readonly string[], name: string): PeriodAccumulator | null => {
+    const members = months.map((month) => periods.get(String(monthSortKey(month)))).filter((period): period is PeriodAccumulator => Boolean(period));
+    if (members.length !== months.length || !members.length) return null;
+    const combined: PeriodAccumulator = {
+      name, sortKey: members.at(-1)!.sortKey, revenue: 0, cost: 0, grossProfit: 0,
+      units: 0, rowCount: 0, categories: new Map(), products: new Map(),
+    };
+    for (const member of members) {
+      combined.revenue += member.revenue;
+      combined.cost += member.cost;
+      combined.grossProfit += member.grossProfit;
+      combined.units += member.units;
+      combined.rowCount += member.rowCount;
+      for (const dimension of ["categories", "products"] as const) {
+        for (const [key, group] of member[dimension]) {
+          const existing = combined[dimension].get(key) ?? { ...group, revenue: 0, cost: 0, grossProfit: 0, units: 0, rowCount: 0 };
+          existing.revenue += group.revenue;
+          existing.cost += group.cost;
+          existing.grossProfit += group.grossProfit;
+          existing.units += group.units;
+          existing.rowCount += group.rowCount;
+          combined[dimension].set(key, existing);
+        }
+      }
+    }
+    return combined;
+  };
+  const latestAccumulator = periodComparison.status === "available"
+    ? combineComparisonMonths(periodComparison.currentMonths, periodComparison.currentLabel!) : null;
+  const previousAccumulator = periodComparison.status === "available"
+    ? combineComparisonMonths(periodComparison.previousMonths, periodComparison.previousLabel!) : null;
   const latestCostShare = latestAccumulator && hasRevenue
     ? safeRatio(latestAccumulator.cost, latestAccumulator.revenue)
     : null;
@@ -389,11 +457,11 @@ export function buildCostIntelligence(
         currentCost: latestAccumulator.cost,
         previousCost: previousAccumulator.cost,
         costChange: latestAccumulator.cost - previousAccumulator.cost,
-        costChangePercent: safeRatio(latestAccumulator.cost - previousAccumulator.cost, Math.abs(previousAccumulator.cost)),
+        costChangePercent: growthChange(latestAccumulator.cost, previousAccumulator.cost).percentage,
         currentRevenue: latestAccumulator.revenue,
         previousRevenue: previousAccumulator.revenue,
         revenueChangePercent: hasRevenue
-          ? safeRatio(latestAccumulator.revenue - previousAccumulator.revenue, Math.abs(previousAccumulator.revenue))
+          ? growthChange(latestAccumulator.revenue, previousAccumulator.revenue).percentage
           : null,
         costShareChange: latestCostShare !== null && previousCostShare !== null
           ? latestCostShare - previousCostShare
@@ -492,6 +560,9 @@ export function buildCostIntelligence(
 
   return {
     rowCount: rows.length,
+    periodComparison,
+    hasSelectedPeriod: Boolean(options.selectedMonths?.length),
+    partialMonths: options.partialMonths ?? [],
     costBasis,
     hasRowCosts,
     hasRevenue,

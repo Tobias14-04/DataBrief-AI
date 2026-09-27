@@ -66,6 +66,7 @@ import {
   type CostIntelligence,
 } from "@/lib/cost-intelligence";
 import { describeCostBasis } from "@/lib/result-basis";
+import { resolvePeriodComparison } from "@/lib/period-comparison";
 import {
   buildBudgetVariancePresentation,
   buildCostDetailCsv,
@@ -285,7 +286,14 @@ function CostKpiGrid({ analysis }: { analysis: CostIntelligence }) {
           icon: costChange !== null && costChange <= 0 ? ArrowDownRight : ArrowUpRight,
           tone: costChange !== null && costChange <= 0 ? "positive" as const : "warning" as const,
         }
-      : null,
+      : analysis.periodComparison.reason ? {
+          label: "Ændring",
+          value: "Utilgængelig",
+          detail: analysis.periodComparison.label ?? "Ingen sammenlignelig periode",
+          note: analysis.periodComparison.reason,
+          icon: TrendingUp,
+          tone: "neutral" as const,
+        } : null,
     largestDriver
       ? {
           label: "Største driver",
@@ -317,9 +325,17 @@ function CostTrendChart({ analysis }: { analysis: CostIntelligence }) {
   const activeMetric = availableMetrics.includes(selectedMetric) ? selectedMetric : "cost";
   const definition = costChartDefinitions[activeMetric];
   const chartData = useMemo(
-    () => analysis.periods.map((period, index) => {
+    () => analysis.periods.filter((period) => !analysis.hasSelectedPeriod || [
+      ...analysis.periodComparison.currentMonths,
+      ...analysis.periodComparison.previousMonths,
+    ].some((month) => formatDanishMonth(month) === formatDanishMonth(period.name))).map((period) => {
       const value = period[activeMetric];
-      const previousPeriod = analysis.periods[index - 1];
+      const pair = resolvePeriodComparison(analysis.periods.map((item) => item.name), {
+        selectedMonths: [period.name], partialMonths: analysis.partialMonths,
+      });
+      const previousPeriod = pair.status === "available"
+        ? analysis.periods.find((item) => formatDanishMonth(item.name) === pair.previousLabel)
+        : null;
       return {
         name: formatDanishMonth(period.name, "short"),
         fullName: period.name,
@@ -327,7 +343,7 @@ function CostTrendChart({ analysis }: { analysis: CostIntelligence }) {
         previous: previousPeriod ? (previousPeriod[activeMetric] ?? null) : null,
       };
     }),
-    [activeMetric, analysis.periods],
+    [activeMetric, analysis.hasSelectedPeriod, analysis.partialMonths, analysis.periodComparison, analysis.periods],
   );
   const options = useMemo(
     () => availableMetrics.map((metric) => ({
@@ -337,7 +353,7 @@ function CostTrendChart({ analysis }: { analysis: CostIntelligence }) {
     })),
     [availableMetrics],
   );
-  const comparisonAvailable = analysis.hasComparison && chartData.length > 1;
+  const comparisonAvailable = analysis.hasComparison && analysis.periodComparison.currentMonths.length === 1 && chartData.length > 1;
 
   return (
     <CommandPanel
@@ -401,7 +417,7 @@ function CostTrendChart({ analysis }: { analysis: CostIntelligence }) {
           className="h-[310px] min-w-0 sm:h-[350px]"
           data-testid="cost-trend-chart"
           role="img"
-          aria-label={`${definition.label} for ${analysis.periods.length} perioder. ${showComparison && comparisonAvailable ? "Aktuel periode sammenlignes med forrige periode." : "Kun aktuel periode vises."}`}
+          aria-label={`${definition.label} for ${chartData.length} perioder. ${showComparison && comparisonAvailable ? `Sammenligning: ${analysis.periodComparison.label}.` : "Ingen ekstra sammenligningskurve vises."}`}
         >
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 12, right: 20, bottom: 30, left: 12 }}>
