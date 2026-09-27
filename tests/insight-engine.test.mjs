@@ -184,7 +184,7 @@ test("F: manglende omkostningsdata skjuler omkostning, resultat og omkostningsan
   assert.deepEqual(costSection?.paragraphs, []);
 });
 
-test("G: uden kategori falder driveranalysen tilbage til produkt, kanal og region", () => {
+test("G: ukendt kategori afstemmes også, mens produkt, kanal og region bevares", () => {
   const analysis = buildInsightAnalysis([
     row({ product: "Café", category: "Ukategoriseret", channel: "Online", region: "København", revenue: 100 }),
     row({ product: "Råvarer", category: "", channel: "Butik", region: "München", revenue: 100 }),
@@ -195,7 +195,8 @@ test("G: uden kategori falder driveranalysen tilbage til produkt, kanal og regio
     .filter((item) => item.metric === "revenue")
     .map((item) => item.dimension);
 
-  assert.equal(revenueDimensions.includes("category"), false);
+  assert.equal(revenueDimensions.includes("category"), true);
+  assert.equal(driverAnalysis(analysis, "revenue", "category").positiveDrivers[0].dimensionValue, "Ukendt/ufordelt");
   assert.equal(revenueDimensions.includes("product"), true);
   assert.equal(revenueDimensions.includes("channel"), true);
   assert.equal(revenueDimensions.includes("region"), true);
@@ -400,7 +401,7 @@ test("M: serialiseret UI-data er endelig, deterministisk og uden kausale påstan
   assert.doesNotMatch(prose, /(?:på grund af|skyldes|forårsaget af)/iu);
   assert.match(
     first.observations.map((item) => item.text).join(" "),
-    /Dataene viser, hvor ændringen opstod, men ikke den bagvedliggende forretningsmæssige årsag\./u,
+    /Dataene viser, hvor ændringen er registreret, men ikke den bagvedliggende forretningsmæssige årsag\./u,
   );
 });
 

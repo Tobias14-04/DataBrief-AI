@@ -54,7 +54,12 @@ test("driverforklaringen er en tilgængelig disclosure og viser positive samt ne
   assert.match(componentSource, /Andre registrerede dimensioner/u);
   assert.match(componentSource, /Dataene viser, hvor ændringen opstod/u);
   assert.match(componentSource, /ChangeIcon change=\{change\.absoluteChange\}/u);
-  assert.match(componentSource, /stackActionOnMobile=\{preferredDrivers\.length > 1\}/u);
+  assert.match(componentSource, /stackActionOnMobile=\{preferredDrivers\.length > 1 \|\| metricDimensions\.length > 1\}/u);
+  assert.match(componentSource, /ariaLabel="Vælg dimension til driveranalyse"/u);
+  assert.match(componentSource, /Andel af nettoændringen:/u);
+  assert.match(componentSource, /Andel af absolut bevægelse:/u);
+  assert.match(componentSource, /Øvrige \{omittedCount\} medlemmer/u);
+  assert.match(componentSource, /Uændrede medlemmer/u);
   assert.match(componentSource, /Ingen positive bidrag i sammenligningsperioden\./u);
   assert.match(componentSource, /Ingen negative bidrag i sammenligningsperioden\./u);
   assert.doesNotMatch(componentSource, /Dokumenteret ændring i den sammenlignede periode\./u);

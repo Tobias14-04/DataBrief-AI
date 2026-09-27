@@ -98,14 +98,23 @@ export type InsightMetricChange = InsightSnapshotItem & {
 };
 
 export type InsightDriver = {
+  metric: InsightMetricKey;
   dimension: InsightDimension;
   dimensionValue: string;
+  scopeFilters: readonly string[];
+  previousPeriod: string;
+  currentPeriod: string;
   currentValue: number;
   previousValue: number;
   absoluteChange: number;
   percentageChange: number | null;
   contribution: number | null;
-  movementShare: number;
+  movementShare: number | null;
+  measures: {
+    amount: { id: string; label: string; value: number };
+    netShare: { id: string; label: "Andel af nettoændringen"; value: number | null };
+    movementShare: { id: string; label: "Andel af absolut bevægelse"; value: number | null };
+  };
   sampleSize: number;
   reliability: InsightReliability;
   evidenceId: string;
@@ -122,8 +131,28 @@ export type InsightDriverAnalysis = {
   comparisonPeriod: string;
   positiveDrivers: InsightDriver[];
   negativeDrivers: InsightDriver[];
+  unchangedDrivers: InsightDriver[];
+  hasKnownMembers: boolean;
+  reconciliationDifference: number;
+  scopeFilters: readonly string[];
+  previousPeriod: string;
+  currentPeriod: string;
   evidenceId: string;
 };
+
+export function summarizeDriverTopN(items: readonly InsightDriver[], limit: number) {
+  const shown = items.slice(0, Math.max(0, limit));
+  const omitted = items.slice(Math.max(0, limit));
+  return {
+    shown,
+    omittedCount: omitted.length,
+    omittedChange: omitted.reduce((sum, item) => sum + item.absoluteChange, 0),
+    omittedNetShare: omitted.every((item) => item.contribution !== null)
+      ? omitted.reduce((sum, item) => sum + (item.contribution ?? 0), 0) : null,
+    omittedMovementShare: omitted.every((item) => item.movementShare !== null)
+      ? omitted.reduce((sum, item) => sum + (item.movementShare ?? 0), 0) : null,
+  };
+}
 
 export type InsightEvidence = {
   id: string;
@@ -138,6 +167,11 @@ export type InsightEvidence = {
   dimension?: InsightDimension;
   dimensionValue?: string;
   contribution?: number | null;
+  movementShare?: number | null;
+  driverMeasures?: InsightDriver["measures"];
+  scopeFilters?: readonly string[];
+  previousPeriod?: string;
+  currentPeriod?: string;
   sampleSize: number;
   reliability: InsightReliability;
   supportingFacts: string[];
@@ -251,6 +285,8 @@ const metricOrder: InsightMetricKey[] = [
 ];
 const additiveDriverMetrics: InsightMetricKey[] = ["revenue", "result", "grossProfit", "cost", "units"];
 const dimensions: InsightDimension[] = ["product", "category", "channel", "region"];
+const UNKNOWN_DIMENSION_KEY = "\u0000unknown";
+const UNKNOWN_DIMENSION_LABEL = "Ukendt/ufordelt";
 const MINIMUM_COVERAGE = 0.95;
 const MINIMUM_PERCENT_BASE_SHARE = 0.005;
 const danishCollator = new Intl.Collator("da-DK", { numeric: true, sensitivity: "base" });
@@ -471,8 +507,10 @@ function combinePeriods(periods: readonly PeriodAccumulator[], keyPrefix: string
 
 function addDimensionRow(period: PeriodAccumulator, dimension: InsightDimension, rawValue: string, row: InsightSourceRow) {
   const comparisonKey = normalizeForComparison(rawValue);
-  if (!comparisonKey || ["ukategoriseret", "ukendt", "unknown", "ikke angivet", "n/a"].includes(comparisonKey)) return;
-  const identity = comparableLabel(rawValue);
+  const isUnknown = !comparisonKey || ["ukategoriseret", "ukendt", "unknown", "ikke angivet", "n/a", "ukendt/ufordelt"].includes(comparisonKey);
+  const identity = isUnknown
+    ? { key: UNKNOWN_DIMENSION_KEY, label: UNKNOWN_DIMENSION_LABEL }
+    : comparableLabel(rawValue);
   const current = period.dimensions[dimension].get(identity.key) ?? {
     ...createAccumulator(),
     name: identity.label,
@@ -496,18 +534,26 @@ function evidenceId(...parts: Array<string | number>) {
   }).join(":");
 }
 
+function driverMeasures(metric: InsightMetricKey, id: string, amount: number, netShare: number | null, movementShare: number | null): InsightDriver["measures"] {
+  return {
+    amount: { id: evidenceId(id, "amount"), label: metric === "revenue" ? "Omsætningsbidrag i kr." : `${metricLabels[metric]}: absolut ændring`, value: amount },
+    netShare: { id: evidenceId(id, "net-change-share"), label: "Andel af nettoændringen", value: netShare },
+    movementShare: { id: evidenceId(id, "absolute-movement-share"), label: "Andel af absolut bevægelse", value: movementShare },
+  };
+}
+
 function buildDrivers(
   current: PeriodAccumulator,
   previous: PeriodAccumulator,
   metric: InsightMetricKey,
   dimension: InsightDimension,
+  scopeFilters: readonly string[],
 ): InsightDriverAnalysis | null {
   const currentTotal = metricValue(current, metric);
   const previousTotal = metricValue(previous, metric);
   if (currentTotal === null || previousTotal === null) return null;
   const currentGroups = current.dimensions[dimension];
   const previousGroups = previous.dimensions[dimension];
-  if (currentGroups.size < 2 && previousGroups.size < 2) return null;
   const keys = new Set([...currentGroups.keys(), ...previousGroups.keys()]);
   const items: InsightDriver[] = [];
   for (const key of keys) {
@@ -517,19 +563,25 @@ function buildDrivers(
     const previousValue = previousGroup ? metricValue(previousGroup, metric) : 0;
     if (currentValue === null || previousValue === null) continue;
     const absoluteChange = currentValue - previousValue;
-    if (absoluteChange === 0 || !Number.isFinite(absoluteChange)) continue;
+    if (!Number.isFinite(absoluteChange)) continue;
     const name = currentGroup && previousGroup
       ? chooseRepresentativeLabel(currentGroup.name, previousGroup.name)
       : currentGroup?.name ?? previousGroup?.name ?? key;
+    const driverId = evidenceId("driver", metric, dimension, key, previous.key, current.key, ...scopeFilters);
     items.push({
+      metric,
       dimension,
       dimensionValue: name,
+      scopeFilters,
+      previousPeriod: previous.label,
+      currentPeriod: current.label,
       currentValue,
       previousValue,
       absoluteChange,
       percentageChange: percentageChange(currentValue, previousValue, previousTotal),
       contribution: null,
-      movementShare: 0,
+      movementShare: null,
+      measures: driverMeasures(metric, driverId, absoluteChange, null, null),
       sampleSize: (currentGroup?.rowCount ?? 0) + (previousGroup?.rowCount ?? 0),
       reliability: reliability(
         (currentGroup?.rowCount ?? 0) + (previousGroup?.rowCount ?? 0),
@@ -538,21 +590,38 @@ function buildDrivers(
           previousGroup ? metricCoverage(previousGroup, metric) : 1,
         ),
       ),
-      evidenceId: evidenceId("driver", metric, dimension, key),
+      evidenceId: driverId,
     });
   }
   if (!items.length) return null;
   const totalChange = currentTotal - previousTotal;
+  const allocatedChange = items.reduce((sum, item) => sum + item.absoluteChange, 0);
+  const reconciliationDifference = totalChange - allocatedChange;
+  if (!Number.isFinite(totalChange) || !Number.isFinite(reconciliationDifference)) return null;
+  const tolerance = Math.max(1, Math.abs(totalChange), Math.abs(allocatedChange)) * 1e-10;
+  if (Math.abs(reconciliationDifference) > tolerance) {
+    const remainderId = evidenceId("driver", metric, dimension, "unallocated-remainder", previous.key, current.key, ...scopeFilters);
+    items.push({
+      metric, dimension, dimensionValue: "Ufordelt rest", scopeFilters,
+      previousPeriod: previous.label, currentPeriod: current.label,
+      currentValue: reconciliationDifference, previousValue: 0,
+      absoluteChange: reconciliationDifference, percentageChange: null,
+      contribution: null, movementShare: null, sampleSize: 0, reliability: "low",
+      measures: driverMeasures(metric, remainderId, reconciliationDifference, null, null),
+      evidenceId: remainderId,
+    });
+  }
   const totalMovement = items.reduce((sum, item) => sum + Math.abs(item.absoluteChange), 0);
   items.forEach((item) => {
-    item.contribution = totalChange !== 0 ? item.absoluteChange / totalChange : null;
-    item.movementShare = totalMovement ? Math.abs(item.absoluteChange) / totalMovement : 0;
+    item.contribution = safeRatio(item.absoluteChange, totalChange);
+    item.movementShare = safeRatio(Math.abs(item.absoluteChange), totalMovement);
+    item.measures = driverMeasures(metric, item.evidenceId, item.absoluteChange, item.contribution, item.movementShare);
   });
   const sortDrivers = (left: InsightDriver, right: InsightDriver) => (
     Math.abs(right.absoluteChange) - Math.abs(left.absoluteChange)
     || danishCollator.compare(left.dimensionValue, right.dimensionValue)
   );
-  const id = evidenceId("driver-analysis", metric, dimension, previous.key, current.key);
+  const id = evidenceId("driver-analysis", metric, dimension, previous.key, current.key, ...scopeFilters);
   return {
     metric,
     label: metricLabels[metric],
@@ -564,6 +633,12 @@ function buildDrivers(
     comparisonPeriod: `${previous.label} → ${current.label}`,
     positiveDrivers: items.filter((item) => item.absoluteChange > 0).sort(sortDrivers),
     negativeDrivers: items.filter((item) => item.absoluteChange < 0).sort(sortDrivers),
+    unchangedDrivers: items.filter((item) => item.absoluteChange === 0).sort(sortDrivers),
+    hasKnownMembers: keys.size > (keys.has(UNKNOWN_DIMENSION_KEY) ? 1 : 0),
+    reconciliationDifference: Math.abs(reconciliationDifference) > tolerance ? reconciliationDifference : 0,
+    scopeFilters,
+    previousPeriod: previous.label,
+    currentPeriod: current.label,
     evidenceId: id,
   };
 }
@@ -902,13 +977,16 @@ export function buildInsightAnalysis(
   }
 
   const driverAnalyses: InsightDriverAnalysis[] = [];
+  const driverScopeFilters = [...(options.activeFilterLabels ?? [])].sort(danishCollator.compare);
   if (current && previous) {
     for (const metric of additiveDriverMetrics) {
       if (suppressPeriodizedCostMetrics && (metric === "cost" || metric === "result")) continue;
       for (const dimension of dimensions) {
-        const analysis = buildDrivers(current, previous, metric, dimension);
+        const analysis = buildDrivers(current, previous, metric, dimension, driverScopeFilters);
         if (!analysis) continue;
         driverAnalyses.push(analysis);
+        const positiveTop = summarizeDriverTopN(analysis.positiveDrivers, 3);
+        const negativeTop = summarizeDriverTopN(analysis.negativeDrivers, 3);
         evidence.push({
           id: analysis.evidenceId,
           type: "driver",
@@ -918,18 +996,25 @@ export function buildInsightAnalysis(
           previousValue: analysis.previousValue,
           absoluteChange: analysis.totalChange,
           dimension: analysis.dimension,
+          scopeFilters: analysis.scopeFilters,
+          previousPeriod: analysis.previousPeriod,
+          currentPeriod: analysis.currentPeriod,
           sampleSize: current.rowCount + previous.rowCount,
           reliability: reliability(current.rowCount + previous.rowCount),
           supportingFacts: [
-            ...analysis.positiveDrivers.slice(0, 3).map((driver) => `${driver.dimensionValue}: ${signedMetric(metric, driver.absoluteChange)} registreret bidrag.`),
-            ...analysis.negativeDrivers.slice(0, 3).map((driver) => `${driver.dimensionValue}: ${signedMetric(metric, driver.absoluteChange)} registreret bidrag.`),
+            `Sammenligning: ${analysis.comparisonPeriod}. Dimension: ${analysis.dimensionLabel}. ${analysis.scopeFilters.length ? `Filtre: ${analysis.scopeFilters.join(", ")}.` : "Ingen dimensionsfiltre."}`,
+            endSentence(`Afstemning: ${signedMetric(metric, analysis.totalChange)} i alt; ufordelt rest ${signedMetric(metric, analysis.reconciliationDifference)}`),
+            ...positiveTop.shown.map((driver) => `${driver.dimensionValue}: ${signedMetric(metric, driver.absoluteChange)} registreret bidrag.`),
+            ...negativeTop.shown.map((driver) => `${driver.dimensionValue}: ${signedMetric(metric, driver.absoluteChange)} registreret bidrag.`),
+            ...(positiveTop.omittedCount ? [endSentence(`Øvrige ${positiveTop.omittedCount} positive medlemmer: ${signedMetric(metric, positiveTop.omittedChange)}`)] : []),
+            ...(negativeTop.omittedCount ? [endSentence(`Øvrige ${negativeTop.omittedCount} negative medlemmer: ${signedMetric(metric, negativeTop.omittedChange)}`)] : []),
           ],
         });
-        for (const driver of [...analysis.positiveDrivers, ...analysis.negativeDrivers]) {
+        for (const driver of [...analysis.positiveDrivers, ...analysis.negativeDrivers, ...analysis.unchangedDrivers]) {
           evidence.push({
             id: driver.evidenceId,
             type: "driver",
-            title: `${driver.dimensionValue}: registreret bidrag til ${analysis.label.toLocaleLowerCase("da-DK")}`,
+            title: `${analysis.dimensionLabel}: ${driver.dimensionValue} · ${driver.measures.amount.label}`,
             metric,
             currentValue: driver.currentValue,
             previousValue: driver.previousValue,
@@ -938,10 +1023,18 @@ export function buildInsightAnalysis(
             dimension: analysis.dimension,
             dimensionValue: driver.dimensionValue,
             contribution: driver.contribution,
+            movementShare: driver.movementShare,
+            driverMeasures: driver.measures,
+            scopeFilters: driver.scopeFilters,
+            previousPeriod: driver.previousPeriod,
+            currentPeriod: driver.currentPeriod,
             sampleSize: driver.sampleSize,
             reliability: driver.reliability,
             supportingFacts: [
               `${driver.dimensionValue} ændrede sig med ${signedMetric(metric, driver.absoluteChange)} i de registrerede data.`,
+              `Andel af nettoændringen: ${driver.contribution === null ? "utilgængelig ved nul nettoændring" : formatDanishPercent(driver.contribution)}.`,
+              `Andel af absolut bevægelse: ${driver.movementShare === null ? "utilgængelig ved nul bevægelse" : formatDanishPercent(driver.movementShare)}.`,
+              `Sammenligning: ${analysis.comparisonPeriod}. Dimension: ${analysis.dimensionLabel}. ${analysis.scopeFilters.length ? `Filtre: ${analysis.scopeFilters.join(", ")}.` : "Ingen dimensionsfiltre."}`,
               "Dataene dokumenterer, hvor ændringen opstod, men ikke den bagvedliggende forretningsmæssige årsag.",
             ],
           });
@@ -970,24 +1063,26 @@ export function buildInsightAnalysis(
   };
   const primaryRevenueAnalysis = driverAnalyses
     .filter((analysis) => analysis.metric === "revenue")
-    .sort((left, right) => dimensionPriority[left.dimension] - dimensionPriority[right.dimension])[0];
+    .sort((left, right) => Number(right.hasKnownMembers) - Number(left.hasKnownMembers)
+      || dimensionPriority[left.dimension] - dimensionPriority[right.dimension])[0];
   const strongestDriver = primaryRevenueAnalysis
     ? [...primaryRevenueAnalysis.positiveDrivers, ...primaryRevenueAnalysis.negativeDrivers]
         .sort((left, right) => Math.abs(right.absoluteChange) - Math.abs(left.absoluteChange))[0]
     : undefined;
-  if (strongestDriver) {
+  if (strongestDriver && primaryRevenueAnalysis) {
+    const driverContext = `${primaryRevenueAnalysis.dimensionLabel.toLocaleLowerCase("da-DK")} ${strongestDriver.dimensionValue} i ${primaryRevenueAnalysis.comparisonPeriod}${primaryRevenueAnalysis.scopeFilters.length ? ` med filtre ${primaryRevenueAnalysis.scopeFilters.join(", ")}` : ""}`;
     observations.unshift({
       id: "observation-driver",
       title: "Største registrerede bidrag",
-      text: `${endSentence(`Det største registrerede omsætningsbidrag kommer fra ${strongestDriver.dimensionValue}: ${signedMetric("revenue", strongestDriver.absoluteChange)}`)} Dataene viser, hvor ændringen opstod, men ikke den bagvedliggende forretningsmæssige årsag.`,
+      text: `${endSentence(`Det største registrerede omsætningsbidrag er ${signedMetric("revenue", strongestDriver.absoluteChange)} for ${driverContext}`)} Dataene viser, hvor ændringen er registreret, men ikke den bagvedliggende forretningsmæssige årsag.`,
       tone: strongestDriver.absoluteChange > 0 ? "positive" : "negative",
       priority: Math.abs(strongestDriver.absoluteChange) * 1.01,
       evidenceIds: [strongestDriver.evidenceId],
     });
   }
-  const recommendations: InsightRecommendation[] = strongestDriver ? [{
+  const recommendations: InsightRecommendation[] = strongestDriver && primaryRevenueAnalysis ? [{
     id: "focus-primary-driver",
-    text: `Undersøg ${strongestDriver.dimensionValue} nærmere, da området har det største registrerede absolutte bidrag til omsætningsændringen.`,
+    text: `Undersøg ${primaryRevenueAnalysis.dimensionLabel.toLocaleLowerCase("da-DK")} ${strongestDriver.dimensionValue} nærmere; her er det største registrerede absolutte omsætningsbidrag i ${primaryRevenueAnalysis.comparisonPeriod}.`,
     evidenceIds: [strongestDriver.evidenceId],
   }] : [];
 
@@ -1203,8 +1298,8 @@ export function buildInsightAnalysis(
       developmentNarrative.paragraphs,
       developmentNarrative.evidenceIds,
     ),
-    reportSection("positive-drivers", "Vigtigste positive drivere", bestPositive ? [endSentence(`Det største positive registrerede bidrag kommer fra ${bestPositive.dimensionValue}: ${signedMetric("revenue", bestPositive.absoluteChange)}`)] : [], bestPositive ? [bestPositive.evidenceId] : []),
-    reportSection("negative-drivers", "Vigtigste negative drivere", bestNegative ? [endSentence(`Det største negative registrerede bidrag kommer fra ${bestNegative.dimensionValue}: ${signedMetric("revenue", bestNegative.absoluteChange)}`)] : [], bestNegative ? [bestNegative.evidenceId] : []),
+    reportSection("positive-drivers", "Vigtigste positive drivere", bestPositive && primaryRevenueAnalysis ? [endSentence(`Største positive omsætningsbidrag i kr.: ${signedMetric("revenue", bestPositive.absoluteChange)} for ${primaryRevenueAnalysis.dimensionLabel.toLocaleLowerCase("da-DK")} ${bestPositive.dimensionValue}, ${primaryRevenueAnalysis.comparisonPeriod}${primaryRevenueAnalysis.scopeFilters.length ? `, filtre: ${primaryRevenueAnalysis.scopeFilters.join(", ")}` : ""}`)] : [], bestPositive ? [bestPositive.evidenceId] : []),
+    reportSection("negative-drivers", "Vigtigste negative drivere", bestNegative && primaryRevenueAnalysis ? [endSentence(`Største negative omsætningsbidrag i kr.: ${signedMetric("revenue", bestNegative.absoluteChange)} for ${primaryRevenueAnalysis.dimensionLabel.toLocaleLowerCase("da-DK")} ${bestNegative.dimensionValue}, ${primaryRevenueAnalysis.comparisonPeriod}${primaryRevenueAnalysis.scopeFilters.length ? `, filtre: ${primaryRevenueAnalysis.scopeFilters.join(", ")}` : ""}`)] : [], bestNegative ? [bestNegative.evidenceId] : []),
     reportSection("costs-profitability", "Omkostninger og rentabilitet", costParagraphs, [costSnapshot?.evidenceId, resultSnapshot?.evidenceId, largestCostEvidenceId, costBudgetEvidenceId].filter((id): id is string => Boolean(id))),
     reportSection("risks", "Risici / opmærksomhedspunkter", observations.filter((item) => item.tone === "negative").map((item) => item.text), observations.filter((item) => item.tone === "negative").flatMap((item) => item.evidenceIds)),
     reportSection("opportunities", "Muligheder", observations.filter((item) => item.tone === "positive").map((item) => item.text), observations.filter((item) => item.tone === "positive").flatMap((item) => item.evidenceIds)),

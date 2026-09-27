@@ -563,6 +563,9 @@ export function buildStrategicAnalysis(analysis: InsightAnalysis): StrategicAnal
   }
 
   for (const driverAnalysis of analysis.driverAnalyses) {
+    // A sole member reproduces the total change; it is visible in driver analysis,
+    // but does not add a distinct strategic finding.
+    if (driverAnalysis.positiveDrivers.length + driverAnalysis.negativeDrivers.length + driverAnalysis.unchangedDrivers.length <= 1) continue;
     const analysisEvidence = evidenceById.get(driverAnalysis.evidenceId);
     for (const driver of [...driverAnalysis.positiveDrivers, ...driverAnalysis.negativeDrivers]) {
       const evidence = evidenceById.get(driver.evidenceId);
@@ -603,7 +606,7 @@ export function buildStrategicAnalysis(analysis: InsightAnalysis): StrategicAnal
         economicImpact: impact,
         confidence: driver.reliability,
         sampleSize: driver.sampleSize,
-        strategicRelevance: driver.movementShare >= 0.25 ? 5 : 3,
+        strategicRelevance: (driver.movementShare ?? 0) >= 0.25 ? 5 : 3,
       });
 
       const currentShare = safeRatio(driver.currentValue, driverAnalysis.currentValue);

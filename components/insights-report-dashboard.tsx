@@ -55,6 +55,7 @@ import {
   formatDanishNumber,
   formatDanishPercent,
 } from "@/lib/dashboard-insights";
+import { summarizeDriverTopN } from "@/lib/insight-engine";
 import type {
   InsightAnalysis,
   InsightDriver,
@@ -221,25 +222,25 @@ function driverExplanation(driver: InsightDriverAnalysis) {
   const negative = driver.negativeDrivers[0]?.dimensionValue;
   if (driver.metric === "cost") {
     if (positive && negative) {
-      return `De registrerede data viser især en omkostningsstigning i ${positive}, mens ${negative} havde det største registrerede omkostningsfald.`;
+      return `I ${driver.comparisonPeriod} er den største omkostningsstigning registreret hos ${driver.dimensionLabel.toLocaleLowerCase("da-DK")} ${positive}, og det største fald hos ${negative}.`;
     }
     if (positive) {
-      return `Den største registrerede omkostningsstigning findes i ${positive}.`;
+      return `I ${driver.comparisonPeriod} er den største omkostningsstigning registreret hos ${driver.dimensionLabel.toLocaleLowerCase("da-DK")} ${positive}.`;
     }
     if (negative) {
-      return `Det største registrerede omkostningsfald findes i ${negative}.`;
+      return `I ${driver.comparisonPeriod} er det største omkostningsfald registreret hos ${driver.dimensionLabel.toLocaleLowerCase("da-DK")} ${negative}.`;
     }
   }
   if (positive && negative) {
-    return `De registrerede data viser især et positivt bidrag til ${driver.label.toLocaleLowerCase("da-DK")} fra ${positive}, mens ${negative} trak i modsat retning.`;
+    return `I ${driver.comparisonPeriod} er det største positive registrerede bidrag til ${driver.label.toLocaleLowerCase("da-DK")} knyttet til ${driver.dimensionLabel.toLocaleLowerCase("da-DK")} ${positive}, mens det største negative bidrag er registreret hos ${negative}.`;
   }
   if (positive) {
-    return `Det største registrerede positive bidrag til ${driver.label.toLocaleLowerCase("da-DK")} kommer fra ${positive}.`;
+    return `I ${driver.comparisonPeriod} er det største positive bidrag til ${driver.label.toLocaleLowerCase("da-DK")} registreret hos ${driver.dimensionLabel.toLocaleLowerCase("da-DK")} ${positive}.`;
   }
   if (negative) {
-    return `Det største registrerede negative bidrag til ${driver.label.toLocaleLowerCase("da-DK")} kommer fra ${negative}.`;
+    return `I ${driver.comparisonPeriod} er det største negative bidrag til ${driver.label.toLocaleLowerCase("da-DK")} registreret hos ${driver.dimensionLabel.toLocaleLowerCase("da-DK")} ${negative}.`;
   }
-  return `Der er ingen enkelt registreret ${driver.dimensionLabel.toLocaleLowerCase("da-DK")}, som kan fremhæves som driver.`;
+  return `Ingen ${driver.dimensionLabel.toLocaleLowerCase("da-DK")} har en registreret ændring i ${driver.comparisonPeriod}.`;
 }
 
 function DashboardTabs({
@@ -443,9 +444,10 @@ function ContributionList({
   emptyMessage: string;
 }) {
   const maxContribution = Math.max(
-    ...items.map((item) => item.movementShare),
+    ...items.map((item) => item.movementShare ?? 0),
     0,
   );
+  const { shown: shownItems, omittedCount, omittedChange, omittedNetShare, omittedMovementShare } = summarizeDriverTopN(items, 5);
   const barClass = tone === "positive" ? "bg-emerald-500" : "bg-orange-500";
   const valueClass = tone === "positive" ? "text-emerald-700" : "text-orange-700";
 
@@ -457,8 +459,8 @@ function ContributionList({
       </div>
       {items.length ? (
         <ol className="mt-4 space-y-4">
-          {items.slice(0, 5).map((item, index) => {
-            const contribution = item.movementShare;
+          {shownItems.map((item, index) => {
+            const contribution = item.movementShare ?? 0;
             const width = maxContribution > 0
               ? Math.max(5, (contribution / maxContribution) * 100)
               : 5;
@@ -475,8 +477,10 @@ function ContributionList({
                           : `${item.percentageChange > 0 ? "+" : item.percentageChange < 0 ? "−" : ""}${formatDanishPercent(Math.abs(item.percentageChange))} mod forrige periode`}
                       </span>
                     </div>
-                    <span className="shrink-0 text-[10px] font-medium text-slate-400" aria-hidden="true">{formatDanishPercent(item.movementShare)} af bevægelsen</span>
-                    <span className="sr-only">Andel af den samlede absolutte bevægelse: {(contribution * 100).toLocaleString("da-DK", { maximumFractionDigits: 1 })} procent</span>
+                    <span className="shrink-0 text-right text-[10px] font-medium text-slate-500">
+                      <span className="block">Andel af nettoændringen: {item.contribution === null ? "utilgængelig" : formatDanishPercent(item.contribution)}</span>
+                      <span className="block">Andel af absolut bevægelse: {item.movementShare === null ? "utilgængelig" : formatDanishPercent(item.movementShare)}</span>
+                    </span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
                     <div className={`insight-driver-bar h-full rounded-full ${barClass}`} style={{ width: `${width}%` }} />
@@ -489,6 +493,13 @@ function ContributionList({
               </li>
             );
           })}
+          {omittedCount ? (
+            <li className="border-t border-slate-200 pt-3 text-xs text-slate-600">
+              <span className="font-semibold">Øvrige {omittedCount} medlemmer</span>
+              <span className="ml-2">{formatMetricDelta(metric, omittedChange)}</span>
+              <span className="mt-1 block">Andel af nettoændringen: {omittedNetShare === null ? "utilgængelig" : formatDanishPercent(omittedNetShare)} · Andel af absolut bevægelse: {omittedMovementShare === null ? "utilgængelig" : formatDanishPercent(omittedMovementShare)}</span>
+            </li>
+          ) : null}
         </ol>
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center px-3 py-7 text-center">
@@ -513,34 +524,44 @@ function DriverPanel({
     const dimensionPriority = { category: 0, product: 1, channel: 2, region: 3 } as const;
     const byMetric = new Map<InsightMetricKey, InsightDriverAnalysis>();
     [...drivers]
-      .sort((left, right) => dimensionPriority[left.dimension] - dimensionPriority[right.dimension])
+      .sort((left, right) => Number(right.hasKnownMembers) - Number(left.hasKnownMembers)
+        || dimensionPriority[left.dimension] - dimensionPriority[right.dimension])
       .forEach((driver) => {
         if (!byMetric.has(driver.metric)) byMetric.set(driver.metric, driver);
       });
     return Array.from(byMetric.values());
   }, [drivers]);
   const [selectedMetric, setSelectedMetric] = useState<string>(preferredDrivers[0]?.metric ?? "");
+  const [selectedDimension, setSelectedDimension] = useState<string>(preferredDrivers[0]?.dimension ?? "");
   const [expandedMetric, setExpandedMetric] = useState<string | null>(null);
   const availableMetricIds = useMemo<string[]>(() => preferredDrivers.map((driver) => driver.metric), [preferredDrivers]);
   const resolvedMetric = availableMetricIds.includes(selectedMetric)
     ? selectedMetric
     : availableMetricIds[0] ?? "";
-  const activeDriver = preferredDrivers.find((driver) => driver.metric === resolvedMetric) ?? null;
+  const metricDimensions = useMemo(
+    () => drivers.filter((driver) => driver.metric === resolvedMetric),
+    [drivers, resolvedMetric],
+  );
+  const activeDriver = metricDimensions.find((driver) => driver.dimension === selectedDimension)
+    ?? metricDimensions[0] ?? null;
   const explanationId = useId();
-  const driverRevision = useMemo(() => preferredDrivers.map((driver) => (
-    `${driver.evidenceId}:${driver.totalChange}:${driver.positiveDrivers.length}:${driver.negativeDrivers.length}`
-  )).join("|"), [preferredDrivers]);
+  const driverRevision = useMemo(() => drivers.map((driver) => (
+    `${driver.evidenceId}:${driver.totalChange}:${driver.positiveDrivers.length}:${driver.negativeDrivers.length}:${driver.unchangedDrivers.length}`
+  )).join("|"), [drivers]);
   const previousDriverRevisionRef = useRef(driverRevision);
 
   useEffect(() => {
     if (previousDriverRevisionRef.current === driverRevision) return;
     previousDriverRevisionRef.current = driverRevision;
     setSelectedMetric((current) => availableMetricIds.includes(current) ? current : availableMetricIds[0] ?? "");
+    setSelectedDimension((current) => drivers.some((driver) => driver.metric === resolvedMetric && driver.dimension === current)
+      ? current : metricDimensions[0]?.dimension ?? "");
     setExpandedMetric(null);
-  }, [availableMetricIds, driverRevision]);
+  }, [availableMetricIds, driverRevision, drivers, metricDimensions, resolvedMetric]);
 
   function changeMetric(metric: string) {
     setSelectedMetric(metric);
+    setSelectedDimension(drivers.find((driver) => driver.metric === metric)?.dimension ?? "");
     setExpandedMetric(null);
   }
 
@@ -555,7 +576,7 @@ function DriverPanel({
       >
         <CommandEmptyState
           title="Ingen dokumenterede drivere"
-          message="Der kræves mindst to sammenlignelige perioder og en registreret dimension som produkt, kategori, kanal eller region."
+          message="Der kræves to sammenlignelige hele perioder med dokumenterede salgsdata. Manglende dimensionsværdier indgår som ukendt/ufordelt, når en sammenligning er mulig."
         />
       </CommandPanel>
     );
@@ -564,6 +585,7 @@ function DriverPanel({
   const expanded = expandedMetric === activeDriver.metric;
   const isCostDriver = activeDriver.metric === "cost";
   const driverOptions = preferredDrivers.map((driver) => ({ value: driver.metric, label: driver.label }));
+  const dimensionOptions = metricDimensions.map((driver) => ({ value: driver.dimension, label: driver.dimensionLabel }));
   const driverEvidence = analysis.evidence.find((item) => item.id === activeDriver.evidenceId);
   const relatedDimensions = analysis.driverAnalyses
     .filter((driver) => driver.metric === activeDriver.metric && driver.dimension !== activeDriver.dimension)
@@ -581,17 +603,27 @@ function DriverPanel({
       description="Bidragene er beregnet fra registrerede periodedifferencer — ikke antagede årsager"
       icon={SearchCheck}
       testId="driver-analysis"
-      action={preferredDrivers.length > 1 ? (
-        <PremiumSelect
-          value={activeDriver.metric}
-          options={driverOptions}
-          onChange={changeMetric}
-          ariaLabel="Vælg nøgletal til driveranalyse"
-          align="right"
-          className="min-w-0 flex-1 sm:w-[190px] sm:flex-none"
-        />
+      action={preferredDrivers.length > 1 || metricDimensions.length > 1 ? (
+        <div className="flex flex-wrap gap-2">
+          {preferredDrivers.length > 1 ? <PremiumSelect
+            value={activeDriver.metric}
+            options={driverOptions}
+            onChange={changeMetric}
+            ariaLabel="Vælg nøgletal til driveranalyse"
+            align="right"
+            className="min-w-0 flex-1 sm:w-[190px] sm:flex-none"
+          /> : null}
+          {metricDimensions.length > 1 ? <PremiumSelect
+            value={activeDriver.dimension}
+            options={dimensionOptions}
+            onChange={(dimension) => { setSelectedDimension(dimension); setExpandedMetric(null); }}
+            ariaLabel="Vælg dimension til driveranalyse"
+            align="right"
+            className="min-w-0 flex-1 sm:w-[150px] sm:flex-none"
+          /> : null}
+        </div>
       ) : null}
-      stackActionOnMobile={preferredDrivers.length > 1}
+      stackActionOnMobile={preferredDrivers.length > 1 || metricDimensions.length > 1}
     >
       <div className="border-b border-slate-100 bg-[linear-gradient(135deg,#f8fcfd_0%,#ffffff_60%)] px-5 py-5 sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -601,7 +633,7 @@ function DriverPanel({
               value={formatMetricDelta(activeDriver.metric, activeDriver.totalChange)}
               className="mt-1.5 text-[28px] font-semibold leading-none tabular-nums text-[#0b1c2d]"
             />
-            <p className="mt-2 text-xs text-slate-500">{activeDriver.comparisonPeriod} · fordelt efter {activeDriver.dimensionLabel.toLocaleLowerCase("da-DK")}</p>
+            <p className="mt-2 text-xs text-slate-500">{activeDriver.comparisonPeriod} · fordelt efter {activeDriver.dimensionLabel.toLocaleLowerCase("da-DK")}{activeDriver.scopeFilters.length ? ` · filtre: ${activeDriver.scopeFilters.join(", ")}` : " · ingen dimensionsfiltre"}</p>
           </div>
           <button
             type="button"
@@ -636,6 +668,11 @@ function DriverPanel({
             : "Ingen negative bidrag i sammenligningsperioden."}
         />
       </div>
+      {activeDriver.unchangedDrivers.length ? (
+        <p className="border-t border-slate-100 px-5 py-3 text-xs text-slate-500 sm:px-6">
+          Uændrede medlemmer ({activeDriver.unchangedDrivers.length}): {activeDriver.unchangedDrivers.map((item) => item.dimensionValue).join(", ")}.
+        </p>
+      ) : null}
 
       <div
         id={explanationId}
