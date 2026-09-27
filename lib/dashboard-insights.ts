@@ -166,7 +166,7 @@ export function formatMetricTooltip(value: number | string, metric: string | num
 }
 
 export type MonthlyReportMetric = {
-  key: DashboardMetricKey | "result" | "budgetStatus";
+  key: DashboardMetricKey | "result" | "variableCost" | "budgetStatus";
   label: string;
   value: string;
 };
@@ -220,6 +220,14 @@ export function buildMonthlyReport(input: MonthlyReportInput) {
   metrics.push({ key: "rows", label: dashboardMetricLabels.rows, value: formatDanishNumber(input.rowCount) });
 
   if (input.costBasis) {
+    if (input.costBasis.variableCosts !== null && input.costBasis.totalCosts === null
+      && input.costBasis.source === "variable-only") {
+      metrics.push({
+        key: "variableCost",
+        label: "Variable omkostninger",
+        value: formatDanishCurrency(input.costBasis.variableCosts),
+      });
+    }
     const result = input.costBasis.result;
     const existingResult = metrics.some((metric) => metric.key === "result");
     if (!existingResult) metrics.push({

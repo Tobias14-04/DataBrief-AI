@@ -851,7 +851,12 @@ export function buildInsightAnalysis(
   const actualCost = options.costSource
     ? options.costSource.totalCosts
     : finite(options.actualCost) ? options.actualCost : null;
-  const actualCostBasis = actualCost === null ? null : options.actualCostBasis ?? "row-derived";
+  const variableOnly = options.costSource?.source === "variable-only" && actualCost === null;
+  const reportedCost = actualCost ?? (variableOnly ? options.costSource?.variableCosts ?? null : null);
+  const actualCostBasis = reportedCost === null ? null : options.actualCostBasis ?? "row-derived";
+  const displayedMetricLabel = (metric: InsightMetricKey) => variableOnly && metric === "cost"
+    ? "Variable omkostninger" : variableOnly && metric === "costShare"
+      ? "Variable omkostninger i % af omsætning" : metricLabels[metric];
   const suppressPeriodizedCostMetrics = Boolean(options.costSource && (options.costSource.status === "unavailable" || options.costSource.source !== "row-cost"))
     || actualCostBasis === "registered";
   const usesActualCost = (metric: InsightMetricKey) => (
@@ -861,20 +866,21 @@ export function buildInsightAnalysis(
   const scopeMetricValue = (metric: InsightMetricKey) => {
     if (!scope) return null;
     if (!usesActualCost(metric)) return metricValue(scope, metric);
-    if (actualCost === null) return null;
-    if (metric === "cost") return actualCost;
+    if (metric === "result") {
+      if (actualCost === null) return null;
+      const revenue = metricValue(scope, "revenue");
+      return revenue === null ? null : finite(revenue - actualCost) ? revenue - actualCost : null;
+    }
+    if (reportedCost === null) return null;
+    if (metric === "cost") return reportedCost;
     const revenue = metricValue(scope, "revenue");
     if (revenue === null) return null;
-    if (metric === "result") {
-      const result = revenue - actualCost;
-      return finite(result) ? result : null;
-    }
-    return costToRevenue(actualCost, revenue);
+    return costToRevenue(reportedCost, revenue);
   };
   const scopeMetricCoverage = (metric: InsightMetricKey) => {
     if (!scope) return 0;
     if (usesActualCost(metric)) {
-      if (actualCost === null) return 0;
+      if (metric === "result" ? actualCost === null : reportedCost === null) return 0;
       return metric === "cost"
         ? 1
         : Math.min(1, metricCoverage(scope, "revenue"));
@@ -897,7 +903,7 @@ export function buildInsightAnalysis(
       const changeLabel = metricChangeLabel(metric, absoluteChange, percentChange, rateChange);
       changes.push({
         metric,
-        label: metricLabels[metric],
+        label: displayedMetricLabel(metric),
         value,
         formattedValue: formatMetric(metric, value),
         change: absoluteChange,
@@ -947,7 +953,7 @@ export function buildInsightAnalysis(
       const id = evidenceId("metric", metric, scopeKey);
       snapshot.push({
         metric,
-        label: metricLabels[metric],
+        label: displayedMetricLabel(metric),
         value,
         formattedValue: formatMetric(metric, value),
         change: periodChange?.absoluteChange ?? null,
@@ -955,7 +961,7 @@ export function buildInsightAnalysis(
         tone: periodChange?.tone ?? "neutral",
         evidenceId: id,
       });
-      const supportingFacts = [endSentence(`${metricLabels[metric]} for ${scopeLabel}: ${formatMetric(metric, value)}`)];
+      const supportingFacts = [endSentence(`${displayedMetricLabel(metric)} for ${scopeLabel}: ${formatMetric(metric, value)}`)];
       if (usesActualCost(metric)) {
         supportingFacts.push(actualCostBasis === "registered"
           ? "Omkostningstallet kommer fra den registrerede omkostningsopgørelse."
@@ -964,7 +970,7 @@ export function buildInsightAnalysis(
       evidence.push({
         id,
         type: "metric",
-        title: metricLabels[metric],
+        title: displayedMetricLabel(metric),
         metric,
         currentValue: value,
         sampleSize: scope.rowCount,
@@ -1090,6 +1096,7 @@ export function buildInsightAnalysis(
   const budgetEvidenceIds: string[] = [];
   if (budget) {
     for (const [metric, value] of [["revenue", budget.revenue], ["cost", budget.costs], ["result", budget.result]] as const) {
+      if (variableOnly && metric === "cost") continue;
       if (!finite(value)) continue;
       const currentValue = scopeMetricValue(metric);
       if (currentValue === null) continue;
@@ -1131,7 +1138,8 @@ export function buildInsightAnalysis(
   ));
   const costDistributionTotal = options.costSource?.status === "available"
     ? options.costSource.totalCosts
-    : costDistribution.reduce((sum, item) => sum + item.cost, 0);
+    : variableOnly ? options.costSource?.variableCosts ?? null
+      : costDistribution.reduce((sum, item) => sum + item.cost, 0);
   const largestCostGroup = costDistribution.find((item) => item.cost > 0) ?? null;
   const largestCostEvidenceId = largestCostGroup
     ? evidenceId("cost-distribution", largestCostGroup.name, scopeKey)
@@ -1154,13 +1162,13 @@ export function buildInsightAnalysis(
       reliability: costDistribution.length >= 2 ? "high" : "medium",
       supportingFacts: [
         endSentence(`${largestCostGroup.name}: ${formatDanishCurrency(largestCostGroup.cost)}`),
-        `${formatDanishPercent(share)} af de samlede omkostninger.`,
+        `${formatDanishPercent(share)} af de ${variableOnly ? "variable" : "samlede"} omkostninger.`,
       ],
     });
     observations.push({
       id: "observation-largest-cost-group",
       title: "Største registrerede omkostningspost",
-      text: `${largestCostGroup.name} er den største registrerede omkostningspost med ${formatDanishCurrency(largestCostGroup.cost)} og ${formatDanishPercent(share)} af de samlede omkostninger.`,
+      text: `${largestCostGroup.name} er den største registrerede omkostningspost med ${formatDanishCurrency(largestCostGroup.cost)} og ${formatDanishPercent(share)} af de ${variableOnly ? "variable" : "samlede"} omkostninger.`,
       tone: "neutral",
       priority: Math.abs(largestCostGroup.cost),
       evidenceIds: [largestCostEvidenceId],
@@ -1168,7 +1176,7 @@ export function buildInsightAnalysis(
     if (share >= 0.35) {
       recommendations.push({
         id: "focus-largest-cost-group",
-        text: `Undersøg ${largestCostGroup.name} nærmere, da posten udgør ${formatDanishPercent(share)} af de samlede omkostninger.`,
+        text: `Undersøg ${largestCostGroup.name} nærmere, da posten udgør ${formatDanishPercent(share)} af de ${variableOnly ? "variable" : "samlede"} omkostninger.`,
         evidenceIds: [largestCostEvidenceId],
       });
     }
@@ -1231,10 +1239,10 @@ export function buildInsightAnalysis(
     : [];
   if (largestCostGroup && largestCostEvidenceId && largestCostShare !== null) {
     costParagraphs.push(
-      `${largestCostGroup.name} var den største registrerede omkostningspost med ${formatDanishCurrency(largestCostGroup.cost)} og ${formatDanishPercent(largestCostShare)} af de samlede omkostninger.`,
+      `${largestCostGroup.name} var den største registrerede omkostningspost med ${formatDanishCurrency(largestCostGroup.cost)} og ${formatDanishPercent(largestCostShare)} af de ${variableOnly ? "variable" : "samlede"} omkostninger.`,
     );
   }
-  if (costSnapshot && finite(budget?.costs)) {
+  if (costSnapshot && !variableOnly && finite(budget?.costs)) {
     const variance = costSnapshot.value - budget.costs;
     costParagraphs.push(
       variance === 0

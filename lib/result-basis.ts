@@ -4,6 +4,8 @@ export type ResultRow = {
   revenue: number;
   grossProfit: number | null;
   cost: number | null;
+  costScope?: "total" | "variable" | null;
+  variableCost?: number | null;
 };
 
 export type WorkbookCostSource = {
@@ -16,6 +18,7 @@ export type CostBasis = {
   scope: "full" | "subset";
   status: "available" | "unavailable";
   totalCosts: number | null;
+  variableCosts: number | null;
   result: number | null;
   resultMargin: number | null;
   reason: string | null;
@@ -53,14 +56,24 @@ export function resolveCostBasis(
 ): CostBasis {
   const scope = options.fullRows && !hasFullRowScope(rows, options.fullRows) ? "subset" : "full";
   const workbook = options.workbook ?? null;
+  const rowVariableCosts = rows.map((row) => isFiniteNumber(row.variableCost)
+    ? row.variableCost
+    : row.costScope === "variable" && isFiniteNumber(row.cost) ? row.cost
+    : isFiniteNumber(row.grossProfit) && isFiniteNumber(row.revenue) ? row.revenue - row.grossProfit : null);
+  const variableCosts = rows.length > 0 && rowVariableCosts.every(isFiniteNumber)
+    ? rowVariableCosts.reduce<number>((sum, value) => sum + value!, 0)
+    : null;
+  const finiteVariableCosts = isFiniteNumber(variableCosts) ? variableCosts
+    : scope === "full" && workbook?.kind === "variable" && isFiniteNumber(workbook.total) ? workbook.total : null;
   const source = workbook
     ? workbook.kind === "additional" ? "workbook-additional"
       : workbook.kind === "variable" ? "workbook-variable"
         : workbook.kind === "components" ? "workbook-components" : "workbook-total"
-    : rows.length > 0 && rows.every((row) => isFiniteNumber(row.cost)) ? "row-cost"
-      : rows.some((row) => isFiniteNumber(row.grossProfit)) ? "variable-only" : "unknown";
+    : rows.length > 0 && rows.every((row) => isFiniteNumber(row.cost) && row.costScope !== "variable") ? "row-cost"
+      : finiteVariableCosts !== null || rows.some((row) => isFiniteNumber(row.grossProfit)) ? "variable-only" : "unknown";
   const unavailable = (reason: string): CostBasis => ({
-    source, scope, status: "unavailable", totalCosts: null, result: null, resultMargin: null, reason,
+    source, scope, status: "unavailable", totalCosts: null, variableCosts: finiteVariableCosts,
+    result: null, resultMargin: null, reason,
   });
 
   if (workbook && !isFiniteNumber(workbook.total)) {
@@ -81,19 +94,16 @@ export function resolveCostBasis(
   if (source === "workbook-total" || source === "workbook-components") {
     totalCosts = workbook!.total;
   } else if (source === "workbook-additional") {
-    const variableCosts = rows.map((row) => isFiniteNumber(row.grossProfit)
-      ? row.revenue - row.grossProfit
-      : null);
-    if (variableCosts.some((value) => !isFiniteNumber(value))) {
+    if (finiteVariableCosts === null) {
       return unavailable("Øvrige omkostninger kræver komplet grundlag for variable omkostninger.");
     }
-    totalCosts = variableCosts.reduce<number>((sum, value) => sum + value!, workbook!.total);
+    totalCosts = finiteVariableCosts + workbook!.total;
   } else if (source === "workbook-variable") {
     return unavailable("Omkostningsarket dokumenterer kun variable omkostninger; øvrige omkostninger er ukendte.");
   } else if (source === "row-cost") {
     totalCosts = rows.reduce((sum, row) => sum + row.cost!, 0);
   } else if (source === "variable-only") {
-    return unavailable("Omsætning minus dækningsbidrag dokumenterer kun variable omkostninger, ikke fuldt resultat.");
+    return unavailable("Grundlaget dokumenterer kun variable omkostninger; øvrige eller faste omkostninger er ukendte, så fuldt resultat kan ikke beregnes.");
   } else {
     return unavailable("Samlede omkostninger er ikke dokumenteret i det aktuelle scope.");
   }
@@ -103,7 +113,7 @@ export function resolveCostBasis(
     return unavailable("Omkostnings- eller resultatberegningen gav ikke et endeligt tal.");
   }
   return {
-    source, scope, status: "available", totalCosts, result,
+    source, scope, status: "available", totalCosts, variableCosts: finiteVariableCosts, result,
     resultMargin: safeRatio(result, revenue), reason: null,
   };
 }

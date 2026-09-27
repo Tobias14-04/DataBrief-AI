@@ -17,6 +17,8 @@ export type DashboardMetricRow = {
   grossProfit: number | null;
   grossMargin: number | null;
   cost: number | null;
+  costScope?: "total" | "variable" | null;
+  variableCost?: number | null;
 };
 
 type GroupedValue = {
@@ -175,6 +177,7 @@ export function calculateDashboardMetrics(
     hasCosts: costBasis.status === "available",
     costBasis,
     totalCosts,
+    variableCosts: costBasis.variableCosts,
     actualResult,
     budgetRevenue,
     budgetCosts,

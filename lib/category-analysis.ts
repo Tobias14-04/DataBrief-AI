@@ -467,12 +467,13 @@ export function buildCategoryCsv(
   rows: ReadonlyArray<CategoryAnalysisRow>,
   selectedColumns: Iterable<CategoryColumnKey>,
   availableColumns: Iterable<CategoryColumnKey>,
+  labels: Record<CategoryColumnKey, string> = CATEGORY_COLUMN_LABELS,
 ) {
   const visibleColumns = normalizeCategoryColumnSelection(
     selectedColumns,
     availableColumns,
   );
-  const headers = visibleColumns.map((key) => CATEGORY_COLUMN_LABELS[key]);
+  const headers = visibleColumns.map((key) => labels[key]);
   const csvRows = rows.map((row) => (
     visibleColumns.map((key) => formatCategoryCsvValue(row, key))
   ));

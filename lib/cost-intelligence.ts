@@ -392,12 +392,15 @@ export function buildCostIntelligence(
   }));
 
   const totalCosts = costBasis.totalCosts;
+  const reportedCosts = totalCosts ?? (costBasis.source === "variable-only" || costBasis.source === "workbook-variable"
+    ? costBasis.variableCosts : null);
+  const variableOnly = totalCosts === null && reportedCosts !== null;
   const actualResult = costBasis.result;
-  const costShare = hasRevenue ? costToRevenue(totalCosts, totalRevenue) : null;
+  const costShare = hasRevenue ? costToRevenue(reportedCosts, totalRevenue) : null;
   const providedDistributionGroups = groupDistributionInputs(options.distribution ?? []);
   const providedDistribution = Array.from(providedDistributionGroups.values());
   const budgetDistributionGroups = groupDistributionInputs(options.budgetDistribution ?? [], true);
-  const rawDistribution = costBasis.status === "unavailable" || costBasis.source === "workbook-additional"
+  const rawDistribution = reportedCosts === null || costBasis.source === "workbook-additional" || costBasis.source === "workbook-variable"
     ? []
     : costBasis.source === "workbook-total" || costBasis.source === "workbook-components"
       ? providedDistribution
@@ -407,15 +410,15 @@ export function buildCostIntelligence(
         .filter((item) => item.cost !== 0)
         .map((item) => ({ name: item.name, cost: item.cost }));
   const allocatedCosts = rawDistribution.reduce((sum, item) => sum + item.cost, 0);
-  const unallocatedCosts = totalCosts === null ? null : totalCosts - allocatedCosts;
+  const unallocatedCosts = reportedCosts === null ? null : reportedCosts - allocatedCosts;
   const fullDistribution = unallocatedCosts !== null && Number.isFinite(unallocatedCosts)
-    && Math.abs(unallocatedCosts) > Math.max(1, Math.abs(totalCosts!)) * 1e-9
+    && Math.abs(unallocatedCosts) > Math.max(1, Math.abs(reportedCosts!)) * 1e-9
     ? [...rawDistribution, { name: "Ufordelte omkostninger", cost: unallocatedCosts }]
     : rawDistribution;
   const distribution: CostDistributionItem[] = fullDistribution
     .map((item) => ({
       ...item,
-      share: costDistributionShare(item.cost, totalCosts),
+      share: costDistributionShare(item.cost, reportedCosts),
     }))
     .sort((a, b) => Math.abs(b.cost) - Math.abs(a.cost));
 
@@ -511,7 +514,7 @@ export function buildCostIntelligence(
     };
   };
 
-  const detailSource = costBasis.status === "unavailable" || costBasis.source === "workbook-additional"
+  const detailSource = reportedCosts === null || costBasis.source === "workbook-additional" || costBasis.source === "workbook-variable"
     ? []
     : providedDistribution.length
     ? distribution.map((item) => ({
@@ -558,9 +561,9 @@ export function buildCostIntelligence(
         }));
 
   const efficiency = {
-    costPerUnit: hasUnits ? safeRatio(totalCosts, totalUnits) : null,
+    costPerUnit: hasUnits ? safeRatio(reportedCosts, totalUnits) : null,
     resultPerUnit: hasUnits && actualResult !== null ? safeRatio(actualResult, totalUnits) : null,
-    revenuePerCostKrone: hasRevenue ? safeRatio(totalRevenue, totalCosts) : null,
+    revenuePerCostKrone: hasRevenue ? safeRatio(totalRevenue, reportedCosts) : null,
     costShare,
   };
 
@@ -579,6 +582,8 @@ export function buildCostIntelligence(
     totalGrossProfit,
     trackedCosts,
     totalCosts,
+    reportedCosts,
+    variableOnly,
     actualResult,
     costShare,
     periods: periodSeries,
@@ -596,7 +601,7 @@ export function buildCostIntelligence(
     detailRows: detailSource,
     hasCostTimeline: canPeriodizeCosts && periodSeries.length > 0,
     hasComparison: Boolean(comparison),
-    costCoverageRatio: safeRatio(trackedCosts, totalCosts),
+    costCoverageRatio: safeRatio(trackedCosts, reportedCosts),
   };
 }
 
@@ -696,7 +701,7 @@ export function buildCostInsightSummary(analysis: CostIntelligence) {
   if (topDriver) {
     insights.push({
       priority: 100,
-      text: `${topDriver.name} er den største omkostningskategori med ${formatDanishCurrency(topDriver.cost)} og udgør ${formatDanishPercent(topDriver.share!)} af de samlede registrerede omkostninger.`,
+      text: `${topDriver.name} er den største omkostningskategori med ${formatDanishCurrency(topDriver.cost)} og udgør ${formatDanishPercent(topDriver.share!)} af de ${analysis.variableOnly ? "variable" : "samlede registrerede"} omkostninger.`,
     });
   }
   if (largestAbsoluteChange) {
@@ -737,7 +742,7 @@ export function buildCostInsightSummary(analysis: CostIntelligence) {
   if (analysis.costShare !== null) {
     insights.push({
       priority: 60,
-      text: `${COST_TO_REVENUE_LABEL}: ${formatDanishPercent(analysis.costShare)}. Det svarer til ${formatDanishCurrencyPrecise(analysis.costShare)} pr. omsætningskrone.`,
+      text: `${analysis.variableOnly ? "Variable omkostninger i % af omsætning" : COST_TO_REVENUE_LABEL}: ${formatDanishPercent(analysis.costShare)}. Det svarer til ${formatDanishCurrencyPrecise(analysis.costShare)} pr. omsætningskrone.`,
     });
   }
   const lowest = analysis.profitability[0];

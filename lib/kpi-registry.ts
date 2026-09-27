@@ -14,7 +14,7 @@ import {
   normalizeForComparison,
 } from "./data-labels.ts";
 import { growthChange, resolvePeriodComparison } from "./period-comparison.ts";
-import { normalizeColumnHeader, salesColumnAliases } from "./spreadsheet-fields.ts";
+import { isVariableRowCostHeader, normalizeColumnHeader, salesColumnAliases } from "./spreadsheet-fields.ts";
 import { isFiniteNumber, parseNumericValue, parsePercentageValue, safeRatio } from "./numeric-foundation.ts";
 
 export type KpiCategory =
@@ -155,7 +155,7 @@ export const kpiFieldRegistry: Record<KpiDataField, KpiFieldDefinition> = {
   },
   unitCost: {
     label: "Kostpris pr. enhed",
-    aliases: ["kostpris pr. stk.", "kostpris pr stk", "kostpris pr. enhed", "unit cost", "cost per unit", "purchase price"],
+    aliases: [...salesColumnAliases.unitCost],
   },
   equity: {
     label: "Egenkapital",
@@ -362,7 +362,39 @@ export function buildKpiDataProfile(
     (Object.entries(normalized.numericValues) as Array<[KpiDataField, number[]]>).forEach(([field, values]) => {
       (numericValues[field] ??= []).push(...values);
     });
-    if (normalized.hasValues) profileRows.push({ values: normalized.values });
+    let derivedVariableCost: number | null = null;
+    if (!normalized.rawValues.variableCost?.length) {
+      const costHeader = normalized.schema.matchedColumns.cost?.find(isVariableRowCostHeader);
+      const explicitVariableCost = costHeader ? parseNumericValue(row.sourceValues[costHeader]) : null;
+      const units = parseNumericValue(normalized.values.units);
+      const unitCost = parseNumericValue(normalized.values.unitCost);
+      const revenue = parseNumericValue(normalized.values.revenue);
+      const grossProfit = parseNumericValue(normalized.values.grossProfit);
+      const multipliedUnitCost = units === null || unitCost === null ? null : units * unitCost;
+      const impliedVariableCost = revenue === null || grossProfit === null ? null : revenue - grossProfit;
+      derivedVariableCost = explicitVariableCost
+        ?? (isFiniteNumber(multipliedUnitCost) ? multipliedUnitCost : null)
+        ?? (isFiniteNumber(impliedVariableCost) ? impliedVariableCost : null);
+      if (derivedVariableCost !== null) {
+        (rawValues.variableCost ??= []).push(derivedVariableCost);
+        (numericValues.variableCost ??= []).push(derivedVariableCost);
+        (matchedColumnSets.variableCost ??= new Set()).add(costHeader ?? "Antal × Kostpris pr. stk.");
+      }
+    }
+    const revenue = parseNumericValue(normalized.values.revenue);
+    const variableCost = derivedVariableCost ?? parseNumericValue(normalized.values.variableCost);
+    const derivedGrossProfit = !normalized.rawValues.grossProfit?.length && revenue !== null && variableCost !== null
+      ? revenue - variableCost : null;
+    if (isFiniteNumber(derivedGrossProfit)) {
+      (rawValues.grossProfit ??= []).push(derivedGrossProfit);
+      (numericValues.grossProfit ??= []).push(derivedGrossProfit);
+      (matchedColumnSets.grossProfit ??= new Set()).add("Omsætning − variable omkostninger");
+    }
+    if (normalized.hasValues) profileRows.push({ values: {
+      ...normalized.values,
+      ...(derivedVariableCost === null ? {} : { variableCost: derivedVariableCost }),
+      ...(isFiniteNumber(derivedGrossProfit) ? { grossProfit: derivedGrossProfit } : {}),
+    } });
   });
 
   const columns = Array.from(columnSet);

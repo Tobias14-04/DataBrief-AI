@@ -63,12 +63,18 @@ import {
 } from "@/lib/dashboard-insights";
 
 const CATEGORY_COLUMN_STORAGE_KEY = "databrief.category-table-columns.v1";
+const VARIABLE_CATEGORY_COLUMN_LABELS: Record<CategoryColumnKey, string> = {
+  ...CATEGORY_COLUMN_LABELS,
+  cost: "Variable omkostninger",
+  costDistributionShare: "Andel af variable omkostninger",
+};
 
 type CategoryAnalysisDashboardProps = {
   categories: ReadonlyArray<CategoryMetricInput>;
   hasSourceCategories: boolean;
   hasGrossProfit: boolean;
   hasCosts: boolean;
+  variableOnly?: boolean;
 };
 
 const categoryMetricOptions = [
@@ -87,8 +93,9 @@ function downloadCategoryCsv(
   rows: ReadonlyArray<CategoryAnalysisRow>,
   visibleColumns: CategoryColumnKey[],
   availableColumns: CategoryColumnKey[],
+  labels: Record<CategoryColumnKey, string>,
 ) {
-  const csv = buildCategoryCsv(rows, visibleColumns, availableColumns);
+  const csv = buildCategoryCsv(rows, visibleColumns, availableColumns, labels);
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -304,7 +311,9 @@ export function CategoryAnalysisDashboard({
   hasSourceCategories,
   hasGrossProfit,
   hasCosts,
+  variableOnly = false,
 }: CategoryAnalysisDashboardProps) {
+  const columnLabels = variableOnly ? VARIABLE_CATEGORY_COLUMN_LABELS : CATEGORY_COLUMN_LABELS;
   const [amountPreference, setAmountPreference] = useState<AmountDisplayPreference>("auto");
   const [amountPreferenceHydrated, setAmountPreferenceHydrated] = useState(false);
   const [sortKey, setSortKey] = useState<CategoryMetricKey>("revenue");
@@ -366,6 +375,7 @@ export function CategoryAnalysisDashboard({
   const enabledMetricOptions = useMemo(
     () => categoryMetricOptions.map((option) => ({
       ...option,
+      label: columnLabels[option.value],
       disabled: option.value === "grossProfit"
         ? !analysis.hasGrossProfit
         : option.value === "grossMargin"
@@ -374,7 +384,7 @@ export function CategoryAnalysisDashboard({
           ? !analysis.hasCosts
           : false,
     })),
-    [analysis.hasCosts, analysis.hasGrossProfit, analysis.hasGrossMargin],
+    [analysis.hasCosts, analysis.hasGrossProfit, analysis.hasGrossMargin, columnLabels],
   );
   const effectiveSortKey = enabledMetricOptions.find((option) => (
     option.value === sortKey && !option.disabled
@@ -475,7 +485,7 @@ export function CategoryAnalysisDashboard({
       costLeader?.costDistributionShare ?? null,
       shareLeader?.revenueShare ?? null,
     );
-  const activeMetricLabel = CATEGORY_METRIC_LABELS[effectiveSortKey].toLocaleLowerCase("da-DK");
+  const activeMetricLabel = columnLabels[effectiveSortKey].toLocaleLowerCase("da-DK");
 
   return (
     <section className="min-w-0 space-y-4 min-[1360px]:col-span-2" data-testid="categories-view">
@@ -536,13 +546,13 @@ export function CategoryAnalysisDashboard({
           tone={marginLeader ? "emerald" : "slate"}
         />
         <CategoryKpiCard
-          label="Største andel af samlede omkostninger"
+          label={variableOnly ? "Største andel af variable omkostninger" : "Største andel af samlede omkostninger"}
           value={costLeader?.name ?? "Ikke tilgængelig"}
           detail={costLeader?.costDistributionShare !== null && costLeader
-            ? `${formatDanishPercent(costLeader.costDistributionShare)} af omkostningerne`
+            ? `${formatDanishPercent(costLeader.costDistributionShare)} af ${variableOnly ? "de variable omkostninger" : "omkostningerne"}`
             : "Omkostningsdata mangler"}
           note={costShareFollowsRevenueShare
-            ? "Andelen af samlede omkostninger følger omsætningsandelen."
+            ? `Andelen af ${variableOnly ? "variable omkostninger" : "samlede omkostninger"} følger omsætningsandelen.`
             : undefined}
           icon={WalletCards}
           tone={costLeader ? "orange" : "slate"}
@@ -663,7 +673,7 @@ export function CategoryAnalysisDashboard({
                           onChange={() => toggleColumn(key)}
                           className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-200"
                         />
-                        <span>{CATEGORY_COLUMN_LABELS[key]}</span>
+                        <span>{columnLabels[key]}</span>
                       </label>
                     ))}
                 </div>
@@ -674,7 +684,7 @@ export function CategoryAnalysisDashboard({
             </details>
             <button
               type="button"
-              onClick={() => downloadCategoryCsv(sortedRows, visibleColumns, availableColumns)}
+              onClick={() => downloadCategoryCsv(sortedRows, visibleColumns, availableColumns, columnLabels)}
               disabled={!sortedRows.length}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-[13px] font-semibold text-slate-700 shadow-sm outline-none transition hover:border-cyan-300 hover:text-cyan-800 focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-45"
             >
@@ -707,14 +717,14 @@ export function CategoryAnalysisDashboard({
                           className={`inline-flex min-h-11 w-full items-center justify-end gap-1.5 rounded-sm py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
                             active ? "text-cyan-800" : "hover:text-slate-700"
                           }`}
-                          aria-label={`Sortér efter ${CATEGORY_COLUMN_LABELS[key].toLocaleLowerCase("da-DK")}`}
+                          aria-label={`Sortér efter ${columnLabels[key].toLocaleLowerCase("da-DK")}`}
                         >
-                          <span>{CATEGORY_COLUMN_LABELS[key]}</span>
+                          <span>{columnLabels[key]}</span>
                           <SortIcon active={active} direction={sortDirection} />
                         </button>
                       ) : (
                         <span className="inline-flex min-h-11 items-center py-2">
-                          {CATEGORY_COLUMN_LABELS[key]}
+                          {columnLabels[key]}
                         </span>
                       )}
                     </th>
@@ -767,7 +777,7 @@ export function CategoryAnalysisDashboard({
           </span>
           <span>
             {!analysis.hasCompleteCostCoverage && analysis.hasCosts
-              ? "Andel af samlede omkostninger skjules, fordi ikke alle kategorier har omkostningsdata. "
+              ? `${columnLabels.costDistributionShare} skjules, fordi ikke alle kategorier har omkostningsdata. `
               : ""}
             Beløb vises i {amountUnitLabel(resolvedAmountUnit)}. CSV bevarer fulde numeriske værdier.
           </span>

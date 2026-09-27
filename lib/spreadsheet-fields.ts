@@ -72,13 +72,23 @@ export const salesColumnAliases = {
     "vareforbrug",
     "cogs",
     "cost of goods sold",
-    "kostpris",
-    "kostpris pr stk",
-    "kostpris pr. stk.",
+    "variable cost",
+    "variable costs",
+    "variable omkostninger",
     "total cost",
     "budget costs",
     "budget cost",
     "budget omkostninger",
+  ],
+  unitCost: [
+    "kostpris",
+    "kostpris pr stk",
+    "kostpris pr. stk.",
+    "kostpris pr enhed",
+    "kostpris pr. enhed",
+    "unit cost",
+    "cost per unit",
+    "purchase price",
   ],
   unitPrice: ["price", "unit price", "pris", "pris pr stk", "pris pr. stk.", "sales price"],
 } as const;
@@ -100,6 +110,7 @@ const mappingPriority: SalesFieldKey[] = [
   "grossProfit",
   "grossMargin",
   "cost",
+  "unitCost",
   "unitPrice",
 ];
 
@@ -113,6 +124,11 @@ export function normalizeColumnHeader(value: unknown) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]/g, "");
+}
+
+export function isVariableRowCostHeader(header: string | undefined) {
+  const normalized = normalizeColumnHeader(header);
+  return ["vareforbrug", "cogs", "costofgoodssold", "variablecost", "variablecosts", "variableomkostninger"].includes(normalized);
 }
 
 export function findSalesColumnMatches(headers: string[], field: SalesFieldKey) {
@@ -151,6 +167,7 @@ export function scoreSalesMappings(mappings: SalesFieldMappings) {
   if (mappings.grossProfit) score += 1;
   if (mappings.grossMargin) score += 1;
   if (mappings.cost) score += 1;
+  if (mappings.unitCost) score += 1;
   return score;
 }
 

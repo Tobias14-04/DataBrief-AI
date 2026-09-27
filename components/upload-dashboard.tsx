@@ -137,6 +137,7 @@ import {
   type SalesFieldKey,
   type SalesFieldMappings,
 } from "@/lib/spreadsheet-fields";
+import { deriveSaleRowCosts, type SalesCostScope } from "@/lib/sales-cost";
 import type {
   ExcelWorkerRequest,
   ExcelWorkerResponse,
@@ -196,6 +197,9 @@ type SaleRow = {
   grossProfit: number | null;
   grossMargin: number | null;
   cost: number | null;
+  costScope: SalesCostScope;
+  unitCost: number | null;
+  variableCost: number | null;
   sourceValues: Record<string, unknown>;
 };
 
@@ -259,7 +263,7 @@ type ParseResult = {
 type FieldKey = SalesFieldKey;
 
 type RequiredManualField = "dateOrMonth" | "product" | "category" | "units" | "revenue";
-type OptionalManualField = "channel" | "region" | "cost" | "grossProfit" | "grossMargin" | "unitPrice";
+type OptionalManualField = "channel" | "region" | "cost" | "unitCost" | "grossProfit" | "grossMargin" | "unitPrice";
 type ManualField = RequiredManualField | OptionalManualField;
 type FieldMappings = SalesFieldMappings;
 type ManualMappings = Record<ManualField, string>;
@@ -296,6 +300,7 @@ const emptyManualMappings: ManualMappings = {
   channel: "",
   region: "",
   cost: "",
+  unitCost: "",
   grossProfit: "",
   grossMargin: "",
   unitPrice: "",
@@ -390,6 +395,7 @@ const fieldLabels: Record<FieldKey, string> = {
   grossProfit: "Dækningsbidrag",
   grossMargin: "Dækningsgrad",
   cost: "Omkostning",
+  unitCost: "Kostpris pr. enhed",
   unitPrice: "Pris pr. enhed",
 };
 
@@ -703,6 +709,7 @@ function manualToFieldMappings(manual: ManualMappings): FieldMappings {
     channel: manual.channel || undefined,
     region: manual.region || undefined,
     cost: manual.cost || undefined,
+    unitCost: manual.unitCost || undefined,
     grossProfit: manual.grossProfit || undefined,
     grossMargin: manual.grossMargin || undefined,
     unitPrice: manual.unitPrice || undefined,
@@ -734,6 +741,7 @@ function initialManualMappings(candidate: SheetCandidate): ManualMappings {
     channel: candidate.mappings.channel ?? "",
     region: candidate.mappings.region ?? "",
     cost: candidate.mappings.cost ?? "",
+    unitCost: candidate.mappings.unitCost ?? "",
     grossProfit: candidate.mappings.grossProfit ?? "",
     grossMargin: candidate.mappings.grossMargin ?? "",
     unitPrice: candidate.mappings.unitPrice ?? "",
@@ -771,7 +779,8 @@ function parseSalesRows(candidate: SheetCandidate, mappings = candidate.mappings
       const revenue = getRevenue(row, mappings);
       const grossProfit = toNumber(getCell(row, mappings, "grossProfit"));
       const grossMargin = parsePercentageValue(getCell(row, mappings, "grossMargin"));
-      const cost = toNumber(getCell(row, mappings, "cost"));
+      const rowCost = toNumber(getCell(row, mappings, "cost"));
+      const unitCost = toNumber(getCell(row, mappings, "unitCost"));
 
       const isBlankRow = !rawDate && !product && !category && units === null && revenue.value === null;
       const looksLikeSummaryRow = product && /total|sum|i alt|subtotal|grand total/i.test(product);
@@ -785,6 +794,10 @@ function parseSalesRows(candidate: SheetCandidate, mappings = candidate.mappings
       }
 
       revenueSource ||= revenue.source;
+      const economics = deriveSaleRowCosts({
+        revenue: revenue.value, units, unitCost, rowCost,
+        rowCostHeader: mappings.cost, grossProfit,
+      });
 
       return {
         date,
@@ -795,9 +808,12 @@ function parseSalesRows(candidate: SheetCandidate, mappings = candidate.mappings
         region,
         revenue: revenue.value,
         units,
-        grossProfit,
+        grossProfit: economics.grossProfit,
         grossMargin,
-        cost,
+        cost: economics.cost,
+        costScope: economics.costScope,
+        unitCost,
+        variableCost: economics.variableCost,
         sourceValues: row,
       };
     })
@@ -818,7 +834,7 @@ function buildMappedColumns(mappings: FieldMappings) {
 }
 
 function buildOptionalColumns(mappings: FieldMappings) {
-  const optional: FieldKey[] = ["channel", "region", "grossProfit", "grossMargin", "cost"];
+  const optional: FieldKey[] = ["channel", "region", "grossProfit", "grossMargin", "cost", "unitCost"];
   return optional.reduce<Record<string, string>>((result, field) => {
     const column = mappings[field];
     if (column) {
@@ -1424,7 +1440,8 @@ const requiredMappingFields: MappingFieldConfig[] = [
 const optionalMappingFields: MappingFieldConfig[] = [
   { key: "channel", label: "Kanal", helper: "Fx café, webshop eller takeaway.", required: false },
   { key: "region", label: "Region", helper: "Område, distrikt eller salgsregion.", required: false },
-  { key: "cost", label: "Omkostning", helper: "Vareforbrug eller omkostning pr. række.", required: false },
+  { key: "cost", label: "Samlet rækkeomkostning", helper: "Vareforbrug, COGS eller dokumenteret total pr. række — ikke kostpris pr. stk.", required: false },
+  { key: "unitCost", label: "Kostpris pr. enhed", helper: "Ganges med Antal for at beregne variabel omkostning.", required: false },
   { key: "grossProfit", label: "Dækningsbidrag", helper: "Bidrag efter variable omkostninger.", required: false },
   { key: "grossMargin", label: "Dækningsgrad", helper: "Dækningsbidrag i procent.", required: false },
   { key: "unitPrice", label: "Pris pr. enhed", helper: "Beregner omsætning som Antal × Pris.", required: false },
@@ -2600,9 +2617,9 @@ export default function UploadDashboard() {
     : marginChartMode === "grossMargin"
       ? metrics.grossMarginByCategory
       : [];
-  const showCosts = hasData && (Boolean(data?.feedback.costs) || baseMetrics.hasCosts);
+  const showCosts = hasData && (Boolean(data?.feedback.costs) || baseMetrics.hasCosts || baseMetrics.costBasis.variableCosts !== null);
   const showBudget = hasData && Boolean(data?.feedback.budget);
-  const costsByCategory = useMemo(() => metrics.costBasis.status === "unavailable" || metrics.costBasis.source === "workbook-additional"
+  const costsByCategory = useMemo(() => (metrics.costBasis.status === "unavailable" && metrics.costBasis.source !== "variable-only") || metrics.costBasis.source === "workbook-additional"
     ? []
     : metrics.costBasis.source === "workbook-total" || metrics.costBasis.source === "workbook-components"
       ? data?.feedback.costs?.byCategory ?? []
@@ -2691,7 +2708,7 @@ export default function UploadDashboard() {
           sourceName: data?.feedback.salesSheetName ?? selectedSheet ?? "Salgsdata",
           totalRowCount: allRows.length,
           activeFilterLabels,
-          costDistribution: showCosts && metrics.costBasis.status === "available"
+          costDistribution: showCosts && (metrics.costBasis.status === "available" || metrics.costBasis.source === "variable-only")
             ? costsByCategory.map((item) => ({ name: item.name, cost: item.cost }))
             : undefined,
           costSource: metrics.costBasis,
@@ -3719,7 +3736,8 @@ export default function UploadDashboard() {
               categories={metrics.categoryGroups}
               hasSourceCategories={baseMetrics.categoryGroups.length > 0}
               hasGrossProfit={baseMetrics.hasGrossProfit}
-              hasCosts={metrics.costBasis.source === "row-cost" && metrics.hasCosts}
+              hasCosts={(metrics.costBasis.source === "row-cost" && metrics.hasCosts) || (metrics.costBasis.source === "variable-only" && metrics.costBasis.variableCosts !== null)}
+              variableOnly={metrics.costBasis.source === "variable-only"}
             />
           ) : null}
 

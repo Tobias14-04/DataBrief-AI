@@ -257,17 +257,17 @@ function CostKpiGrid({ analysis }: { analysis: CostIntelligence }) {
     : null;
   const cards = [
     {
-      label: "Samlede omkostninger",
-      value: analysis.totalCosts === null ? "Utilgængeligt" : currency(analysis.totalCosts),
+      label: analysis.variableOnly ? "Variable omkostninger" : "Samlede omkostninger",
+      value: analysis.reportedCosts === null ? "Utilgængeligt" : currency(analysis.reportedCosts),
       detail: `${describeCostBasis(analysis.costBasis)}.${analysis.costBasis.reason ? ` ${analysis.costBasis.reason}` : ""}`,
       icon: WalletCards,
       tone: "warning" as const,
     },
     analysis.costShare !== null
       ? {
-          label: COST_TO_REVENUE_LABEL,
+          label: analysis.variableOnly ? "Variable omkostninger i % af omsætning" : COST_TO_REVENUE_LABEL,
           value: percent(analysis.costShare),
-          detail: "Omkostninger divideret med omsætning",
+          detail: analysis.variableOnly ? "Dokumenterede variable omkostninger divideret med omsætning" : "Omkostninger divideret med omsætning",
           icon: Gauge,
           tone: analysis.costShare <= 0.6 ? "positive" as const : "warning" as const,
         }
@@ -300,7 +300,7 @@ function CostKpiGrid({ analysis }: { analysis: CostIntelligence }) {
       ? {
           label: "Største driver",
           value: largestDriver.name,
-          detail: `${currency(largestDriver.cost)} · ${largestDriver.share === null ? "andel utilgængelig" : `${percent(largestDriver.share)} af samlede omkostninger`}`,
+          detail: `${currency(largestDriver.cost)} · ${largestDriver.share === null ? "andel utilgængelig" : `${percent(largestDriver.share)} af ${analysis.variableOnly ? "variable" : "samlede"} omkostninger`}`,
           icon: CircleDollarSign,
           tone: "brand" as const,
         }
@@ -720,7 +720,7 @@ function visibleDistribution(analysis: CostIntelligence) {
     ...(rest.length ? [{
       name: "Andre",
       cost: rest.reduce((sum, item) => sum + item.cost, 0),
-      share: costDistributionShare(rest.reduce((sum, item) => sum + item.cost, 0), analysis.totalCosts),
+      share: costDistributionShare(rest.reduce((sum, item) => sum + item.cost, 0), analysis.reportedCosts),
     }] : []),
     ...unallocated,
   ];
@@ -751,7 +751,9 @@ function CostDistributionPanel({ analysis }: { analysis: CostIntelligence }) {
   return (
     <CommandPanel
       title="Omkostningsfordeling"
-      description={analysis.distributionSource === "workbook"
+      description={analysis.variableOnly
+        ? "Fordeling af dokumenterede variable omkostninger; ufordelt rest vises særskilt"
+        : analysis.distributionSource === "workbook"
         ? "Dokumenterede samlede omkostninger; ufordelt rest vises særskilt"
         : "Fordeling på kategorier i den filtrerede visning; ufordelt rest vises særskilt"}
       icon={WalletCards}
@@ -930,9 +932,9 @@ function CostEfficiencyPanel({ analysis }: { analysis: CostIntelligence }) {
   const items = [
     analysis.efficiency.costPerUnit !== null
       ? {
-          label: "Omkostning pr. enhed",
+          label: analysis.variableOnly ? "Variabel omkostning pr. enhed" : "Omkostning pr. enhed",
           value: preciseCurrency(analysis.efficiency.costPerUnit),
-          formula: "Samlede omkostninger / solgte enheder",
+          formula: `${analysis.variableOnly ? "Variable" : "Samlede"} omkostninger / solgte enheder`,
         }
       : null,
     analysis.efficiency.resultPerUnit !== null
@@ -946,14 +948,14 @@ function CostEfficiencyPanel({ analysis }: { analysis: CostIntelligence }) {
       ? {
           label: "Omsætning pr. omkostningskrone",
           value: preciseCurrency(analysis.efficiency.revenuePerCostKrone),
-          formula: "Omsætning / samlede omkostninger",
+          formula: `Omsætning / ${analysis.variableOnly ? "variable" : "samlede"} omkostninger`,
         }
       : null,
     analysis.efficiency.costShare !== null
       ? {
-          label: COST_TO_REVENUE_LABEL,
+          label: analysis.variableOnly ? "Variable omkostninger i % af omsætning" : COST_TO_REVENUE_LABEL,
           value: precisePercent(analysis.efficiency.costShare),
-          formula: "Samlede omkostninger / omsætning",
+          formula: `${analysis.variableOnly ? "Variable" : "Samlede"} omkostninger / omsætning`,
         }
       : null,
   ].filter((item): item is NonNullable<typeof item> => item !== null);
