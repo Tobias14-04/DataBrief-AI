@@ -1,6 +1,7 @@
 import { buildExcelCompatibleCsv, displayLabel, normalizeForComparison } from "./data-labels.ts";
 import { resolveGrossMargin, type GrossMarginBasis } from "./gross-margin.ts";
 import { isFiniteNumber, safeRatio } from "./numeric-foundation.ts";
+import { COST_DISTRIBUTION_SHARE_LABEL, costDistributionShare } from "./cost-share.ts";
 
 export type CategoryMetricKey =
   | "revenue"
@@ -8,7 +9,7 @@ export type CategoryMetricKey =
   | "grossProfit"
   | "grossMargin"
   | "cost"
-  | "costShare";
+  | "costDistributionShare";
 
 export type CategoryColumnKey = "name" | CategoryMetricKey;
 export type CategorySortDirection = "asc" | "desc";
@@ -34,7 +35,7 @@ export type CategoryAnalysisRow = {
   grossProfit: number | null;
   grossMargin: number | null;
   cost: number | null;
-  costShare: number | null;
+  costDistributionShare: number | null;
   rowCount: number;
 };
 
@@ -44,7 +45,7 @@ export const CATEGORY_METRIC_LABELS: Record<CategoryMetricKey, string> = {
   grossProfit: "Dækningsbidrag",
   grossMargin: "Dækningsgrad",
   cost: "Omkostninger",
-  costShare: "Omkostningsandel",
+  costDistributionShare: COST_DISTRIBUTION_SHARE_LABEL,
 };
 
 export const CATEGORY_COLUMN_LABELS: Record<CategoryColumnKey, string> = {
@@ -59,7 +60,7 @@ export const CATEGORY_COLUMN_ORDER = [
   "grossProfit",
   "grossMargin",
   "cost",
-  "costShare",
+  "costDistributionShare",
 ] as const satisfies ReadonlyArray<CategoryColumnKey>;
 
 export const CATEGORY_PRIMARY_COLUMNS = [
@@ -72,7 +73,7 @@ export const CATEGORY_OPTIONAL_COLUMNS = [
   "grossProfit",
   "grossMargin",
   "cost",
-  "costShare",
+  "costDistributionShare",
 ] as const satisfies ReadonlyArray<CategoryColumnKey>;
 
 const categoryColumnSet = new Set<string>(CATEGORY_COLUMN_ORDER);
@@ -121,7 +122,7 @@ function lowestBy(
 
 function metricTieTolerance(key: CategoryMetricKey) {
   if (key === "grossMargin") return CATEGORY_GROSS_MARGIN_TIE_TOLERANCE;
-  if (key === "revenueShare" || key === "costShare") {
+  if (key === "revenueShare" || key === "costDistributionShare") {
     return CATEGORY_SHARE_TIE_TOLERANCE;
   }
   return 0;
@@ -177,7 +178,7 @@ export function buildCategoryAnalysis(
     ?? categories.some((category) => (category.costCount ?? 1) > 0);
   const normalized = categories
     .map((category) => {
-      const name = displayLabel(category.name, "");
+      const name = displayLabel(category.name, "Ukategoriseret");
       const revenue = finiteOrNull(category.revenue) ?? 0;
       const rowCount = Math.max(0, Math.trunc(category.rowCount ?? 0));
       const grossProfitCount = hasGrossProfit ? Math.max(
@@ -230,8 +231,8 @@ export function buildCategoryAnalysis(
     ...category,
     revenueShare: safeRatio(category.revenue, totalRevenue),
     grossMargin: resolveGrossMargin(category.marginBasis).value,
-    costShare: hasCompleteCostCoverage && category.cost !== null
-      ? safeRatio(category.cost, totalCosts)
+    costDistributionShare: hasCompleteCostCoverage && category.cost !== null
+      ? costDistributionShare(category.cost, totalCosts)
       : null,
   }));
   const grossMarginRows = rows.filter((row) => row.grossMargin !== null);
@@ -258,7 +259,7 @@ export function buildCategoryAnalysis(
   const aggregateGrossMargin = resolveGrossMargin(aggregateBasis).value;
   const largestRevenueShareLeaders = getCategoryMetricLeaders(rows, "revenueShare");
   const highestGrossMarginLeaders = getCategoryMetricLeaders(rows, "grossMargin");
-  const largestCostShareLeaders = getCategoryMetricLeaders(rows, "costShare");
+  const largestCostShareLeaders = getCategoryMetricLeaders(rows, "costDistributionShare");
 
   return {
     rows,
@@ -324,10 +325,10 @@ export function buildCategoryInsights(analysis: CategoryAnalysis) {
   if (insights.length < 2) {
     const costLeader = analysis.largestCostShare;
     if (
-      costLeader?.costShare !== null
+      costLeader?.costDistributionShare !== null
       && costLeader
       && costLeader.revenueShare !== null
-      && costLeader.costShare - costLeader.revenueShare >= 0.05
+      && costLeader.costDistributionShare - costLeader.revenueShare >= 0.05
     ) {
       insights.push(
         `${costLeader.name} står for en større del af omkostningerne end af omsætningen.`,
@@ -429,7 +430,7 @@ export function parseCategoryColumnSelection(
     const parsed: unknown = JSON.parse(serializedValue);
     if (!Array.isArray(parsed)) return available;
     return normalizeCategoryColumnSelection(
-      parsed.filter(isCategoryColumnKey),
+      parsed.map((key) => key === "costShare" ? "costDistributionShare" : key).filter(isCategoryColumnKey),
       available,
     );
   } catch {
@@ -456,7 +457,7 @@ function formatCategoryCsvValue(
   if (value === null) return "";
   const normalizedValue = key === "revenueShare"
     || key === "grossMargin"
-    || key === "costShare"
+    || key === "costDistributionShare"
     ? value * 100
     : value;
   return danishCsvNumber.format(normalizedValue);

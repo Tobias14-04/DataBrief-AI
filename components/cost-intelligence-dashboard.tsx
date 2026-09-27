@@ -66,6 +66,7 @@ import {
   type CostIntelligence,
 } from "@/lib/cost-intelligence";
 import { describeCostBasis } from "@/lib/result-basis";
+import { COST_DISTRIBUTION_SHARE_LABEL, COST_TO_REVENUE_LABEL, costDistributionShare } from "@/lib/cost-share";
 import { resolvePeriodComparison } from "@/lib/period-comparison";
 import {
   buildBudgetVariancePresentation,
@@ -75,6 +76,7 @@ import {
   COST_DETAIL_OPTIONAL_COLUMNS,
   COST_DETAIL_PRIMARY_COLUMNS,
   getAvailableCostDetailColumns,
+  getCostDetailColumnValue,
   normalizeCostDetailColumnSelection,
   parseCostDetailColumnSelection,
   serializeCostDetailColumnSelection,
@@ -129,7 +131,7 @@ const costChartDefinitions: Record<CostChartMetric, {
     previousColor: "#64748b",
   },
   costShare: {
-    label: "Omkostningsandel",
+    label: COST_TO_REVENUE_LABEL,
     description: "Omkostninger som andel af omsætningen",
     color: "#0891b2",
     previousColor: "#64748b",
@@ -248,7 +250,7 @@ function CostKpiCard({
 }
 
 function CostKpiGrid({ analysis }: { analysis: CostIntelligence }) {
-  const largestDriver = analysis.distribution[0];
+  const largestDriver = analysis.distribution.find((item) => item.name !== "Ufordelte omkostninger");
   const costChange = analysis.comparison?.costChange ?? null;
   const comparison = analysis.comparison
     ? buildCostComparisonPresentation(analysis.comparison)
@@ -263,7 +265,7 @@ function CostKpiGrid({ analysis }: { analysis: CostIntelligence }) {
     },
     analysis.costShare !== null
       ? {
-          label: "Omkostningsandel",
+          label: COST_TO_REVENUE_LABEL,
           value: percent(analysis.costShare),
           detail: "Omkostninger divideret med omsætning",
           icon: Gauge,
@@ -298,7 +300,7 @@ function CostKpiGrid({ analysis }: { analysis: CostIntelligence }) {
       ? {
           label: "Største driver",
           value: largestDriver.name,
-          detail: `${currency(largestDriver.cost)} · ${percent(largestDriver.share)} af omkostningerne`,
+          detail: `${currency(largestDriver.cost)} · ${largestDriver.share === null ? "andel utilgængelig" : `${percent(largestDriver.share)} af samlede omkostninger`}`,
           icon: CircleDollarSign,
           tone: "brand" as const,
         }
@@ -709,15 +711,18 @@ function CostInsightsPanel({ analysis }: { analysis: CostIntelligence }) {
 
 function visibleDistribution(analysis: CostIntelligence) {
   if (analysis.distribution.length <= 7) return analysis.distribution;
-  const leading = analysis.distribution.slice(0, 6);
-  const rest = analysis.distribution.slice(6);
+  const unallocated = analysis.distribution.filter((item) => item.name === "Ufordelte omkostninger");
+  const allocated = analysis.distribution.filter((item) => item.name !== "Ufordelte omkostninger");
+  const leading = allocated.slice(0, unallocated.length ? 5 : 6);
+  const rest = allocated.slice(leading.length);
   return [
     ...leading,
-    {
+    ...(rest.length ? [{
       name: "Andre",
       cost: rest.reduce((sum, item) => sum + item.cost, 0),
-      share: rest.reduce((sum, item) => sum + item.share, 0),
-    },
+      share: costDistributionShare(rest.reduce((sum, item) => sum + item.cost, 0), analysis.totalCosts),
+    }] : []),
+    ...unallocated,
   ];
 }
 
@@ -747,8 +752,8 @@ function CostDistributionPanel({ analysis }: { analysis: CostIntelligence }) {
     <CommandPanel
       title="Omkostningsfordeling"
       description={analysis.distributionSource === "workbook"
-        ? "Registrerede omkostningskategorier fra omkostningsarket"
-        : "Fordeling på kategorier i den filtrerede visning"}
+        ? "Dokumenterede samlede omkostninger; ufordelt rest vises særskilt"
+        : "Fordeling på kategorier i den filtrerede visning; ufordelt rest vises særskilt"}
       icon={WalletCards}
       tone="warning"
       testId="cost-distribution-panel"
@@ -762,7 +767,7 @@ function CostDistributionPanel({ analysis }: { analysis: CostIntelligence }) {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-[#0b1c2d]" title={item.name}>{item.name}</p>
                   <p className="mt-0.5 text-xs text-slate-500">
-                    {percent(item.share)}
+                    {item.share === null ? `${COST_DISTRIBUTION_SHARE_LABEL} utilgængelig` : `${COST_DISTRIBUTION_SHARE_LABEL}: ${percent(item.share)}`}
                     {comparison?.changePercent !== null && comparison?.changePercent !== undefined
                       ? ` · ${signedPercent(comparison.changePercent)} mod forrige periode`
                       : ""}
@@ -946,7 +951,7 @@ function CostEfficiencyPanel({ analysis }: { analysis: CostIntelligence }) {
       : null,
     analysis.efficiency.costShare !== null
       ? {
-          label: "Omkostningsandel",
+          label: COST_TO_REVENUE_LABEL,
           value: precisePercent(analysis.efficiency.costShare),
           formula: "Samlede omkostninger / omsætning",
         }
@@ -1109,11 +1114,11 @@ function CostDetailCell({
     return <span className="font-semibold text-[#0b1c2d]">{row.name}</span>;
   }
 
-  const value = row[column];
+  const value = getCostDetailColumnValue(row, column);
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return <span className="text-slate-400" aria-label="Ikke tilgængelig">–</span>;
   }
-  if (column === "share") return <span className="font-semibold text-slate-700">{percent(value)}</span>;
+  if (column === "costDistributionShare") return <span className="font-semibold text-slate-700">{percent(value)}</span>;
   if (column === "changePercent") {
     return <span className={value <= 0 ? "text-emerald-700" : "text-orange-700"}>{signedPercent(value)}</span>;
   }

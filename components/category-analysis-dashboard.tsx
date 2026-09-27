@@ -77,7 +77,7 @@ const categoryMetricOptions = [
   { value: "grossProfit", label: "Dækningsbidrag" },
   { value: "grossMargin", label: "Dækningsgrad" },
   { value: "cost", label: "Omkostninger" },
-  { value: "costShare", label: "Omkostningsandel" },
+  { value: "costDistributionShare", label: CATEGORY_METRIC_LABELS.costDistributionShare },
 ] as const satisfies ReadonlyArray<{
   value: CategoryMetricKey;
   label: string;
@@ -272,8 +272,8 @@ function categoryCellHighlight(
   } else if (key === "grossMargin" && markers.highestGrossMargin.has(row.name)) {
     labels.push("Højeste dækningsgrad");
     className = "bg-emerald-50/90 font-semibold text-emerald-800";
-  } else if (key === "costShare" && markers.largestCostShare.has(row.name)) {
-    labels.push("Største omkostningsandel");
+  } else if (key === "costDistributionShare" && markers.largestCostShare.has(row.name)) {
+    labels.push("Største andel af samlede omkostninger");
     className = "bg-orange-50/90 font-semibold text-orange-800";
   }
 
@@ -370,7 +370,7 @@ export function CategoryAnalysisDashboard({
         ? !analysis.hasGrossProfit
         : option.value === "grossMargin"
           ? !analysis.hasGrossMargin
-        : (option.value === "cost" || option.value === "costShare")
+        : (option.value === "cost" || option.value === "costDistributionShare")
           ? !analysis.hasCosts
           : false,
     })),
@@ -472,7 +472,7 @@ export function CategoryAnalysisDashboard({
   const sharedMarginLeader = analysis.highestGrossMarginLeaders.length > 1;
   const costShareFollowsRevenueShare = costLeader?.name === shareLeader?.name
     && categoryPercentagesAreEquivalent(
-      costLeader?.costShare ?? null,
+      costLeader?.costDistributionShare ?? null,
       shareLeader?.revenueShare ?? null,
     );
   const activeMetricLabel = CATEGORY_METRIC_LABELS[effectiveSortKey].toLocaleLowerCase("da-DK");
@@ -536,13 +536,13 @@ export function CategoryAnalysisDashboard({
           tone={marginLeader ? "emerald" : "slate"}
         />
         <CategoryKpiCard
-          label="Største omkostningsandel"
+          label="Største andel af samlede omkostninger"
           value={costLeader?.name ?? "Ikke tilgængelig"}
-          detail={costLeader?.costShare !== null && costLeader
-            ? `${formatDanishPercent(costLeader.costShare)} af omkostningerne`
+          detail={costLeader?.costDistributionShare !== null && costLeader
+            ? `${formatDanishPercent(costLeader.costDistributionShare)} af omkostningerne`
             : "Omkostningsdata mangler"}
           note={costShareFollowsRevenueShare
-            ? "Omkostningsandelen følger omsætningsandelen."
+            ? "Andelen af samlede omkostninger følger omsætningsandelen."
             : undefined}
           icon={WalletCards}
           tone={costLeader ? "orange" : "slate"}
@@ -767,7 +767,7 @@ export function CategoryAnalysisDashboard({
           </span>
           <span>
             {!analysis.hasCompleteCostCoverage && analysis.hasCosts
-              ? "Omkostningsandel skjules, fordi ikke alle kategorier har omkostningsdata. "
+              ? "Andel af samlede omkostninger skjules, fordi ikke alle kategorier har omkostningsdata. "
               : ""}
             Beløb vises i {amountUnitLabel(resolvedAmountUnit)}. CSV bevarer fulde numeriske værdier.
           </span>

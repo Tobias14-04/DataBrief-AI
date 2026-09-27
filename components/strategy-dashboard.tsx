@@ -148,7 +148,7 @@ const metricLabels: Record<string, string> = {
   grossProfit: "Dækningsbidrag",
   grossMargin: "Dækningsgrad",
   averagePrice: "Gennemsnitspris",
-  costShare: "Omkostningsandel",
+  costShare: "Omkostninger i % af omsætning",
   cost: "Omkostninger",
   costs: "Omkostninger",
   units: "Enheder",

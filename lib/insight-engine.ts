@@ -9,6 +9,7 @@ import { resolveGrossMargin } from "./gross-margin.ts";
 import { isFiniteNumber as finite, safeRatio } from "./numeric-foundation.ts";
 import { describeCostBasis, type CostBasis } from "./result-basis.ts";
 import { growthChange, resolvePeriodComparison } from "./period-comparison.ts";
+import { COST_TO_REVENUE_LABEL, costToRevenue } from "./cost-share.ts";
 import {
   chooseRepresentativeLabel,
   comparableLabel,
@@ -235,7 +236,7 @@ const metricLabels: Record<InsightMetricKey, string> = {
   grossMargin: "Dækningsgrad",
   cost: "Omkostninger",
   result: "Resultat",
-  costShare: "Omkostningsandel",
+  costShare: COST_TO_REVENUE_LABEL,
 };
 
 const dimensionLabels: Record<InsightDimension, string> = {
@@ -325,7 +326,7 @@ function metricValue(accumulator: Accumulator, metric: InsightMetricKey): number
     ? accumulator.revenue - accumulator.cost
     : null;
   if (metric === "costShare") value = revenueAvailable && costAvailable
-    ? safeRatio(accumulator.cost, accumulator.revenue)
+    ? costToRevenue(accumulator.cost, accumulator.revenue)
     : null;
   return value !== null && Number.isFinite(value) ? value : null;
 }
@@ -621,7 +622,7 @@ function metricProseSubject(metric: InsightMetricKey) {
     grossMargin: "Dækningsgraden",
     cost: "Omkostningerne",
     result: "Resultatet",
-    costShare: "Omkostningsandelen",
+    costShare: COST_TO_REVENUE_LABEL,
   };
   return subjects[metric];
 }
@@ -793,7 +794,7 @@ export function buildInsightAnalysis(
       const result = revenue - actualCost;
       return finite(result) ? result : null;
     }
-    return safeRatio(actualCost, revenue);
+    return costToRevenue(actualCost, revenue);
   };
   const scopeMetricCoverage = (metric: InsightMetricKey) => {
     if (!scope) return 0;
@@ -1022,7 +1023,7 @@ export function buildInsightAnalysis(
 
   const registeredCostGroups = new Map<string, InsightCostDistributionFact>();
   for (const item of options.costDistribution ?? []) {
-    if (!finite(item.cost) || item.cost <= 0) continue;
+    if (!finite(item.cost)) continue;
     const identity = comparableLabel(item.name);
     const existing = registeredCostGroups.get(identity.key);
     registeredCostGroups.set(identity.key, {
@@ -1033,13 +1034,18 @@ export function buildInsightAnalysis(
   const costDistribution = Array.from(registeredCostGroups.values()).sort((left, right) => (
     right.cost - left.cost || danishCollator.compare(left.name, right.name)
   ));
-  const costDistributionTotal = costDistribution.reduce((sum, item) => sum + item.cost, 0);
-  const largestCostGroup = costDistribution[0] ?? null;
+  const costDistributionTotal = options.costSource?.status === "available"
+    ? options.costSource.totalCosts
+    : costDistribution.reduce((sum, item) => sum + item.cost, 0);
+  const largestCostGroup = costDistribution.find((item) => item.cost > 0) ?? null;
   const largestCostEvidenceId = largestCostGroup
     ? evidenceId("cost-distribution", largestCostGroup.name, scopeKey)
     : null;
-  if (largestCostGroup && largestCostEvidenceId && costDistributionTotal > 0) {
-    const share = largestCostGroup.cost / costDistributionTotal;
+  const largestCostShare = largestCostGroup && costDistributionTotal !== null
+    ? safeRatio(largestCostGroup.cost, costDistributionTotal)
+    : null;
+  if (largestCostGroup && largestCostEvidenceId && largestCostShare !== null) {
+    const share = largestCostShare;
     evidence.push({
       id: largestCostEvidenceId,
       type: "distribution",
@@ -1053,13 +1059,13 @@ export function buildInsightAnalysis(
       reliability: costDistribution.length >= 2 ? "high" : "medium",
       supportingFacts: [
         endSentence(`${largestCostGroup.name}: ${formatDanishCurrency(largestCostGroup.cost)}`),
-        `${formatDanishPercent(share)} af den registrerede omkostningsfordeling.`,
+        `${formatDanishPercent(share)} af de samlede omkostninger.`,
       ],
     });
     observations.push({
       id: "observation-largest-cost-group",
       title: "Største registrerede omkostningspost",
-      text: `${largestCostGroup.name} er den største registrerede omkostningspost med ${formatDanishCurrency(largestCostGroup.cost)} og ${formatDanishPercent(share)} af omkostningsfordelingen.`,
+      text: `${largestCostGroup.name} er den største registrerede omkostningspost med ${formatDanishCurrency(largestCostGroup.cost)} og ${formatDanishPercent(share)} af de samlede omkostninger.`,
       tone: "neutral",
       priority: Math.abs(largestCostGroup.cost),
       evidenceIds: [largestCostEvidenceId],
@@ -1067,7 +1073,7 @@ export function buildInsightAnalysis(
     if (share >= 0.35) {
       recommendations.push({
         id: "focus-largest-cost-group",
-        text: `Undersøg ${largestCostGroup.name} nærmere, da posten udgør ${formatDanishPercent(share)} af den registrerede omkostningsfordeling.`,
+        text: `Undersøg ${largestCostGroup.name} nærmere, da posten udgør ${formatDanishPercent(share)} af de samlede omkostninger.`,
         evidenceIds: [largestCostEvidenceId],
       });
     }
@@ -1128,9 +1134,9 @@ export function buildInsightAnalysis(
   const costParagraphs = costSnapshot && resultSnapshot
     ? [endSentence(`Omkostningerne var ${costSnapshot.formattedValue}, og resultatet var ${resultSnapshot.formattedValue}`)]
     : [];
-  if (largestCostGroup && largestCostEvidenceId && costDistributionTotal > 0) {
+  if (largestCostGroup && largestCostEvidenceId && largestCostShare !== null) {
     costParagraphs.push(
-      `${largestCostGroup.name} var den største registrerede omkostningspost med ${formatDanishCurrency(largestCostGroup.cost)} og ${formatDanishPercent(largestCostGroup.cost / costDistributionTotal)} af fordelingen.`,
+      `${largestCostGroup.name} var den største registrerede omkostningspost med ${formatDanishCurrency(largestCostGroup.cost)} og ${formatDanishPercent(largestCostShare)} af de samlede omkostninger.`,
     );
   }
   if (costSnapshot && finite(budget?.costs)) {

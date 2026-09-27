@@ -74,7 +74,7 @@ test("demodata med budget og omkostningskategorier bruger registrerede workbook-
   assert.equal(analysis.budget?.variance, 10);
 
   const summary = buildCostInsightSummary(analysis);
-  assert.match(summary.insights[0], /^Løn er den største omkostningsdriver/u);
+  assert.match(summary.insights[0], /^Løn er den største omkostningskategori/u);
   assert.match(summary.insights[1], /over omkostningsbudgettet/u);
   assert.equal(analysis.hasCostTimeline, false);
   assert.equal(analysis.comparison, null);
@@ -278,7 +278,7 @@ test("Omkostninger-sidens KPI, fordeling, insights og tabel viser Løn med ø", 
   assert.equal(analysis.detailRows[0].name, "Løn");
   assert.equal(analysis.changeDrivers.length, 0);
   assert.equal(analysis.profitability.length, 0);
-  assert.equal(summary.insights[0].startsWith("Løn er den største omkostningsdriver"), true);
+  assert.equal(summary.insights[0].startsWith("Løn er den største omkostningskategori"), true);
   assert.equal(summary.insights.some((insight) => insight.includes("Lon")), false);
 });
 
@@ -292,9 +292,9 @@ test("57 procent omkostningsandel giver 0,57 kr. pr. omsætningskrone i indsigts
   assert.equal(analysis.costShare, 0.57);
   assert.equal(
     costShareInsight,
-    `Der anvendes ${formatDanishCurrencyPrecise(0.57)} i registrerede omkostninger pr. omsætningskrone.`,
+    `Omkostninger i % af omsætning: 57 %. Det svarer til ${formatDanishCurrencyPrecise(0.57)} pr. omsætningskrone.`,
   );
-  assert.doesNotMatch(costShareInsight ?? "", /Der anvendes 1(?:,00)?(?:\u00a0| )kr\./);
+  assert.doesNotMatch(costShareInsight ?? "", /1(?:,00)?(?:\u00a0| )kr\./);
 });
 
 test("effektivitets-KPI'er beregnes med fuld præcision og formateres med danske decimaler", () => {

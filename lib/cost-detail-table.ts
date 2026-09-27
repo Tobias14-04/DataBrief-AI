@@ -4,6 +4,7 @@ import {
 } from "./cost-intelligence.ts";
 import { formatDanishCurrency } from "./dashboard-insights.ts";
 import { buildExcelCompatibleCsv } from "./data-labels.ts";
+import { COST_DISTRIBUTION_SHARE_LABEL } from "./cost-share.ts";
 
 export const COST_DETAIL_COLUMN_ORDER = [
   "name",
@@ -13,7 +14,7 @@ export const COST_DETAIL_COLUMN_ORDER = [
   "changePercent",
   "budget",
   "budgetVariance",
-  "share",
+  "costDistributionShare",
 ] as const;
 
 export type CostDetailColumnKey = typeof COST_DETAIL_COLUMN_ORDER[number];
@@ -22,7 +23,7 @@ export type CostDetailSortDirection = "asc" | "desc";
 export const COST_DETAIL_PRIMARY_COLUMNS = [
   "name",
   "current",
-  "share",
+  "costDistributionShare",
 ] as const satisfies ReadonlyArray<CostDetailColumnKey>;
 
 export const COST_DETAIL_OPTIONAL_COLUMNS = [
@@ -80,9 +81,9 @@ export const COST_DETAIL_COLUMN_DEFINITIONS: Record<
     numeric: true,
     helpText: "Afvigelsen viser forskellen mellem faktisk forbrug og budget. Under budget er gunstigt.",
   },
-  share: {
-    key: "share",
-    label: "Andel",
+  costDistributionShare: {
+    key: "costDistributionShare",
+    label: COST_DISTRIBUTION_SHARE_LABEL,
     numeric: true,
   },
 };
@@ -141,7 +142,9 @@ function getNumericColumnValue(
   key: Exclude<CostDetailColumnKey, "name">,
 ) {
   const budgetAwareRow = row as CostDetailRowWithBudget;
-  const value = key === "budget"
+  const value = key === "costDistributionShare"
+    ? row.share
+    : key === "budget"
     ? budgetAwareRow.budget
     : key === "budgetVariance"
       ? budgetAwareRow.budgetVariance
@@ -201,7 +204,7 @@ export function parseCostDetailColumnSelection(
       return normalizeCostDetailColumnSelection([], availableColumns);
     }
     return normalizeCostDetailColumnSelection(
-      parsedValue.filter(isCostDetailColumnKey),
+      parsedValue.map((key) => key === "share" || key === "costShare" ? "costDistributionShare" : key).filter(isCostDetailColumnKey),
       availableColumns,
     );
   } catch {
@@ -257,7 +260,7 @@ function formatCsvCell(row: CostDetailRow, key: CostDetailColumnKey) {
   const value = getCostDetailColumnValue(row, key);
   if (key === "name") return String(value ?? "");
   if (value === null || typeof value !== "number") return "";
-  const normalizedValue = key === "share" || key === "changePercent"
+  const normalizedValue = key === "costDistributionShare" || key === "changePercent"
     ? value * 100
     : value;
   return danishCsvNumber.format(normalizedValue);

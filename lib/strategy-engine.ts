@@ -90,7 +90,7 @@ const metricLabels: Record<InsightMetricKey, string> = {
   grossMargin: "dækningsgrad",
   cost: "omkostninger",
   result: "resultat",
-  costShare: "omkostningsandel",
+  costShare: "omkostninger i % af omsætning",
 };
 
 const reliabilityRank: Record<InsightReliability, number> = {
@@ -292,7 +292,7 @@ const driverMovementLabels: Record<InsightMetricKey, { higher: string; lower: st
   grossMargin: { higher: "højere dækningsgrad", lower: "lavere dækningsgrad" },
   cost: { higher: "højere omkostninger", lower: "lavere omkostninger" },
   result: { higher: "højere resultat", lower: "lavere resultat" },
-  costShare: { higher: "højere omkostningsandel", lower: "lavere omkostningsandel" },
+  costShare: { higher: "højere omkostninger i % af omsætning", lower: "lavere omkostninger i % af omsætning" },
 };
 
 function driverMovementTitle(metric: InsightMetricKey, dimensionValue: string, absoluteChange: number) {
@@ -311,7 +311,7 @@ function changeTitle(metric: InsightMetricKey, favorable: boolean) {
     grossMargin: "Forbedret dækningsgrad",
     cost: "Lavere omkostninger",
     result: "Stigende resultat",
-    costShare: "Lavere omkostningsandel",
+    costShare: "Lavere omkostninger i % af omsætning",
   };
   const adverseTitles: Record<InsightMetricKey, string> = {
     revenue: "Faldende omsætning",
@@ -321,7 +321,7 @@ function changeTitle(metric: InsightMetricKey, favorable: boolean) {
     grossMargin: "Pres på dækningsgraden",
     cost: "Stigende omkostninger",
     result: "Faldende resultat",
-    costShare: "Stigende omkostningsandel",
+    costShare: "Stigende omkostninger i % af omsætning",
   };
   return (favorable ? favorableTitles : adverseTitles)[metric];
 }

@@ -12,6 +12,7 @@ import {
 } from "./data-labels.ts";
 import { resolveCostBasis, type CostBasis } from "./result-basis.ts";
 import { growthChange, resolvePeriodComparison } from "./period-comparison.ts";
+import { COST_TO_REVENUE_LABEL, costDistributionShare, costToRevenue } from "./cost-share.ts";
 
 export const COST_BUDGET_THRESHOLDS = {
   materialOverrun: 0.08,
@@ -57,7 +58,7 @@ export type CostPeriod = {
 export type CostDistributionItem = {
   name: string;
   cost: number;
-  share: number;
+  share: number | null;
 };
 
 export type CostChangeDriver = {
@@ -383,7 +384,7 @@ export function buildCostIntelligence(
     grossProfit: period.grossProfit,
     units: period.units,
     rowCount: period.rowCount,
-    costShare: canPeriodizeCosts && hasRevenue ? safeRatio(period.cost, period.revenue) : null,
+    costShare: canPeriodizeCosts && hasRevenue ? costToRevenue(period.cost, period.revenue) : null,
     previousCost: canPeriodizeCosts && index > 0 && resolvePeriodComparison(
       periodAccumulators.map((item) => item.name),
       { selectedMonths: [period.name], partialMonths: options.partialMonths },
@@ -392,7 +393,7 @@ export function buildCostIntelligence(
 
   const totalCosts = costBasis.totalCosts;
   const actualResult = costBasis.result;
-  const costShare = hasRevenue ? safeRatio(totalCosts, totalRevenue) : null;
+  const costShare = hasRevenue ? costToRevenue(totalCosts, totalRevenue) : null;
   const providedDistributionGroups = groupDistributionInputs(options.distribution ?? []);
   const providedDistribution = Array.from(providedDistributionGroups.values());
   const budgetDistributionGroups = groupDistributionInputs(options.budgetDistribution ?? [], true);
@@ -405,11 +406,16 @@ export function buildCostIntelligence(
     : dimensionValues(categories)
         .filter((item) => item.cost !== 0)
         .map((item) => ({ name: item.name, cost: item.cost }));
-  const distributionTotal = rawDistribution.reduce((sum, item) => sum + item.cost, 0);
-  const distribution: CostDistributionItem[] = rawDistribution
+  const allocatedCosts = rawDistribution.reduce((sum, item) => sum + item.cost, 0);
+  const unallocatedCosts = totalCosts === null ? null : totalCosts - allocatedCosts;
+  const fullDistribution = unallocatedCosts !== null && Number.isFinite(unallocatedCosts)
+    && Math.abs(unallocatedCosts) > Math.max(1, Math.abs(totalCosts!)) * 1e-9
+    ? [...rawDistribution, { name: "Ufordelte omkostninger", cost: unallocatedCosts }]
+    : rawDistribution;
+  const distribution: CostDistributionItem[] = fullDistribution
     .map((item) => ({
       ...item,
-      share: safeRatio(item.cost, distributionTotal) ?? 0,
+      share: costDistributionShare(item.cost, totalCosts),
     }))
     .sort((a, b) => Math.abs(b.cost) - Math.abs(a.cost));
 
@@ -445,10 +451,10 @@ export function buildCostIntelligence(
   const previousAccumulator = periodComparison.status === "available"
     ? combineComparisonMonths(periodComparison.previousMonths, periodComparison.previousLabel!) : null;
   const latestCostShare = latestAccumulator && hasRevenue
-    ? safeRatio(latestAccumulator.cost, latestAccumulator.revenue)
+    ? costToRevenue(latestAccumulator.cost, latestAccumulator.revenue)
     : null;
   const previousCostShare = previousAccumulator && hasRevenue
-    ? safeRatio(previousAccumulator.cost, previousAccumulator.revenue)
+    ? costToRevenue(previousAccumulator.cost, previousAccumulator.revenue)
     : null;
   const comparison: CostComparison | null = canPeriodizeCosts && latestAccumulator && previousAccumulator
     ? {
@@ -533,7 +539,7 @@ export function buildCostIntelligence(
             return {
               name,
               cost: current,
-              share: safeRatio(current, latestAccumulator.cost) ?? 0,
+              share: costDistributionShare(current, latestAccumulator.cost),
               current,
               previous,
               change,
@@ -577,7 +583,7 @@ export function buildCostIntelligence(
     costShare,
     periods: periodSeries,
     distribution,
-    distributionSource: costBasis.source === "workbook-total" || costBasis.source === "workbook-components" ? "workbook" as const : "rows" as const,
+    distributionSource: costBasis.source.startsWith("workbook") ? "workbook" as const : "rows" as const,
     comparison,
     changeDimension: useCategoryChanges ? "category" as const : "product" as const,
     changeDrivers,
@@ -682,7 +688,7 @@ export function buildCostComparisonPresentation(comparison: CostComparison) {
 
 export function buildCostInsightSummary(analysis: CostIntelligence) {
   const insights: Array<{ priority: number; text: string }> = [];
-  const topDriver = analysis.distribution[0];
+  const topDriver = analysis.distribution.find((item) => item.name !== "Ufordelte omkostninger" && item.share !== null);
   const largestAbsoluteChange = analysis.changeDrivers[0];
   const largestPercentageChange = [...analysis.changeDrivers]
     .filter((item) => item.changePercent !== null)
@@ -690,7 +696,7 @@ export function buildCostInsightSummary(analysis: CostIntelligence) {
   if (topDriver) {
     insights.push({
       priority: 100,
-      text: `${topDriver.name} er den største omkostningsdriver med ${formatDanishCurrency(topDriver.cost)} og udgør ${formatDanishPercent(topDriver.share)} af de samlede registrerede omkostninger.`,
+      text: `${topDriver.name} er den største omkostningskategori med ${formatDanishCurrency(topDriver.cost)} og udgør ${formatDanishPercent(topDriver.share!)} af de samlede registrerede omkostninger.`,
     });
   }
   if (largestAbsoluteChange) {
@@ -731,7 +737,7 @@ export function buildCostInsightSummary(analysis: CostIntelligence) {
   if (analysis.costShare !== null) {
     insights.push({
       priority: 60,
-      text: `Der anvendes ${formatDanishCurrencyPrecise(analysis.costShare)} i registrerede omkostninger pr. omsætningskrone.`,
+      text: `${COST_TO_REVENUE_LABEL}: ${formatDanishPercent(analysis.costShare)}. Det svarer til ${formatDanishCurrencyPrecise(analysis.costShare)} pr. omsætningskrone.`,
     });
   }
   const lowest = analysis.profitability[0];

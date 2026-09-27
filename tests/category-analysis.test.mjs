@@ -52,7 +52,7 @@ const categories = [
 test("omsætnings- og omkostningsandele summerer til 100 procent", () => {
   const analysis = buildCategoryAnalysis(categories);
   const revenueShare = analysis.rows.reduce((sum, row) => sum + row.revenueShare, 0);
-  const costShare = analysis.rows.reduce((sum, row) => sum + row.costShare, 0);
+  const costShare = analysis.rows.reduce((sum, row) => sum + row.costDistributionShare, 0);
 
   assert.ok(Math.abs(revenueShare - 1) < 1e-12);
   assert.ok(Math.abs(costShare - 1) < 1e-12);
@@ -104,7 +104,7 @@ test("alle seks nøgletal kan styre kategorirangeringen", () => {
   assert.equal(sortCategoryRows(rows, "grossProfit", "desc")[0].name, "Drikke");
   assert.equal(sortCategoryRows(rows, "grossMargin", "desc")[0].name, "Bagværk");
   assert.equal(sortCategoryRows(rows, "cost", "desc")[0].name, "Drikke");
-  assert.equal(sortCategoryRows(rows, "costShare", "desc")[0].name, "Drikke");
+  assert.equal(sortCategoryRows(rows, "costDistributionShare", "desc")[0].name, "Drikke");
   assert.equal(sortCategoryRows(rows, "grossMargin", "asc")[0].name, "Månedsløn");
 });
 
@@ -232,7 +232,7 @@ test("0 omsætning og manglende datagrundlag giver ingen misvisende procentsats"
   assert.equal(analysis.rows[0].revenueShare, null);
   assert.equal(analysis.rows[0].grossMargin, null);
   assert.equal(analysis.rows[0].cost, null);
-  assert.equal(analysis.rows[0].costShare, null);
+  assert.equal(analysis.rows[0].costDistributionShare, null);
   assert.deepEqual(
     getAvailableCategoryColumns(analysis),
     ["name", "revenue", "revenueShare", "grossProfit"],
@@ -274,7 +274,7 @@ test("ufuldstændige kategoriaggregater får ikke en misvisende dækningsgrad", 
   assert.equal(analysis.rows[0].grossProfit, null);
   assert.equal(analysis.rows[0].grossMargin, null);
   assert.equal(analysis.rows[0].cost, null);
-  assert.equal(analysis.rows[0].costShare, null);
+  assert.equal(analysis.rows[0].costDistributionShare, null);
 });
 
 test("delvis omkostningsdækning opfinder ikke en 100-procents fordeling", () => {
@@ -304,7 +304,7 @@ test("delvis omkostningsdækning opfinder ikke en 100-procents fordeling", () =>
 
   assert.equal(analysis.hasCompleteCostCoverage, false);
   assert.equal(analysis.rows[0].cost, 240);
-  assert.equal(analysis.rows[0].costShare, null);
+  assert.equal(analysis.rows[0].costDistributionShare, null);
   assert.equal(analysis.rows[1].cost, null);
   assert.equal(analysis.largestCostShare, null);
 });
@@ -345,7 +345,7 @@ test("kolonnevalg gemmes sikkert og obligatoriske kolonner bevares", () => {
     "grossProfit",
     "grossMargin",
     "cost",
-    "costShare",
+    "costDistributionShare",
   ];
   const serialized = serializeCategoryColumnSelection(
     ["name", "revenue", "revenueShare", "grossMargin"],
@@ -474,7 +474,7 @@ test("kategorikomponenten har fælles kontrol, tilgængelig sortering og respons
   assert.match(source, /Fælles højeste dækningsgrad/u);
   assert.match(source, /Dækningsgraden er ensartet på tværs af kategorier/u);
   assert.match(source, /Aktiv sorteringskolonne/u);
-  assert.match(source, /Største omkostningsandel/u);
+  assert.match(source, /Største andel af samlede omkostninger/u);
   assert.doesNotMatch(source, /bg-violet-50/u);
   assert.match(globalStyles, /html\s*\{[^}]*overflow-x:\s*clip;/su);
 });

@@ -36,17 +36,17 @@ test("primære kolonner er altid aktive, og sessionsværdier roundtripper sikker
   );
   assert.deepEqual(
     parseCostDetailColumnSelection(JSON.stringify(["budget", "change", "ukendt", "change"])),
-    ["name", "current", "change", "budget", "share"],
+    ["name", "current", "change", "budget", "costDistributionShare"],
   );
 
   const serialized = serializeCostDetailColumnSelection(["budgetVariance", "previous"]);
   assert.equal(
     serialized,
-    JSON.stringify(["name", "current", "previous", "budgetVariance", "share"]),
+    JSON.stringify(["name", "current", "previous", "budgetVariance", "costDistributionShare"]),
   );
   assert.deepEqual(
-    parseCostDetailColumnSelection(serialized, ["name", "current", "previous", "share"]),
-    ["name", "current", "previous", "share"],
+    parseCostDetailColumnSelection(serialized, ["name", "current", "previous", "costDistributionShare"]),
+    ["name", "current", "previous", "costDistributionShare"],
   );
 });
 
@@ -54,7 +54,7 @@ test("valgfrie kolonner er kun tilgængelige, når rækkerne har et endeligt tal
   const primaryOnly = getAvailableCostDetailColumns([
     detailRow({ budget: Number.NaN, budgetVariance: undefined }),
   ]);
-  assert.deepEqual(primaryOnly, ["name", "current", "share"]);
+  assert.deepEqual(primaryOnly, ["name", "current", "costDistributionShare"]);
 
   const allColumns = getAvailableCostDetailColumns([
     detailRow({
@@ -73,7 +73,7 @@ test("valgfrie kolonner er kun tilgængelige, når rækkerne har et endeligt tal
     "changePercent",
     "budget",
     "budgetVariance",
-    "share",
+    "costDistributionShare",
   ]);
 });
 
@@ -84,7 +84,7 @@ test("null og ikke-endelige tal sorteres sidst i begge retninger", () => {
 
   const numericKeys = [
     "current",
-    "share",
+    "costDistributionShare",
     "previous",
     "change",
     "changePercent",
@@ -92,9 +92,10 @@ test("null og ikke-endelige tal sorteres sidst i begge retninger", () => {
     "budgetVariance",
   ];
   for (const key of numericKeys) {
-    const low = detailRow({ name: "Lav", [key]: 1 });
-    const high = detailRow({ name: "Høj", [key]: 2 });
-    const missing = detailRow({ name: "Mangler", [key]: null });
+    const field = key === "costDistributionShare" ? "share" : key;
+    const low = detailRow({ name: "Lav", [field]: 1 });
+    const high = detailRow({ name: "Høj", [field]: 2 });
+    const missing = detailRow({ name: "Mangler", [field]: null });
 
     assert.deepEqual(
       sortCostDetailRows([missing, high, low], key, "asc").map((row) => row.name),
@@ -130,7 +131,7 @@ test("CSV indeholder kun valgte og tilgængelige kolonner i dansk UTF-8-format",
   assert.equal(csv.charCodeAt(0), 0xFEFF);
   assert.match(
     csv,
-    /^﻿"Omkostningskategori";"Aktuel periode";"Ændring i kr\.";"Budget";"Andel"\r\n/u,
+    /^﻿"Omkostningskategori";"Aktuel periode";"Ændring i kr\.";"Budget";"Andel af samlede omkostninger"\r\n/u,
   );
   assert.match(csv, /"Løn";"1\.234,50";"-10,25";"1\.300,00";"57,00"/u);
   assert.match(csv, /"Café München";"200,00";"";"";"43,00"/u);
@@ -177,7 +178,7 @@ test("CSV bevarer budgetafvigelsen som et numerisk Excel-felt og bruger ikke UI-
     }),
   ], ["budget", "budgetVariance"]);
 
-  assert.match(csv, /"Budget";"Budgetafvigelse";"Andel"\r\n/u);
+  assert.match(csv, /"Budget";"Budgetafvigelse";"Andel af samlede omkostninger"\r\n/u);
   assert.match(csv, /"Løn";"7\.883,00";"10\.000,00";"-2\.117,00";"57,00"/u);
   assert.equal(csv.includes("under budget"), false);
   assert.equal(csv.includes("over budget"), false);
