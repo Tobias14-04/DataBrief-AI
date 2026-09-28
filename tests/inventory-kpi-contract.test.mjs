@@ -178,8 +178,8 @@ test("STOCK: periodegrænser følger filtreret flow, og valgt tom måned er ikke
 
 test("STOCK: Quick Ratio kræver balanceposter på samme snapshotdato og scope", () => {
   const rows = [
-    stock("2026-01-31", "A", 60, 6),
-    { Snapshotdato: "2026-01-31", Omsætningsaktiver: 300, "Kortfristet gæld": 150 },
+    stock("2026-01-31", "A", 60, 6, { Regnskabsperiode: "2026-01", Valuta: "DKK", Virksomhed: "Test ApS", Regnskabsstatus: "Komplet" }),
+    { Snapshotdato: "2026-01-31", Regnskabsperiode: "2026-01", Omsætningsaktiver: 300, "Kortfristet gæld": 150, Valuta: "DKK", Virksomhed: "Test ApS", Regnskabsstatus: "Komplet" },
   ];
   assert.equal(value("quick-ratio", rows).value, 1.6);
   const mismatch = [rows[0], { Snapshotdato: "2026-02-01", Omsætningsaktiver: 300, "Kortfristet gæld": 150 }];

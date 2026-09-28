@@ -2781,6 +2781,7 @@ export default function UploadDashboard() {
     selectedMonths: deferredFilters.month,
     partialMonths,
     inventoryFilters: deferredFilters,
+    financialFilters: deferredFilters,
   }), [comparisonKpiDataProfile, currentSalesKpiDataProfile, deferredFilters, metrics, partialMonths, periodComparison, revenueGrowth, showBudget]);
   const baseKpiContext = useMemo(() => ({
     ...baseMetrics,

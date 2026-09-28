@@ -223,6 +223,10 @@ test("finansielle KPI'er beregnes direkte fra det centrale register", () => {
         "Kortfristet gæld": 150,
         Lagerværdi: 60,
         Snapshotdato: "2026-01-31",
+        Regnskabsperiode: "2026-01",
+        Valuta: "DKK",
+        Virksomhed: "Test ApS",
+        Regnskabsstatus: "Komplet",
       },
     },
   ]);

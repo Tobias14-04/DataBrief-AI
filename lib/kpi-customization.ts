@@ -23,6 +23,7 @@ export const KPI_CONFIG_VERSION = 1;
 export const MAX_PRIMARY_KPIS = 4;
 export const MIN_PRIMARY_KPIS = 2;
 export const MAX_SECONDARY_KPIS = 6;
+const canonicalKpiId = (id: string) => id === "ebit-margin" ? "operating-margin" : id;
 
 export type KpiPlacement = "primary" | "secondary";
 export type KpiLevel = "recommended" | "standard" | "advanced";
@@ -94,6 +95,7 @@ export type StandardKpiContext = {
   selectedMonths?: readonly string[];
   partialMonths?: readonly string[];
   inventoryFilters?: Partial<Record<"month" | "product" | "category" | "channel" | "region", readonly string[]>>;
+  financialFilters?: Partial<Record<"month" | "product" | "category" | "channel" | "region", readonly string[]>>;
   inventoryPeriod?: { start: string; end: string };
 };
 
@@ -249,8 +251,8 @@ export function parseStoredKpiConfiguration(value: string | null): KpiConfigurat
     if (record.version !== KPI_CONFIG_VERSION || !Array.isArray(record.primaryKpis) || !Array.isArray(record.secondaryKpis) || !Array.isArray(record.customKpis)) return null;
     return {
       version: KPI_CONFIG_VERSION,
-      primaryKpis: record.primaryKpis.filter((id): id is string => typeof id === "string").slice(0, MAX_PRIMARY_KPIS),
-      secondaryKpis: record.secondaryKpis.filter((id): id is string => typeof id === "string").slice(0, MAX_SECONDARY_KPIS),
+      primaryKpis: [...new Set(record.primaryKpis.filter((id): id is string => typeof id === "string").map(canonicalKpiId))].slice(0, MAX_PRIMARY_KPIS),
+      secondaryKpis: [...new Set(record.secondaryKpis.filter((id): id is string => typeof id === "string").map(canonicalKpiId))].slice(0, MAX_SECONDARY_KPIS),
       customKpis: record.customKpis.filter(isKpiDefinition),
     };
   } catch {
@@ -286,12 +288,14 @@ function isKpiFormula(value: unknown, depth = 0): value is KpiFormula {
 }
 
 export function normalizeKpiConfiguration(config: KpiConfiguration, availableIds: Set<string>, defaults: KpiConfiguration) {
-  const primary = config.primaryKpis.filter((id, index, ids) => availableIds.has(id) && ids.indexOf(id) === index).slice(0, MAX_PRIMARY_KPIS);
+  const primaryIds = config.primaryKpis.map(canonicalKpiId);
+  const primary = primaryIds.filter((id, index, ids) => availableIds.has(id) && ids.indexOf(id) === index).slice(0, MAX_PRIMARY_KPIS);
   for (const id of defaults.primaryKpis) {
     if (primary.length >= MIN_PRIMARY_KPIS) break;
     if (availableIds.has(id) && !primary.includes(id)) primary.push(id);
   }
-  const secondary = config.secondaryKpis
+  const secondaryIds = config.secondaryKpis.map(canonicalKpiId);
+  const secondary = secondaryIds
     .filter((id, index, ids) => availableIds.has(id) && !primary.includes(id) && ids.indexOf(id) === index)
     .slice(0, MAX_SECONDARY_KPIS);
   return { ...config, primaryKpis: primary, secondaryKpis: secondary };

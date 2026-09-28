@@ -44,6 +44,12 @@ export type KpiDataField =
   | "category"
   | "date"
   | "snapshotDate"
+  | "accountingPeriod"
+  | "periodStart"
+  | "periodEnd"
+  | "currency"
+  | "company"
+  | "financialStatus"
   | "month"
   | "channel"
   | "region"
@@ -131,9 +137,15 @@ export const kpiFieldRegistry: Record<KpiDataField, KpiFieldDefinition> = {
     aliases: [...salesColumnAliases.date],
   },
   snapshotDate: {
-    label: "Lagersnapshotdato",
-    aliases: ["snapshotdato", "lagerdato", "lager snapshot dato", "inventory date", "stock date", "snapshot date", "as of date", "opgørelsesdato"],
+    label: "Snapshotdato",
+    aliases: ["snapshotdato", "balancedato", "balance dato", "lagerdato", "lager snapshot dato", "inventory date", "stock date", "snapshot date", "as of date", "opgørelsesdato"],
   },
+  accountingPeriod: { label: "Regnskabsperiode", aliases: ["regnskabsperiode", "accounting period", "financial period", "flow period"] },
+  periodStart: { label: "Periodestart", aliases: ["periodestart", "periode start", "period start", "accounting period start"] },
+  periodEnd: { label: "Periodeslut", aliases: ["periodeslut", "periode slut", "period end", "accounting period end"] },
+  currency: { label: "Valuta", aliases: ["valuta", "valutakode", "currency", "currency code"] },
+  company: { label: "Virksomhed", aliases: ["virksomhed", "selskab", "company", "legal entity", "entity"] },
+  financialStatus: { label: "Regnskabsstatus", aliases: ["regnskabsstatus", "datastatus", "financial status", "completeness", "completeness status"] },
   month: {
     label: "Måned",
     aliases: [...salesColumnAliases.month],
@@ -415,7 +427,7 @@ export function buildKpiDataProfile(
       (matchedColumnSets.cogs ??= new Set()).add(cogsHeader!);
     }
     const snapshotCandidate = normalized.schema.fields.some((field) =>
-      ["inventoryValue", "inventoryQuantity", "currentAssets", "currentLiabilities"].includes(field));
+      ["inventoryValue", "inventoryQuantity", "equity", "assets", "currentAssets", "currentLiabilities", "cash", "totalDebt", "liabilities"].includes(field));
     const derivedSnapshotDate = snapshotCandidate && normalized.values.snapshotDate === undefined
       ? normalized.values.date : undefined;
     if (derivedSnapshotDate !== undefined && derivedSnapshotDate !== null && derivedSnapshotDate !== "") {
@@ -897,28 +909,192 @@ function inventoryTurnoverBasis(context: StandardKpiContext, profile: KpiDataPro
   };
 }
 
-function inventoryQuickRatio(context: StandardKpiContext, profile: KpiDataProfile) {
-  const candidates = profile.rows.filter((row) => row.fields.includes("currentAssets") || row.fields.includes("currentLiabilities") ||
-    row.fields.includes("inventoryValue"));
-  const dated = candidates.flatMap((row) => {
-    const date = dayKey(row.values.snapshotDate);
-    if (!date) throw new Error("Quick Ratio kræver samme dokumenterede snapshotdato for alle balanceposter.");
-    return inRequestedMonths(date, context) ? [{ row, date }] : [];
-  });
-  const scoped = scopedInventoryRows(dated.map((item) => item.row), context, "Balanceposter");
-  const included = new Set(scoped);
-  const latestDate = dated.filter(({ row }) => included.has(row)).map(({ date }) => date).sort().at(-1);
-  if (!latestDate) throw new Error("Quick Ratio kræver et fælles balancesnapshot.");
-  const latestRows = dated.filter(({ row, date }) => date === latestDate && included.has(row)).map(({ row }) => row);
-  const assetValues = latestRows.map((row) => rowNumber(row, "currentAssets")).filter((value): value is number => value !== null);
-  const liabilityValues = latestRows.map((row) => rowNumber(row, "currentLiabilities")).filter((value): value is number => value !== null);
-  const stockRows = latestRows.filter((row) => row.fields.includes("inventoryValue"));
-  const completeStock = stockSnapshots(context, profile, "inventoryValue").find((snapshot) => snapshot.date === latestDate)?.complete;
-  if (assetValues.length !== 1 || liabilityValues.length !== 1 || !stockRows.length || !completeStock || stockRows.some((row) => rowNumber(row, "inventoryValue") === null)) {
-    throw new Error("Omsætningsaktiver, lagerværdi og kortfristet gæld kan ikke afstemmes på samme snapshotdato.");
+type FinancialIdentity = { company: string; currency: string };
+type FinancialFlow = FinancialIdentity & { value: number; start: string; end: string };
+const completedFinancialStatuses = new Set(["komplet", "complete", "completed", "endelig", "final", "afstemt"]);
+
+function financialIdentity(row: ProfileRow): FinancialIdentity {
+  const company = rowText(row, "company");
+  const currency = rowText(row, "currency");
+  const status = rowText(row, "financialStatus");
+  if (!company || !currency || !status) throw new Error("Finansielle data kræver virksomhed, valuta og eksplicit completeness/status på hver relevant række.");
+  if (!completedFinancialStatuses.has(normalizeForComparison(status))) throw new Error("Det finansielle datagrundlag er ikke markeret komplet og afstemt.");
+  return { company: normalizeForComparison(company), currency: currency.trim().toUpperCase() };
+}
+
+function sameFinancialIdentity(left: FinancialIdentity, right: FinancialIdentity) {
+  if (left.company !== right.company || left.currency !== right.currency) {
+    throw new Error("Finansielle poster har forskellig virksomhed eller valuta og kan ikke blandes.");
   }
-  const inventory = stockRows.reduce((sum, row) => sum + rowNumber(row, "inventoryValue")!, 0);
-  return { value: ratio(assetValues[0] - inventory, liabilityValues[0], "Quick Ratio"), detail: `Samme balancesnapshot og scope · ${latestDate}` };
+}
+
+function financialScope(context: StandardKpiContext): StandardKpiContext {
+  return context.financialFilters ? { ...context, inventoryFilters: context.financialFilters } : context;
+}
+
+function financialRows(profile: KpiDataProfile, fields: readonly KpiDataField[]) {
+  return profile.rows.filter((row) => fields.some((field) => row.fields.includes(field)));
+}
+
+function financialBalanceDate(row: ProfileRow) {
+  const date = dayKey(row.values.snapshotDate);
+  if (!date) throw new Error("Balanceposter kræver en gyldig balancedato/snapshotdato på hver række.");
+  const period = financialPeriod(row);
+  if (date < period.start || date > period.end) throw new Error("Balancedatoen ligger uden for den dokumenterede regnskabsperiode.");
+  return date;
+}
+
+function financialSnapshot(context: StandardKpiContext, profile: KpiDataProfile, fields: readonly KpiDataField[]) {
+  const dated = financialRows(profile, fields).map((row) => {
+    const date = financialBalanceDate(row);
+    return { row, date };
+  }).filter(({ date }) => inRequestedMonths(date, financialScope(context)));
+  const scoped = new Set(scopedInventoryRows(dated.map(({ row }) => row), financialScope(context), "Finansielle data"));
+  const rows = dated.filter(({ row }) => scoped.has(row)).map((item) => ({ ...item, identity: financialIdentity(item.row) }));
+  const date = rows.map((item) => item.date).sort().at(-1);
+  if (!date) throw new Error("Ingen dokumenteret balance på en fælles snapshotdato i det valgte scope.");
+  const latest = rows.filter((item) => item.date === date);
+  const identity = latest[0].identity;
+  latest.forEach((item) => sameFinancialIdentity(identity, item.identity));
+  const values = Object.fromEntries(fields.map((field) => {
+    const matching = latest.filter(({ row }) => row.fields.includes(field));
+    if (matching.length !== 1) throw new Error(`${kpiFieldRegistry[field].label} skal være dokumenteret præcis én gang på balancedato ${date}; ukendt er ikke 0.`);
+    const value = rowNumber(matching[0].row, field);
+    if (value === null) throw new Error(`${kpiFieldRegistry[field].label} er ukendt på balancedato ${date}.`);
+    return [field, value];
+  })) as Partial<Record<KpiDataField, number>>;
+  return { values, date, identity };
+}
+
+function financialStockRatio(context: StandardKpiContext, profile: KpiDataProfile, numerator: KpiDataField, denominator: KpiDataField, label: string) {
+  const snapshot = financialSnapshot(context, profile, [numerator, denominator]);
+  return { value: ratio(snapshot.values[numerator]!, snapshot.values[denominator]!, label), detail: `Samme dokumenterede balance · ${snapshot.date}` };
+}
+
+function financialPeriod(row: ProfileRow) {
+  const explicitStart = dayKey(row.values.periodStart);
+  const explicitEnd = dayKey(row.values.periodEnd);
+  if (explicitStart && explicitEnd && explicitStart <= explicitEnd) return { start: explicitStart, end: explicitEnd };
+  const period = rowText(row, "accountingPeriod");
+  if (period && /^\d{4}-\d{2}$/.test(period) && monthSortKey(period) !== null) {
+    const start = `${period}-01`;
+    const end = new Date(Date.UTC(Number(period.slice(0, 4)), Number(period.slice(5, 7)), 0)).toISOString().slice(0, 10);
+    return { start, end };
+  }
+  if (period && /^\d{4}$/.test(period)) return { start: `${period}-01-01`, end: `${period}-12-31` };
+  throw new Error("Finansielle poster kræver en eksplicit gyldig regnskabsperiode eller periodestart og -slut.");
+}
+
+function financialPeriodMonths(start: string, end: string) {
+  const months: string[] = [];
+  const cursor = new Date(Date.UTC(Number(start.slice(0, 4)), Number(start.slice(5, 7)) - 1, 1));
+  const last = end.slice(0, 7);
+  while (cursor.toISOString().slice(0, 7) <= last) {
+    months.push(cursor.toISOString().slice(0, 7));
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+  return months;
+}
+
+function financialFlow(context: StandardKpiContext, profile: KpiDataProfile, field: KpiDataField): FinancialFlow {
+  const candidates = financialRows(profile, [field]);
+  const rows = field === "revenue" ? candidates.filter((row) =>
+    row.fields.includes("accountingPeriod") || row.fields.includes("periodStart") || row.fields.includes("periodEnd") ||
+    row.fields.includes("company") || row.fields.includes("currency") || row.fields.includes("financialStatus")) : candidates;
+  if (!rows.length) throw new Error(`${kpiFieldRegistry[field].label} kræver dokumenteret regnskabsperiode i det valgte scope.`);
+  let dated = rows.map((row) => ({ row, ...financialPeriod(row) }));
+  const selected = requestedInventoryMonths(financialScope(context));
+  if (selected.length) {
+    dated = dated.filter((entry) => financialPeriodMonths(entry.start, entry.end).every((month) => selected.includes(month)));
+    if (!dated.length) throw new Error("Ingen dokumenteret regnskabsperiode matcher det valgte periodescope.");
+  }
+  const scoped = new Set(scopedInventoryRows(dated.map(({ row }) => row), financialScope(context), "Finansielle data"));
+  const entries = dated.filter(({ row }) => scoped.has(row)).map(({ row, start, end }) => {
+    const identity = financialIdentity(row);
+    const amount = rowNumber(row, field);
+    if (amount === null) throw new Error(`${kpiFieldRegistry[field].label} er delvist ukendt; ukendt er ikke 0.`);
+    return { start, end, ...identity, amount };
+  });
+  if (!entries.length) throw new Error("Ingen dokumenteret finansielt flow matcher det valgte dimensionsscope.");
+  const identity = entries[0];
+  entries.forEach((entry) => sameFinancialIdentity(identity, entry));
+  const periods = [...new Set(entries.map(({ start, end }) => `${start}/${end}`))]
+    .map((period) => ({ start: period.slice(0, 10), end: period.slice(11) }))
+    .sort((left, right) => left.start.localeCompare(right.start));
+  for (let index = 1; index < periods.length; index += 1) {
+    const priorEnd = Date.parse(periods[index - 1].end);
+    if (Date.parse(periods[index].start) !== priorEnd + dayMillis) {
+      throw new Error("Finansielle flowperioder overlapper eller har manglende kalenderdage.");
+    }
+  }
+  const start = periods[0].start;
+  const end = periods.at(-1)!.end;
+  if (selected.length) {
+    const months = financialPeriodMonths(start, end);
+    if (months.length !== selected.length || months.some((month) => !selected.includes(month))) {
+      throw new Error("Regnskabsperioden matcher ikke det valgte periodescope.");
+    }
+  }
+  if ((context.partialMonths ?? []).some((month) => month === start.slice(0, 7) || month === end.slice(0, 7)) &&
+      (start.endsWith("-01") || end === new Date(Date.UTC(Number(end.slice(0, 4)), Number(end.slice(5, 7)), 0)).toISOString().slice(0, 10))) {
+    throw new Error("En delmåned kan ikke stiltiende sammenlignes med en fuld regnskabsmåned.");
+  }
+  const value = entries.reduce((sum, entry) => sum + entry.amount, 0);
+  if (!isFiniteNumber(value)) throw new Error("Finansielt flow gav ikke et endeligt tal.");
+  return { value, start, end, company: identity.company, currency: identity.currency };
+}
+
+function matchingFinancialFlows(left: FinancialFlow, right: FinancialFlow) {
+  sameFinancialIdentity(left, right);
+  if (left.start !== right.start || left.end !== right.end) throw new Error("Finansielle flow har ikke samme regnskabsperiode.");
+}
+
+function averageFinancialBalance(context: StandardKpiContext, profile: KpiDataProfile, field: KpiDataField, flow: FinancialFlow) {
+  const dated = financialRows(profile, [field]).map((row) => ({ row, date: financialBalanceDate(row) }));
+  const beforeStart = new Date(Date.parse(flow.start) - dayMillis).toISOString().slice(0, 10);
+  const relevant = dated.filter((item) => item.date === flow.start || item.date === beforeStart || item.date === flow.end);
+  const scoped = new Set(scopedInventoryRows(relevant.map(({ row }) => row), financialScope(context), "Finansielle data"));
+  const rows = relevant.filter(({ row }) => scoped.has(row)).map((item) => ({ ...item, identity: financialIdentity(item.row) }));
+  const opening = rows.filter((item) => item.date === flow.start || item.date === beforeStart);
+  const closing = rows.filter((item) => item.date === flow.end);
+  const openingDate = opening.some((item) => item.date === flow.start) ? flow.start : beforeStart;
+  const endpoints = [opening.filter((item) => item.date === openingDate), closing];
+  const values = endpoints.map((items) => {
+    if (items.length !== 1) throw new Error(`${kpiFieldRegistry[field].label} kræver én komplet åbnings- og slutbalance for regnskabsperioden.`);
+    sameFinancialIdentity(flow, items[0].identity);
+    const value = rowNumber(items[0].row, field);
+    if (value === null) throw new Error(`${kpiFieldRegistry[field].label} er ukendt på en af balancedatoerne.`);
+    return value;
+  });
+  return ratio(values[0] + values[1], 2, `Gennemsnitlige ${kpiFieldRegistry[field].label.toLowerCase()}`);
+}
+
+function financialFlowRatio(context: StandardKpiContext, profile: KpiDataProfile, numerator: KpiDataField, denominator: KpiDataField, label: string) {
+  const first = financialFlow(context, profile, numerator);
+  const second = financialFlow(context, profile, denominator);
+  matchingFinancialFlows(first, second);
+  return { value: ratio(first.value, second.value, label), detail: `${first.start} – ${first.end} · ${first.currency}` };
+}
+
+function financialReturn(context: StandardKpiContext, profile: KpiDataProfile, flowField: KpiDataField, balanceField: KpiDataField, label: string) {
+  const flow = financialFlow(context, profile, flowField);
+  const balance = averageFinancialBalance(context, profile, balanceField, flow);
+  return { value: ratio(flow.value, balance, label), detail: `${flow.start} – ${flow.end} · gennemsnitlig åbnings-/slutbalance · ${flow.currency}` };
+}
+
+function documentedEbitda(context: StandardKpiContext, profile: KpiDataProfile): FinancialFlow {
+  if (hasField(profile, "ebitda")) return financialFlow(context, profile, "ebitda");
+  const operating = financialFlow(context, profile, "operatingProfit");
+  const depreciation = financialFlow(context, profile, "depreciation");
+  matchingFinancialFlows(operating, depreciation);
+  const value = operating.value + depreciation.value;
+  if (!isFiniteNumber(value)) throw new Error("EBITDA gav ikke et endeligt tal.");
+  return { ...operating, value };
+}
+
+function financialQuickRatio(context: StandardKpiContext, profile: KpiDataProfile) {
+  const snapshot = financialSnapshot(context, profile, ["currentAssets", "inventoryValue", "currentLiabilities"]);
+  return { value: ratio(snapshot.values.currentAssets! - snapshot.values.inventoryValue!, snapshot.values.currentLiabilities!, "Quick Ratio"), detail: `Samme dokumenterede balance · ${snapshot.date}` };
 }
 
 function fallbackPeriod(row: KpiDataProfile["rows"][number], unit: PeriodUnit) {
@@ -1138,17 +1314,17 @@ export const standardKpiDefinitions: RegisteredKpiDefinition[] = [
   defineKpi({ id: "budget-revenue", name: "Budgetteret omsætning", description: "Budgetteret omsætning for den aktuelle visning", category: "Budget", format: "currency", icon: "target", color: "orange", requirements: requirements(["budgetRevenue"]), calculate: ({ context }) => ({ value: context.budgetRevenue, detail: "Budgetteret omsætning" }) }),
   defineKpi({ id: "budget-costs", name: "Budgetterede omkostninger", description: "Budgetterede omkostninger for den aktuelle visning", category: "Budget", format: "currency", icon: "target", color: "orange", requirements: requirements(["budgetCosts"]), calculate: ({ context }) => ({ value: context.budgetCosts, detail: "Budgetterede omkostninger" }) }),
   defineKpi({ id: "budget-result", name: "Budgetteret resultat", description: "Budgetteret omsætning minus omkostninger", category: "Budget", format: "currency", icon: "profit", color: "green", requirements: requirements(["budgetRevenue", "budgetCosts"]), calculate: ({ context }) => ({ value: context.budgetResult, detail: "Budgetteret omsætning minus omkostninger" }) }),
-  defineKpi({ id: "equity-ratio", name: "Soliditetsgrad", description: "Egenkapital som andel af de samlede aktiver", category: "Finansielle nøgletal", format: "percent", decimals: 1, icon: "target", color: "navy", requirements: requirements(["equity", "assets"]), calculate: ({ profile }) => ({ value: ratio(sum(profile, "equity"), sum(profile, "assets"), "Soliditetsgrad"), detail: "Egenkapital divideret med aktiver" }) }),
-  defineKpi({ id: "current-ratio", name: "Likviditetsgrad", description: "Omsætningsaktiver i forhold til kortfristet gæld", category: "Likviditet", format: "decimal", decimals: 2, icon: "calculator", color: "cyan", requirements: requirements(["currentAssets", "currentLiabilities"]), calculate: ({ profile }) => ({ value: ratio(sum(profile, "currentAssets"), sum(profile, "currentLiabilities"), "Likviditetsgrad"), detail: "Omsætningsaktiver divideret med kortfristet gæld" }) }),
-  defineKpi({ id: "quick-ratio", name: "Quick Ratio", description: "Omsætningsaktiver uden lager / kortfristet gæld på samme balancedato", category: "Likviditet", format: "decimal", decimals: 2, icon: "calculator", color: "cyan", requirements: requirements(["currentAssets", "inventoryValue", "currentLiabilities"]), calculate: ({ context, profile }) => inventoryQuickRatio(context, profile) }),
-  defineKpi({ id: "gearing", name: "Gearing", description: "Rentebærende gæld i forhold til egenkapital", category: "Finansielle nøgletal", format: "decimal", decimals: 2, icon: "target", color: "orange", requirements: requirements(["totalDebt", "equity"]), calculate: ({ profile }) => ({ value: ratio(sum(profile, "totalDebt"), sum(profile, "equity"), "Gearing"), detail: "Rentebærende gæld divideret med egenkapital" }) }),
-  defineKpi({ id: "debt-ratio", name: "Gældsgrad", description: "Forpligtelser som andel af de samlede aktiver", category: "Finansielle nøgletal", format: "percent", decimals: 1, icon: "target", color: "orange", requirements: requirements(["liabilities", "assets"]), calculate: ({ profile }) => ({ value: ratio(sum(profile, "liabilities"), sum(profile, "assets"), "Gældsgrad"), detail: "Forpligtelser divideret med aktiver" }) }),
-  defineKpi({ id: "operating-margin", name: "Overskudsgrad", description: "Driftsresultat som andel af omsætningen", category: "Rentabilitet", format: "percent", decimals: 1, icon: "profit", color: "green", requirements: requirements(["operatingProfit", "revenue"]), calculate: ({ profile, context }) => ({ value: ratio(sum(profile, "operatingProfit"), context.totalRevenue || sum(profile, "revenue"), "Overskudsgrad"), detail: "Driftsresultat divideret med omsætning" }) }),
-  defineKpi({ id: "return-on-assets", name: "Afkastningsgrad (ROA)", description: "Årets resultat i forhold til de samlede aktiver", category: "Rentabilitet", format: "percent", decimals: 1, icon: "profit", color: "green", requirements: requirements(["netProfit", "assets"]), calculate: ({ profile }) => ({ value: ratio(sum(profile, "netProfit"), sum(profile, "assets"), "Afkastningsgrad"), detail: "Årets resultat divideret med aktiver" }) }),
-  defineKpi({ id: "return-on-equity", name: "Egenkapitalens forrentning (ROE)", description: "Årets resultat i forhold til egenkapitalen", category: "Rentabilitet", format: "percent", decimals: 1, icon: "profit", color: "green", requirements: requirements(["netProfit", "equity"]), calculate: ({ profile }) => ({ value: ratio(sum(profile, "netProfit"), sum(profile, "equity"), "Egenkapitalens forrentning"), detail: "Årets resultat divideret med egenkapital" }) }),
+  defineKpi({ id: "equity-ratio", name: "Soliditetsgrad", description: "Egenkapital / aktiver på samme balancedato", category: "Finansielle nøgletal", format: "percent", decimals: 1, icon: "target", color: "navy", requirements: requirements(["equity", "assets"]), calculate: ({ context, profile }) => financialStockRatio(context, profile, "equity", "assets", "Soliditetsgrad") }),
+  defineKpi({ id: "current-ratio", name: "Likviditetsgrad", description: "Omsætningsaktiver / kortfristet gæld på samme balancedato", category: "Likviditet", format: "decimal", decimals: 2, icon: "calculator", color: "cyan", requirements: requirements(["currentAssets", "currentLiabilities"]), calculate: ({ context, profile }) => financialStockRatio(context, profile, "currentAssets", "currentLiabilities", "Likviditetsgrad") }),
+  defineKpi({ id: "quick-ratio", name: "Quick Ratio", description: "Omsætningsaktiver uden lager / kortfristet gæld på samme balancedato", category: "Likviditet", format: "decimal", decimals: 2, icon: "calculator", color: "cyan", requirements: requirements(["currentAssets", "inventoryValue", "currentLiabilities"]), calculate: ({ context, profile }) => financialQuickRatio(context, profile) }),
+  defineKpi({ id: "gearing", name: "Gearing", description: "Rentebærende gæld / egenkapital på samme balancedato", category: "Finansielle nøgletal", format: "decimal", decimals: 2, icon: "target", color: "orange", requirements: requirements(["totalDebt", "equity"]), calculate: ({ context, profile }) => financialStockRatio(context, profile, "totalDebt", "equity", "Gearing") }),
+  defineKpi({ id: "debt-ratio", name: "Gældsgrad", description: "Forpligtelser / aktiver på samme balancedato", category: "Finansielle nøgletal", format: "percent", decimals: 1, icon: "target", color: "orange", requirements: requirements(["liabilities", "assets"]), calculate: ({ context, profile }) => financialStockRatio(context, profile, "liabilities", "assets", "Gældsgrad") }),
+  defineKpi({ id: "operating-margin", name: "Driftsmargin (EBIT-margin)", description: "Dokumenteret driftsresultat / omsætning i samme regnskabsperiode", category: "Rentabilitet", format: "percent", decimals: 1, icon: "profit", color: "green", requirements: requirements(["operatingProfit", "revenue"]), calculate: ({ context, profile }) => financialFlowRatio(context, profile, "operatingProfit", "revenue", "Driftsmargin") }),
+  defineKpi({ id: "return-on-assets", name: "Afkastningsgrad (ROA)", description: "Periodens nettoresultat / gennemsnitlige aktiver ved periodens start og slut", category: "Rentabilitet", format: "percent", decimals: 1, icon: "profit", color: "green", requirements: requirements(["netProfit", "assets"]), calculate: ({ context, profile }) => financialReturn(context, profile, "netProfit", "assets", "Afkastningsgrad") }),
+  defineKpi({ id: "return-on-equity", name: "Egenkapitalens forrentning (ROE)", description: "Periodens nettoresultat / gennemsnitlig egenkapital ved periodens start og slut", category: "Rentabilitet", format: "percent", decimals: 1, icon: "profit", color: "green", requirements: requirements(["netProfit", "equity"]), calculate: ({ context, profile }) => financialReturn(context, profile, "netProfit", "equity", "Egenkapitalens forrentning") }),
   defineKpi({ id: "gross-profit-margin", name: "Bruttoavance", description: "Bruttofortjeneste som andel af omsætningen", category: "Indtjening", format: "percent", decimals: 1, icon: "profit", color: "green", requirements: requirements(["grossProfit", "revenue"]), calculate: ({ profile, context }) => ({ value: ratio(context.totalGrossProfit || sum(profile, "grossProfit"), context.totalRevenue || sum(profile, "revenue"), "Bruttoavance"), detail: "Bruttofortjeneste divideret med omsætning" }) }),
-  defineKpi({ id: "net-margin", name: "Nettomargin", description: "Årets resultat som andel af omsætningen", category: "Rentabilitet", format: "percent", decimals: 1, icon: "profit", color: "green", requirements: requirements(["netProfit", "revenue"]), calculate: ({ profile, context }) => ({ value: ratio(sum(profile, "netProfit"), context.totalRevenue || sum(profile, "revenue"), "Nettomargin"), detail: "Årets resultat divideret med omsætning" }) }),
-  defineKpi({ id: "working-capital", name: "Arbejdskapital", description: "Omsætningsaktiver minus kortfristet gæld", category: "Likviditet", format: "currency", icon: "calculator", color: "cyan", requirements: requirements(["currentAssets", "currentLiabilities"]), calculate: ({ profile }) => ({ value: sum(profile, "currentAssets") - sum(profile, "currentLiabilities"), detail: "Omsætningsaktiver minus kortfristet gæld" }) }),
+  defineKpi({ id: "net-margin", name: "Nettomargin", description: "Nettoresultat / omsætning i samme regnskabsperiode", category: "Rentabilitet", format: "percent", decimals: 1, icon: "profit", color: "green", requirements: requirements(["netProfit", "revenue"]), calculate: ({ context, profile }) => financialFlowRatio(context, profile, "netProfit", "revenue", "Nettomargin") }),
+  defineKpi({ id: "working-capital", name: "Arbejdskapital", description: "Omsætningsaktiver minus kortfristet gæld på samme balancedato", category: "Likviditet", format: "currency", icon: "calculator", color: "cyan", requirements: requirements(["currentAssets", "currentLiabilities"]), calculate: ({ context, profile }) => { const snapshot = financialSnapshot(context, profile, ["currentAssets", "currentLiabilities"]); return { value: snapshot.values.currentAssets! - snapshot.values.currentLiabilities!, detail: `Samme dokumenterede balance · ${snapshot.date}` }; } }),
   defineKpi({ id: "revenue-growth", name: "Omsætningsvækst", description: "Udviklingen i den fælles sammenligningsperiode", category: "Salg", format: "percent", decimals: 1, icon: "revenue", color: "cyan", requirements: requirements(["revenue"], [{ fields: ["date", "month"], label: "Dato eller måned" }]), calculate: ({ context }) => documentedRevenueGrowth(context) }),
   defineKpi({ id: "inventory-value", name: "Lagerværdi", description: "Samlet lagerværdi på seneste komplette snapshotdato i scope", category: "Lager", format: "currency", icon: "units", color: "orange", requirements: requirements(["inventoryValue"]), calculate: ({ context, profile }) => { const snapshot = latestSnapshot(context, profile, "inventoryValue"); return { value: snapshot.total, detail: `Seneste komplette lagersnapshot · ${snapshot.date}` }; } }),
   defineKpi({ id: "inventory-turnover", name: "Lageromsætningshastighed", description: "Dokumenteret vareforbrug / gennemsnitlig lagerværdi i samme periode", category: "Lager", format: "decimal", decimals: 2, icon: "units", color: "orange", requirements: requirements(["cogs", "inventoryValue"]), calculate: ({ context, profile }) => { const basis = inventoryTurnoverBasis(context, profile); return { value: basis.value, detail: basis.detail }; } }),
@@ -1193,9 +1369,8 @@ export const standardKpiDefinitions: RegisteredKpiDefinition[] = [
   defineKpi({ id: "profit-margin", name: "Profitmargin", description: "Resultat som andel af omsætningen", category: "Indtjening", level: "recommended", format: "percent", decimals: 1, icon: "profit", color: "green", requirements: requirements(["revenue"], [{ fields: ["cost", "grossProfit", "netProfit"], label: "Omkostninger, dækningsbidrag eller resultat" }]), calculate: ({ context }) => ({ value: ratio(documentedResult(context), context.totalRevenue, "Profitmargin"), detail: "Samme resultatgrundlag divideret med omsætning" }) }),
   defineKpi({ id: "gross-profit-total", name: "Bruttofortjeneste", description: "Den samlede registrerede bruttofortjeneste", category: "Indtjening", format: "currency", icon: "profit", color: "green", requirements: requirements(["grossProfit"]), calculate: ({ profile, context }) => ({ value: context.totalGrossProfit || sum(profile, "grossProfit"), detail: "Samlet bruttofortjeneste før faste omkostninger" }) }),
   defineKpi({ id: "ebit", name: "EBIT", description: "Resultat af den primære drift før renter og skat", category: "Indtjening", level: "advanced", format: "currency", icon: "profit", color: "green", requirements: requirements(["operatingProfit"]), calculate: ({ profile }) => ({ value: sum(profile, "operatingProfit"), detail: "Registreret driftsresultat" }) }),
-  defineKpi({ id: "ebitda", name: "EBITDA", description: "Driftsresultat før renter, skat og afskrivninger", category: "Indtjening", level: "advanced", format: "currency", icon: "profit", color: "green", requirements: requirements([], [{ fields: ["ebitda", "operatingProfit"], label: "EBITDA eller driftsresultat" }]), calculate: ({ profile }) => ({ value: hasField(profile, "ebitda") ? sum(profile, "ebitda") : sum(profile, "operatingProfit") + sum(profile, "depreciation"), detail: hasField(profile, "ebitda") ? "Registreret EBITDA" : "Driftsresultat tillagt afskrivninger" }) }),
-  defineKpi({ id: "ebit-margin", name: "EBIT-margin", description: "Driftsresultat som andel af omsætningen", category: "Indtjening", level: "advanced", format: "percent", decimals: 1, icon: "profit", color: "green", requirements: requirements(["operatingProfit", "revenue"]), calculate: ({ profile, context }) => ({ value: ratio(sum(profile, "operatingProfit"), context.totalRevenue || sum(profile, "revenue"), "EBIT-margin"), detail: "EBIT divideret med omsætning" }) }),
-  defineKpi({ id: "ebitda-margin", name: "EBITDA-margin", description: "EBITDA som andel af omsætningen", category: "Indtjening", level: "advanced", format: "percent", decimals: 1, icon: "profit", color: "green", requirements: requirements(["revenue"], [{ fields: ["ebitda", "operatingProfit"], label: "EBITDA eller driftsresultat" }]), calculate: ({ profile, context }) => { const value = hasField(profile, "ebitda") ? sum(profile, "ebitda") : sum(profile, "operatingProfit") + sum(profile, "depreciation"); return { value: ratio(value, context.totalRevenue || sum(profile, "revenue"), "EBITDA-margin"), detail: "EBITDA divideret med omsætning" }; } }),
+  defineKpi({ id: "ebitda", name: "EBITDA", description: "Dokumenteret EBITDA eller EBIT plus dokumenterede afskrivninger i samme periode", category: "Indtjening", level: "advanced", format: "currency", icon: "profit", color: "green", requirements: requirements([], [{ fields: ["ebitda", "operatingProfit"], label: "EBITDA eller driftsresultat og afskrivninger" }]), calculate: ({ context, profile }) => { const flow = documentedEbitda(context, profile); return { value: flow.value, detail: `Dokumenteret regnskabsperiode · ${flow.start} – ${flow.end}` }; } }),
+  defineKpi({ id: "ebitda-margin", name: "EBITDA-margin", description: "Dokumenteret EBITDA / omsætning i samme regnskabsperiode", category: "Indtjening", level: "advanced", format: "percent", decimals: 1, icon: "profit", color: "green", requirements: requirements(["revenue"], [{ fields: ["ebitda", "operatingProfit"], label: "EBITDA eller driftsresultat og afskrivninger" }]), calculate: ({ context, profile }) => { const ebitda = documentedEbitda(context, profile); const revenue = financialFlow(context, profile, "revenue"); matchingFinancialFlows(ebitda, revenue); return { value: ratio(ebitda.value, revenue.value, "EBITDA-margin"), detail: `${ebitda.start} – ${ebitda.end} · ${ebitda.currency}` }; } }),
   defineKpi({ id: "variable-costs", name: "Variable omkostninger", description: "Summen af de registrerede variable omkostninger", category: "Indtjening", format: "currency", icon: "target", color: "orange", requirements: requirements(["variableCost"]), calculate: ({ profile }) => ({ value: sum(profile, "variableCost"), detail: "Samlede variable omkostninger" }) }),
   defineKpi({ id: "fixed-costs", name: "Faste omkostninger", description: "Summen af de registrerede faste omkostninger", category: "Indtjening", format: "currency", icon: "target", color: "orange", requirements: requirements(["fixedCost"]), calculate: ({ profile }) => ({ value: sum(profile, "fixedCost"), detail: "Samlede faste omkostninger" }) }),
   defineKpi({ id: "cost-per-unit", name: "Omkostning pr. enhed", description: "Samlede omkostninger divideret med solgte enheder", category: "Indtjening", format: "currency", decimals: 2, icon: "calculator", color: "orange", requirements: requirements(["units"], [{ fields: ["cost", "grossProfit"], label: "Omkostninger eller dækningsbidrag" }]), calculate: ({ context }) => ({ value: ratio(documentedCosts(context), context.totalUnits, "Omkostning pr. enhed"), detail: "Omkostninger pr. solgt enhed" }) }),
@@ -1206,8 +1381,8 @@ export const standardKpiDefinitions: RegisteredKpiDefinition[] = [
   defineKpi({ id: "budget-vs-result", name: "Budget mod resultat", description: "Forskellen mellem faktisk og budgetteret resultat", category: "Budget", level: "advanced", format: "currency", icon: "target", color: "orange", requirements: requirements(["budgetRevenue", "budgetCosts"], [{ fields: ["cost", "grossProfit", "netProfit"], label: "Omkostninger, dækningsbidrag eller resultat" }]), calculate: ({ context }) => ({ value: documentedResult(context) - context.budgetResult, detail: "Faktisk resultat minus budgetteret resultat" }) }),
   defineKpi({ id: "over-budget-status", name: "Over budget", description: "Viser om omsætningen ligger over det budgetterede niveau", category: "Budget", format: "text", icon: "target", color: "green", requirements: requirements(["revenue", "budgetRevenue"]), calculate: ({ context }) => ({ value: context.revenueVsBudget > 0 ? "Ja" : "Nej", detail: context.revenueVsBudget > 0 ? "Omsætningen ligger over budgettet" : "Omsætningen ligger ikke over budgettet" }) }),
   defineKpi({ id: "under-budget-status", name: "Under budget", description: "Viser om omsætningen ligger under det budgetterede niveau", category: "Budget", format: "text", icon: "target", color: "orange", requirements: requirements(["revenue", "budgetRevenue"]), calculate: ({ context }) => ({ value: context.revenueVsBudget < 0 ? "Ja" : "Nej", detail: context.revenueVsBudget < 0 ? "Omsætningen ligger under budgettet" : "Omsætningen ligger ikke under budgettet" }) }),
-  defineKpi({ id: "cash-ratio", name: "Cash Ratio", description: "Likvide beholdninger i forhold til kortfristet gæld", category: "Likviditet", level: "advanced", format: "decimal", decimals: 2, icon: "calculator", color: "cyan", requirements: requirements(["cash", "currentLiabilities"]), calculate: ({ profile }) => ({ value: ratio(sum(profile, "cash"), sum(profile, "currentLiabilities"), "Cash Ratio"), detail: "Likvider divideret med kortfristet gæld" }) }),
-  defineKpi({ id: "asset-turnover", name: "Aktivernes omsætningshastighed", description: "Omsætning i forhold til de samlede aktiver", category: "Finansielle nøgletal", level: "advanced", format: "decimal", decimals: 2, icon: "calculator", color: "navy", requirements: requirements(["revenue", "assets"]), calculate: ({ profile, context }) => ({ value: ratio(context.totalRevenue || sum(profile, "revenue"), sum(profile, "assets"), "Aktivernes omsætningshastighed"), detail: "Omsætning divideret med aktiver" }) }),
+  defineKpi({ id: "cash-ratio", name: "Cash Ratio", description: "Likvide beholdninger / kortfristet gæld på samme balancedato", category: "Likviditet", level: "advanced", format: "decimal", decimals: 2, icon: "calculator", color: "cyan", requirements: requirements(["cash", "currentLiabilities"]), calculate: ({ context, profile }) => financialStockRatio(context, profile, "cash", "currentLiabilities", "Cash Ratio") }),
+  defineKpi({ id: "asset-turnover", name: "Aktivernes omsætningshastighed", description: "Periodens omsætning / gennemsnitlige aktiver ved periodens start og slut", category: "Finansielle nøgletal", level: "advanced", format: "decimal", decimals: 2, icon: "calculator", color: "navy", requirements: requirements(["revenue", "assets"]), calculate: ({ context, profile }) => financialReturn(context, profile, "revenue", "assets", "Aktivernes omsætningshastighed") }),
   defineKpi({ id: "inventory-binding", name: "Lagerbinding (ikke defineret)", description: "Kræver en selvstændig dokumenteret definition; dublerer ikke lagerværdi", category: "Lager", level: "advanced", format: "currency", icon: "units", color: "orange", requirements: [], calculate: () => { throw new Error("Lagerbinding er ikke selvstændigt defineret og vises derfor ikke som lagerværdi."); } }),
   defineKpi({ id: "average-inventory-value", name: "Gennemsnitlig lagerværdi", description: "Gennemsnit af komplette snapshot-totaler i det valgte scope", category: "Lager", format: "currency", decimals: 2, icon: "calculator", color: "orange", requirements: requirements(["inventoryValue"]), calculate: ({ context, profile }) => { const basis = averageInventory(context, profile); return { value: basis.value, detail: `Gennemsnit af ${basis.snapshots.length} komplette snapshots` }; } }),
   defineKpi({ id: "inventory-days", name: "Lagerdage", description: "Faktiske kalenderdage i perioden / lageromsætningshastighed", category: "Lager", level: "advanced", format: "decimal", decimals: 1, icon: "calculator", color: "orange", requirements: requirements(["cogs", "inventoryValue"]), calculate: ({ context, profile }) => { const basis = inventoryTurnoverBasis(context, profile); return { value: ratio(basis.days, basis.value, "Lagerdage"), detail: `${basis.days} kalenderdage / lageromsætningshastighed · ${basis.detail}` }; } }),
@@ -1244,7 +1419,7 @@ export function evaluateRegisteredKpi(
   context: StandardKpiContext,
   profile: KpiDataProfile,
 ): KpiEvaluation {
-  const definition = standardKpiDefinitionMap.get(id);
+  const definition = standardKpiDefinitionMap.get(id === "ebit-margin" ? "operating-margin" : id);
   if (!definition) return { available: false, value: null, detail: "Ukendt nøgletal", reason: "Ukendt nøgletal" };
   const status = requirementStatus(definition, profile);
   const usesDocumentedCost = id === "total-costs" || id === "result" || id === "profit-margin";
@@ -1299,7 +1474,7 @@ export function relevantKpiCategories(
     "Finansielle nøgletal": ["Egenkapital", "Aktiver", "Rentebærende gæld", "Forpligtelser"],
     Likviditet: ["Omsætningsaktiver", "Kortfristet gæld", "Likvide beholdninger", "Tilgodehavender"],
     Rentabilitet: ["Driftsresultat", "Årets resultat", "Aktiver", "Egenkapital"],
-    Lager: ["Lagerværdi", "Lagerantal", "Lagersnapshotdato"],
+    Lager: ["Lagerværdi", "Lagerantal", "Snapshotdato"],
     Kunder: ["Kunde-id", "Kunde"],
   };
   definitions.forEach((definition) => {
