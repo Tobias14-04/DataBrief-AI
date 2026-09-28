@@ -2777,6 +2777,7 @@ export default function UploadDashboard() {
     periodComparison,
     revenueGrowth,
     comparisonProfile: comparisonKpiDataProfile,
+    customerHistoryProfile: comparisonKpiDataProfile,
     salesProfile: currentSalesKpiDataProfile,
     selectedMonths: deferredFilters.month,
     partialMonths,
@@ -2791,6 +2792,7 @@ export default function UploadDashboard() {
     revenueGrowth: summarizeComparisonMetric(allRows, resolvePeriodComparison(allRows.map((row) => row.month), { partialMonths }), (row) => row.revenue),
     partialMonths,
     salesProfile: baseSalesKpiDataProfile,
+    customerHistoryProfile: baseSalesKpiDataProfile,
   }), [allRows, baseMetrics, baseSalesKpiDataProfile, partialMonths, showBudget]);
   const supplementalKpiRows = useMemo(
     () => (analysis?.kpiSourceRows ?? []).filter(

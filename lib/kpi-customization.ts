@@ -23,7 +23,8 @@ export const KPI_CONFIG_VERSION = 1;
 export const MAX_PRIMARY_KPIS = 4;
 export const MIN_PRIMARY_KPIS = 2;
 export const MAX_SECONDARY_KPIS = 6;
-const canonicalKpiId = (id: string) => id === "ebit-margin" ? "operating-margin" : id;
+const canonicalKpiId = (id: string) => id === "ebit-margin" ? "operating-margin"
+  : id === "highest-revenue-product" ? "best-product" : id;
 
 export type KpiPlacement = "primary" | "secondary";
 export type KpiLevel = "recommended" | "standard" | "advanced";
@@ -91,6 +92,7 @@ export type StandardKpiContext = {
   periodComparison?: import("./period-comparison.ts").PeriodComparison;
   revenueGrowth?: import("./period-comparison.ts").MetricGrowth | null;
   comparisonProfile?: KpiDataProfile;
+  customerHistoryProfile?: KpiDataProfile;
   salesProfile?: KpiDataProfile;
   selectedMonths?: readonly string[];
   partialMonths?: readonly string[];

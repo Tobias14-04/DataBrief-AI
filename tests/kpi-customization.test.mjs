@@ -183,9 +183,9 @@ test("udvidede BI-synonymer genkendes på dansk og engelsk", () => {
 
 test("periode-, produkt- og kunde-KPI'er bruger de samme filtrerede rækker", () => {
   const profile = buildKpiDataProfile([
-    { sourceValues: { Dato: "2026-01-10", Produkt: "Latte", Kundenummer: "K1", Nettoomsætning: 100, Antal: 2, Dækningsbidrag: 60 } },
-    { sourceValues: { Dato: "2026-02-10", Produkt: "Latte", Kundenummer: "K1", Nettoomsætning: 150, Antal: 3, Dækningsbidrag: 90 } },
-    { sourceValues: { Dato: "2026-02-12", Produkt: "Croissant", Kundenummer: "K2", Nettoomsætning: 50, Antal: 6, Dækningsbidrag: 20 } },
+    { sourceValues: { Dato: "2026-01-10", Produkt: "Latte", Kundenummer: "K1", Ordrenummer: "O1", Nettoomsætning: 100, Antal: 2, Dækningsbidrag: 60 } },
+    { sourceValues: { Dato: "2026-02-10", Produkt: "Latte", Kundenummer: "K1", Ordrenummer: "O2", Nettoomsætning: 150, Antal: 3, Dækningsbidrag: 90 } },
+    { sourceValues: { Dato: "2026-02-12", Produkt: "Croissant", Kundenummer: "K2", Ordrenummer: "O3", Nettoomsætning: 50, Antal: 6, Dækningsbidrag: 20 } },
   ]);
   const filteredContext = {
     ...context,
