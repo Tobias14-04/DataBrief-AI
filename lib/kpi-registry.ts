@@ -37,12 +37,16 @@ export type KpiDataField =
   | "grossProfit"
   | "grossMargin"
   | "cost"
+  | "cogs"
   | "budgetRevenue"
   | "budgetCosts"
   | "product"
   | "category"
   | "date"
+  | "snapshotDate"
   | "month"
+  | "channel"
+  | "region"
   | "week"
   | "quarter"
   | "year"
@@ -57,7 +61,7 @@ export type KpiDataField =
   | "assets"
   | "currentAssets"
   | "currentLiabilities"
-  | "inventory"
+  | "inventoryValue"
   | "cash"
   | "receivables"
   | "totalDebt"
@@ -94,6 +98,10 @@ export const kpiFieldRegistry: Record<KpiDataField, KpiFieldDefinition> = {
     label: "Omkostninger",
     aliases: [...salesColumnAliases.cost, "produktomkostning", "produktomkostninger"],
   },
+  cogs: {
+    label: "Vareforbrug (COGS)",
+    aliases: ["vareforbrug i alt", "samlet vareforbrug", "cogs amount", "cost of goods sold amount"],
+  },
   variableCost: {
     label: "Variable omkostninger",
     aliases: ["variable omkostninger", "variable costs", "variable cost", "variable expenses"],
@@ -122,9 +130,21 @@ export const kpiFieldRegistry: Record<KpiDataField, KpiFieldDefinition> = {
     label: "Dato",
     aliases: [...salesColumnAliases.date],
   },
+  snapshotDate: {
+    label: "Lagersnapshotdato",
+    aliases: ["snapshotdato", "lagerdato", "lager snapshot dato", "inventory date", "stock date", "snapshot date", "as of date", "opgørelsesdato"],
+  },
   month: {
     label: "Måned",
     aliases: [...salesColumnAliases.month],
+  },
+  channel: {
+    label: "Kanal",
+    aliases: [...salesColumnAliases.channel],
+  },
+  region: {
+    label: "Region",
+    aliases: [...salesColumnAliases.region],
   },
   week: {
     label: "Uge",
@@ -174,9 +194,9 @@ export const kpiFieldRegistry: Record<KpiDataField, KpiFieldDefinition> = {
     label: "Kortfristet gæld",
     aliases: ["kortfristet gæld", "kortfristede forpligtelser", "current liabilities", "short term liabilities", "short term debt"],
   },
-  inventory: {
-    label: "Lager",
-    aliases: ["lager", "lagerværdi", "varelager", "inventory", "stock", "stock value", "inventories"],
+  inventoryValue: {
+    label: "Lagerværdi",
+    aliases: ["lagerværdi", "lagerets værdi", "varelagerværdi", "inventory value", "stock value", "inventory valuation", "inventories"],
   },
   cash: {
     label: "Likvide beholdninger",
@@ -208,7 +228,7 @@ export const kpiFieldRegistry: Record<KpiDataField, KpiFieldDefinition> = {
   },
   inventoryQuantity: {
     label: "Lagerantal",
-    aliases: ["lagerantal", "antal på lager", "lagerbeholdning", "stock quantity", "inventory quantity", "quantity on hand", "on hand"],
+    aliases: ["lagerantal", "antal på lager", "antal varer på lager", "lagerbeholdning antal", "stock quantity", "inventory quantity", "quantity on hand"],
   },
   netProfit: {
     label: "Årets resultat",
@@ -227,12 +247,13 @@ export type KpiDataProfile = {
   matchedColumns: Partial<Record<KpiDataField, string[]>>;
   rawValues: Partial<Record<KpiDataField, unknown[]>>;
   numericValues: Partial<Record<KpiDataField, number[]>>;
-  rows: Array<{ values: Partial<Record<KpiDataField, unknown>> }>;
+  rows: Array<{ values: Partial<Record<KpiDataField, unknown>>; fields: readonly KpiDataField[] }>;
 };
 
 type NormalizedKpiSourceSchema = {
   columns: string[];
   matchedColumns: Partial<Record<KpiDataField, string[]>>;
+  fields: readonly KpiDataField[];
 };
 
 type NormalizedKpiSourceRow = {
@@ -304,7 +325,7 @@ function normalizeKpiSourceRow(sourceValues: Record<string, unknown>): Normalize
       const field = matchKpiField(column);
       if (field) (matchedColumns[field] ??= []).push(column);
     });
-    schema = { columns, matchedColumns };
+    schema = { columns, matchedColumns, fields: Object.keys(matchedColumns) as KpiDataField[] };
     normalizedSourceSchemaCache.set(schemaKey, schema);
   }
 
@@ -383,6 +404,24 @@ export function buildKpiDataProfile(
       }
     }
     const revenue = parseNumericValue(normalized.values.revenue);
+    const cogsHeader = normalized.schema.matchedColumns.cost?.find((header) =>
+      ["vareforbrug", "cogs", "costofgoodssold"].includes(normalizeColumnHeader(header)));
+    if (cogsHeader) (matchedColumnSets.cogs ??= new Set()).add(cogsHeader);
+    const derivedCogs = cogsHeader && !normalized.rawValues.cogs?.length
+      ? parseNumericValue(row.sourceValues[cogsHeader]) : null;
+    if (derivedCogs !== null) {
+      (rawValues.cogs ??= []).push(derivedCogs);
+      (numericValues.cogs ??= []).push(derivedCogs);
+      (matchedColumnSets.cogs ??= new Set()).add(cogsHeader!);
+    }
+    const snapshotCandidate = normalized.schema.fields.some((field) =>
+      ["inventoryValue", "inventoryQuantity", "currentAssets", "currentLiabilities"].includes(field));
+    const derivedSnapshotDate = snapshotCandidate && normalized.values.snapshotDate === undefined
+      ? normalized.values.date : undefined;
+    if (derivedSnapshotDate !== undefined && derivedSnapshotDate !== null && derivedSnapshotDate !== "") {
+      (rawValues.snapshotDate ??= []).push(derivedSnapshotDate);
+      (matchedColumnSets.snapshotDate ??= new Set()).add(normalized.schema.matchedColumns.date?.[0] ?? "Dato");
+    }
     const variableCost = derivedVariableCost ?? parseNumericValue(normalized.values.variableCost);
     const derivedGrossProfit = !normalized.rawValues.grossProfit?.length && revenue !== null && variableCost !== null
       ? revenue - variableCost : null;
@@ -393,9 +432,12 @@ export function buildKpiDataProfile(
     }
     if (normalized.hasValues) profileRows.push({ values: {
       ...normalized.values,
+      ...(derivedCogs === null ? {} : { cogs: derivedCogs }),
+      ...(derivedSnapshotDate === undefined ? {} : { snapshotDate: derivedSnapshotDate }),
       ...(derivedVariableCost === null ? {} : { variableCost: derivedVariableCost }),
       ...(isFiniteNumber(derivedGrossProfit) ? { grossProfit: derivedGrossProfit } : {}),
-    } });
+    }, fields: cogsHeader && !normalized.schema.fields.includes("cogs")
+      ? [...normalized.schema.fields, "cogs"] : normalized.schema.fields });
   });
 
   const columns = Array.from(columnSet);
@@ -649,6 +691,236 @@ function profileRowDate(
   return date;
 }
 
+type ProfileRow = KpiDataProfile["rows"][number];
+type InventoryField = "inventoryValue" | "inventoryQuantity";
+type Snapshot = { date: string; rows: ProfileRow[]; total: number; complete: boolean };
+const inventoryDimensions = ["product", "category", "channel", "region"] as const;
+const dayMillis = 86_400_000;
+
+function dayKey(value: unknown): string | null {
+  if (typeof value === "string" && !/^\d{4}-\d{2}-\d{2}$/.test(value.trim()) &&
+      !/^\d{1,2}[./-]\d{1,2}[./-]\d{4}$/.test(value.trim())) return null;
+  const date = parseProfileDate(value);
+  if (!date) return null;
+  const key = date.toISOString().slice(0, 10);
+  if (typeof value !== "string") return key;
+  const text = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text === key ? key : null;
+  const danish = text.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  return danish && Number(danish[1]) === date.getUTCDate() && Number(danish[2]) === date.getUTCMonth() + 1 &&
+    Number(danish[3]) === date.getUTCFullYear() ? key : null;
+}
+
+function monthOfDay(day: string) { return day.slice(0, 7); }
+function requestedInventoryMonths(context: StandardKpiContext): readonly string[] {
+  return context.selectedMonths?.length ? context.selectedMonths : context.inventoryFilters?.month ?? [];
+}
+
+function inRequestedMonths(day: string, context: StandardKpiContext) {
+  const selected = requestedInventoryMonths(context);
+  return !selected.length || selected.some((month) => monthSortKey(month) === monthSortKey(monthOfDay(day)));
+}
+
+function scopedInventoryRows(rows: ProfileRow[], context: StandardKpiContext, source: string) {
+  return rows.filter((row) => {
+    for (const field of inventoryDimensions) {
+      const selected = context.inventoryFilters?.[field];
+      if (!selected?.length) continue;
+      const value = rowText(row, field);
+      if (!value) throw new Error(`${source} kan ikke afgrænses efter ${kpiFieldRegistry[field].label.toLowerCase()}; feltet mangler på datarækkerne.`);
+      if (!selected.some((item) => normalizeForComparison(item) === normalizeForComparison(value))) return false;
+    }
+    return true;
+  });
+}
+
+function inventoryRows(profile: KpiDataProfile) {
+  return profile.rows.filter((row) => row.fields.includes("inventoryValue") || row.fields.includes("inventoryQuantity"));
+}
+
+function inventoryMember(row: ProfileRow) {
+  const name = inventoryDimensions.map((field) => rowText(row, field)).find(Boolean);
+  return name ? comparableLabel(name).key : null;
+}
+
+function stockSnapshots(context: StandardKpiContext, profile: KpiDataProfile, field: InventoryField, bounds?: { start: string; end: string }) {
+  const candidates = inventoryRows(profile);
+  const dated = candidates.flatMap((row) => {
+    const date = dayKey(row.values.snapshotDate);
+    if (!date) throw new Error("Lagerdata kræver en dokumenteret snapshotdato på hver lagerrække.");
+    return inRequestedMonths(date, context) && (!bounds || date >= bounds.start && date <= bounds.end)
+      ? [{ row, date }] : [];
+  });
+  const scoped = scopedInventoryRows(dated.map((item) => item.row), context, "Lagerdata");
+  const included = new Set(scoped);
+  const byDate = new Map<string, ProfileRow[]>();
+  dated.forEach(({ row, date }) => {
+    if (!included.has(row)) return;
+    const rows = byDate.get(date) ?? [];
+    rows.push(row);
+    byDate.set(date, rows);
+  });
+  const knownMembers = new Set(scoped.map(inventoryMember).filter((member): member is string => member !== null));
+  return [...byDate].map(([date, rows]): Snapshot => {
+    const values = rows.map((row) => rowNumber(row, field));
+    const total = values.reduce<number>((sum, amount) => sum + (amount ?? 0), 0);
+    const presentMembers = new Set(rows.map(inventoryMember).filter((member): member is string => member !== null));
+    const completeMembers = knownMembers.size
+      ? rows.every((row) => inventoryMember(row) !== null) && [...knownMembers].every((member) => presentMembers.has(member))
+      : rows.length === 1;
+    return { date, rows, total, complete: completeMembers && values.every((amount) => amount !== null) && isFiniteNumber(total) };
+  }).sort((left, right) => left.date.localeCompare(right.date));
+}
+
+function latestSnapshot(context: StandardKpiContext, profile: KpiDataProfile, field: InventoryField) {
+  const snapshot = stockSnapshots(context, profile, field).filter((item) => item.complete).at(-1);
+  if (!snapshot) throw new Error("Der findes intet komplet lagersnapshot med dato og dokumenteret værdi i det valgte scope.");
+  return snapshot;
+}
+
+function averageInventory(context: StandardKpiContext, profile: KpiDataProfile, bounds?: { start: string; end: string }, minimum = 1) {
+  const snapshots = stockSnapshots(context, profile, "inventoryValue", bounds);
+  if (snapshots.some((snapshot) => !snapshot.complete)) throw new Error("En lagersnapshotdato har ufuldstændige lagerværdier i perioden.");
+  if (snapshots.length < minimum) throw new Error(`Mindst ${minimum} komplette lagersnapshots i samme periode og scope kræves.`);
+  const total = snapshots.reduce((sum, snapshot) => sum + snapshot.total, 0);
+  return { value: ratio(total, snapshots.length, "Gennemsnitlig lagerværdi"), snapshots };
+}
+
+function inventoryExtremum(context: StandardKpiContext, profile: KpiDataProfile, direction: "lowest" | "highest") {
+  const snapshot = latestSnapshot(context, profile, "inventoryQuantity");
+  const members = new Map<string, { name: string; quantity: number }>();
+  snapshot.rows.forEach((row) => {
+    const name = inventoryDimensions.map((field) => rowText(row, field)).find(Boolean);
+    if (!name) throw new Error("Laveste/højeste lager kræver et navngivet produkt eller andet lagermedlem.");
+    const identity = comparableLabel(name);
+    const current = members.get(identity.key) ?? { name: identity.label, quantity: 0 };
+    current.name = chooseRepresentativeLabel(current.name, identity.label);
+    current.quantity += rowNumber(row, "inventoryQuantity")!;
+    members.set(identity.key, current);
+  });
+  const ranked = [...members.values()].sort((a, b) => direction === "lowest" ? a.quantity - b.quantity : b.quantity - a.quantity)[0];
+  if (!ranked || !isFiniteNumber(ranked.quantity)) throw new Error("Lagerantal pr. medlem kan ikke afstemmes.");
+  return { value: ranked.name, detail: `${ranked.quantity.toLocaleString("da-DK")} enheder · snapshot ${snapshot.date}` };
+}
+
+function inventoryFlowPeriod(context: StandardKpiContext, rows: ProfileRow[]) {
+  const selected = requestedInventoryMonths(context);
+  const selectedKeys = selected.map(monthSortKey);
+  if (selectedKeys.some((key) => key === null) || new Set(selectedKeys).size !== selected.length) {
+    throw new Error("Lagerperioden indeholder en ugyldig eller dubleret kalendermåned.");
+  }
+  const orderedSelected = (selectedKeys as number[]).sort((a, b) => a - b).map((key) => {
+    const date = new Date(key);
+    return date.getFullYear() * 12 + date.getMonth();
+  });
+  if (orderedSelected.some((month, index) => index > 0 && month !== orderedSelected[index - 1] + 1)) {
+    throw new Error("Lagerperioden kræver sammenhængende kalendermåneder.");
+  }
+  if (context.inventoryPeriod) {
+    const start = dayKey(context.inventoryPeriod.start);
+    const end = dayKey(context.inventoryPeriod.end);
+    if (!start || !end || start > end) throw new Error("Lagerperioden kræver gyldig start- og slutdato.");
+    if (selected.length && (!inRequestedMonths(start, context) || !inRequestedMonths(end, context))) {
+      throw new Error("Lagerperiodens datoer skal ligge i det valgte kalenderscope.");
+    }
+    return { start, end, days: (Date.parse(end) - Date.parse(start)) / dayMillis + 1 };
+  }
+  const monthKeys = (selected.length ? selected : rows.map((row) => rowText(row, "month") ?? dayKey(row.values.date)?.slice(0, 7) ?? ""))
+    .map(monthSortKey).filter((key): key is number => key !== null).sort((a, b) => a - b);
+  if (!monthKeys.length) throw new Error("Vareforbrug kræver en dokumenteret periode.");
+  const months = [...new Set(monthKeys.map((key) => {
+    const date = new Date(key);
+    return date.getFullYear() * 12 + date.getMonth();
+  }))];
+  if (months.some((month, index) => index > 0 && month !== months[index - 1] + 1)) {
+    throw new Error("Lageromsætning kræver sammenhængende kalendermåneder uden skjulte perioder.");
+  }
+  const first = new Date(monthKeys[0]);
+  const last = new Date(monthKeys.at(-1)!);
+  let start = `${first.getFullYear()}-${String(first.getMonth() + 1).padStart(2, "0")}-01`;
+  let end = new Date(Date.UTC(last.getFullYear(), last.getMonth() + 1, 0)).toISOString().slice(0, 10);
+  const partial = new Set((context.partialMonths ?? []).map(monthSortKey));
+  if (partial.has(monthKeys[0]) || partial.has(monthKeys.at(-1)!)) {
+    const datedRows = rows.map((row) => dayKey(row.values.date)).filter((date): date is string => date !== null);
+    const boundaryDates = (month: number) => datedRows.filter((date) => monthSortKey(monthOfDay(date)) === month).sort();
+    if (partial.has(monthKeys[0])) {
+      const firstDates = boundaryDates(monthKeys[0]);
+      if (!firstDates.length) throw new Error("Delperiodens første måned kræver dokumenterede datoer.");
+      start = firstDates[0];
+    }
+    if (partial.has(monthKeys.at(-1)!)) {
+      const lastDates = boundaryDates(monthKeys.at(-1)!);
+      if (!lastDates.length) throw new Error("Delperiodens sidste måned kræver dokumenterede datoer.");
+      end = lastDates.at(-1)!;
+    }
+  }
+  return { start, end, days: (Date.parse(end) - Date.parse(start)) / dayMillis + 1 };
+}
+
+function inventoryTurnoverBasis(context: StandardKpiContext, profile: KpiDataProfile) {
+  const salesRows = context.salesProfile?.rows ?? [];
+  const candidates = salesRows.some((row) => row.fields.includes("cogs"))
+    ? salesRows.filter((row) => row.fields.includes("revenue") || row.fields.includes("units") || row.fields.includes("cogs"))
+    : profile.rows.filter((row) => row.fields.includes("cogs"));
+  const scopedCandidates = scopedInventoryRows(candidates, context, "Vareforbrug");
+  const period = inventoryFlowPeriod(context, scopedCandidates);
+  const rows = scopedCandidates.filter((row) => {
+    const date = dayKey(row.values.date);
+    if (date) return date >= period.start && date <= period.end;
+    const month = rowText(row, "month");
+    if (!month) throw new Error("Vareforbrug kan ikke afgrænses uden dato eller måned.");
+    if (period.start.slice(8) !== "01" || period.end !== new Date(Date.UTC(Number(period.end.slice(0, 4)), Number(period.end.slice(5, 7)), 0)).toISOString().slice(0, 10)) {
+      throw new Error("Månedsdata uden dag kan ikke fordeles på en delperiode.");
+    }
+    const key = monthSortKey(month);
+    return key !== null && key >= monthSortKey(period.start.slice(0, 7))! && key <= monthSortKey(period.end.slice(0, 7))!;
+  });
+  if (!rows.length || rows.some((row) => rowNumber(row, "cogs") === null)) {
+    throw new Error("Dokumenteret COGS/vareforbrug mangler for en eller flere flowrækker i perioden.");
+  }
+  const coveredMonths = new Set(rows.map((row) => {
+    const date = dayKey(row.values.date);
+    return date ? monthOfDay(date) : rowText(row, "month") ?? "";
+  }).map(monthSortKey));
+  const startMonth = monthSortKey(period.start.slice(0, 7))!;
+  const endMonth = monthSortKey(period.end.slice(0, 7))!;
+  for (let month = new Date(startMonth); month.getTime() <= endMonth; month.setMonth(month.getMonth() + 1)) {
+    if (!coveredMonths.has(month.getTime())) throw new Error("Vareforbrug mangler for en kalendermåned i det filtrerede periodescope.");
+  }
+  const cogs = rows.reduce((sum, row) => sum + rowNumber(row, "cogs")!, 0);
+  if (!isFiniteNumber(cogs)) throw new Error("Vareforbrug gav ikke et endeligt tal.");
+  const averageStock = averageInventory(context, profile, period, 2);
+  return {
+    value: ratio(cogs, averageStock.value, "Lageromsætningshastighed"),
+    days: period.days,
+    detail: `${cogs.toLocaleString("da-DK")} kr. dokumenteret vareforbrug / gennemsnit af ${averageStock.snapshots.length} snapshots · ${period.start} – ${period.end}`,
+  };
+}
+
+function inventoryQuickRatio(context: StandardKpiContext, profile: KpiDataProfile) {
+  const candidates = profile.rows.filter((row) => row.fields.includes("currentAssets") || row.fields.includes("currentLiabilities") ||
+    row.fields.includes("inventoryValue"));
+  const dated = candidates.flatMap((row) => {
+    const date = dayKey(row.values.snapshotDate);
+    if (!date) throw new Error("Quick Ratio kræver samme dokumenterede snapshotdato for alle balanceposter.");
+    return inRequestedMonths(date, context) ? [{ row, date }] : [];
+  });
+  const scoped = scopedInventoryRows(dated.map((item) => item.row), context, "Balanceposter");
+  const included = new Set(scoped);
+  const latestDate = dated.filter(({ row }) => included.has(row)).map(({ date }) => date).sort().at(-1);
+  if (!latestDate) throw new Error("Quick Ratio kræver et fælles balancesnapshot.");
+  const latestRows = dated.filter(({ row, date }) => date === latestDate && included.has(row)).map(({ row }) => row);
+  const assetValues = latestRows.map((row) => rowNumber(row, "currentAssets")).filter((value): value is number => value !== null);
+  const liabilityValues = latestRows.map((row) => rowNumber(row, "currentLiabilities")).filter((value): value is number => value !== null);
+  const stockRows = latestRows.filter((row) => row.fields.includes("inventoryValue"));
+  const completeStock = stockSnapshots(context, profile, "inventoryValue").find((snapshot) => snapshot.date === latestDate)?.complete;
+  if (assetValues.length !== 1 || liabilityValues.length !== 1 || !stockRows.length || !completeStock || stockRows.some((row) => rowNumber(row, "inventoryValue") === null)) {
+    throw new Error("Omsætningsaktiver, lagerværdi og kortfristet gæld kan ikke afstemmes på samme snapshotdato.");
+  }
+  const inventory = stockRows.reduce((sum, row) => sum + rowNumber(row, "inventoryValue")!, 0);
+  return { value: ratio(assetValues[0] - inventory, liabilityValues[0], "Quick Ratio"), detail: `Samme balancesnapshot og scope · ${latestDate}` };
+}
+
 function fallbackPeriod(row: KpiDataProfile["rows"][number], unit: PeriodUnit) {
   const field = unit === "month" ? "month" : unit === "week" ? "week" : unit === "quarter" ? "quarter" : unit === "year" ? "year" : null;
   if (!field) return null;
@@ -868,7 +1140,7 @@ export const standardKpiDefinitions: RegisteredKpiDefinition[] = [
   defineKpi({ id: "budget-result", name: "Budgetteret resultat", description: "Budgetteret omsætning minus omkostninger", category: "Budget", format: "currency", icon: "profit", color: "green", requirements: requirements(["budgetRevenue", "budgetCosts"]), calculate: ({ context }) => ({ value: context.budgetResult, detail: "Budgetteret omsætning minus omkostninger" }) }),
   defineKpi({ id: "equity-ratio", name: "Soliditetsgrad", description: "Egenkapital som andel af de samlede aktiver", category: "Finansielle nøgletal", format: "percent", decimals: 1, icon: "target", color: "navy", requirements: requirements(["equity", "assets"]), calculate: ({ profile }) => ({ value: ratio(sum(profile, "equity"), sum(profile, "assets"), "Soliditetsgrad"), detail: "Egenkapital divideret med aktiver" }) }),
   defineKpi({ id: "current-ratio", name: "Likviditetsgrad", description: "Omsætningsaktiver i forhold til kortfristet gæld", category: "Likviditet", format: "decimal", decimals: 2, icon: "calculator", color: "cyan", requirements: requirements(["currentAssets", "currentLiabilities"]), calculate: ({ profile }) => ({ value: ratio(sum(profile, "currentAssets"), sum(profile, "currentLiabilities"), "Likviditetsgrad"), detail: "Omsætningsaktiver divideret med kortfristet gæld" }) }),
-  defineKpi({ id: "quick-ratio", name: "Quick Ratio", description: "Likvide omsætningsaktiver i forhold til kortfristet gæld", category: "Likviditet", format: "decimal", decimals: 2, icon: "calculator", color: "cyan", requirements: requirements(["currentAssets", "inventory", "currentLiabilities"]), calculate: ({ profile }) => ({ value: ratio(sum(profile, "currentAssets") - sum(profile, "inventory"), sum(profile, "currentLiabilities"), "Quick Ratio"), detail: "Omsætningsaktiver uden lager divideret med kortfristet gæld" }) }),
+  defineKpi({ id: "quick-ratio", name: "Quick Ratio", description: "Omsætningsaktiver uden lager / kortfristet gæld på samme balancedato", category: "Likviditet", format: "decimal", decimals: 2, icon: "calculator", color: "cyan", requirements: requirements(["currentAssets", "inventoryValue", "currentLiabilities"]), calculate: ({ context, profile }) => inventoryQuickRatio(context, profile) }),
   defineKpi({ id: "gearing", name: "Gearing", description: "Rentebærende gæld i forhold til egenkapital", category: "Finansielle nøgletal", format: "decimal", decimals: 2, icon: "target", color: "orange", requirements: requirements(["totalDebt", "equity"]), calculate: ({ profile }) => ({ value: ratio(sum(profile, "totalDebt"), sum(profile, "equity"), "Gearing"), detail: "Rentebærende gæld divideret med egenkapital" }) }),
   defineKpi({ id: "debt-ratio", name: "Gældsgrad", description: "Forpligtelser som andel af de samlede aktiver", category: "Finansielle nøgletal", format: "percent", decimals: 1, icon: "target", color: "orange", requirements: requirements(["liabilities", "assets"]), calculate: ({ profile }) => ({ value: ratio(sum(profile, "liabilities"), sum(profile, "assets"), "Gældsgrad"), detail: "Forpligtelser divideret med aktiver" }) }),
   defineKpi({ id: "operating-margin", name: "Overskudsgrad", description: "Driftsresultat som andel af omsætningen", category: "Rentabilitet", format: "percent", decimals: 1, icon: "profit", color: "green", requirements: requirements(["operatingProfit", "revenue"]), calculate: ({ profile, context }) => ({ value: ratio(sum(profile, "operatingProfit"), context.totalRevenue || sum(profile, "revenue"), "Overskudsgrad"), detail: "Driftsresultat divideret med omsætning" }) }),
@@ -878,8 +1150,8 @@ export const standardKpiDefinitions: RegisteredKpiDefinition[] = [
   defineKpi({ id: "net-margin", name: "Nettomargin", description: "Årets resultat som andel af omsætningen", category: "Rentabilitet", format: "percent", decimals: 1, icon: "profit", color: "green", requirements: requirements(["netProfit", "revenue"]), calculate: ({ profile, context }) => ({ value: ratio(sum(profile, "netProfit"), context.totalRevenue || sum(profile, "revenue"), "Nettomargin"), detail: "Årets resultat divideret med omsætning" }) }),
   defineKpi({ id: "working-capital", name: "Arbejdskapital", description: "Omsætningsaktiver minus kortfristet gæld", category: "Likviditet", format: "currency", icon: "calculator", color: "cyan", requirements: requirements(["currentAssets", "currentLiabilities"]), calculate: ({ profile }) => ({ value: sum(profile, "currentAssets") - sum(profile, "currentLiabilities"), detail: "Omsætningsaktiver minus kortfristet gæld" }) }),
   defineKpi({ id: "revenue-growth", name: "Omsætningsvækst", description: "Udviklingen i den fælles sammenligningsperiode", category: "Salg", format: "percent", decimals: 1, icon: "revenue", color: "cyan", requirements: requirements(["revenue"], [{ fields: ["date", "month"], label: "Dato eller måned" }]), calculate: ({ context }) => documentedRevenueGrowth(context) }),
-  defineKpi({ id: "inventory-value", name: "Lagerværdi", description: "Den samlede registrerede værdi af lageret", category: "Lager", format: "currency", icon: "units", color: "orange", requirements: requirements(["inventory"]), calculate: ({ profile }) => ({ value: sum(profile, "inventory"), detail: "Summen af den registrerede lagerværdi" }) }),
-  defineKpi({ id: "inventory-turnover", name: "Lageromsætningshastighed", description: "Vareforbrug i forhold til lagerværdien", category: "Lager", format: "decimal", decimals: 2, icon: "units", color: "orange", requirements: requirements(["cost", "inventory"]), calculate: ({ profile }) => ({ value: ratio(sum(profile, "cost"), sum(profile, "inventory"), "Lageromsætningshastighed"), detail: "Vareforbrug divideret med lagerværdi" }) }),
+  defineKpi({ id: "inventory-value", name: "Lagerværdi", description: "Samlet lagerværdi på seneste komplette snapshotdato i scope", category: "Lager", format: "currency", icon: "units", color: "orange", requirements: requirements(["inventoryValue"]), calculate: ({ context, profile }) => { const snapshot = latestSnapshot(context, profile, "inventoryValue"); return { value: snapshot.total, detail: `Seneste komplette lagersnapshot · ${snapshot.date}` }; } }),
+  defineKpi({ id: "inventory-turnover", name: "Lageromsætningshastighed", description: "Dokumenteret vareforbrug / gennemsnitlig lagerværdi i samme periode", category: "Lager", format: "decimal", decimals: 2, icon: "units", color: "orange", requirements: requirements(["cogs", "inventoryValue"]), calculate: ({ context, profile }) => { const basis = inventoryTurnoverBasis(context, profile); return { value: basis.value, detail: basis.detail }; } }),
   defineKpi({ id: "customer-count", name: "Antal kunder", description: "Antallet af unikke kunder i datagrundlaget", category: "Kunder", format: "count", icon: "units", color: "navy", requirements: requirements(["customerId"]), calculate: ({ profile }) => ({ value: uniqueCount(profile, "customerId"), detail: "Unikke registrerede kunder" }) }),
   defineKpi({ id: "revenue-per-day", name: "Omsætning pr. dag", description: "Gennemsnitlig omsætning pr. aktiv salgsdag", category: "Salg", format: "currency", decimals: 2, icon: "revenue", color: "cyan", requirements: requirements(["revenue", "date"]), calculate: ({ profile }) => { const periods = periodRevenue(profile, "day"); return { value: average(periods.map((period) => period.value), "Omsætning pr. dag"), detail: `Gennemsnit på tværs af ${periods.length} salgsdage` }; } }),
   defineKpi({ id: "revenue-per-week", name: "Omsætning pr. uge", description: "Gennemsnitlig omsætning pr. aktiv salgsuge", category: "Salg", format: "currency", decimals: 2, icon: "revenue", color: "cyan", requirements: requirements(["revenue"], [{ fields: ["date", "week"], label: "Dato eller uge" }]), calculate: ({ profile }) => { const periods = periodRevenue(profile, "week"); return { value: average(periods.map((period) => period.value), "Omsætning pr. uge"), detail: `Gennemsnit på tværs af ${periods.length} salgsuger` }; } }),
@@ -936,12 +1208,12 @@ export const standardKpiDefinitions: RegisteredKpiDefinition[] = [
   defineKpi({ id: "under-budget-status", name: "Under budget", description: "Viser om omsætningen ligger under det budgetterede niveau", category: "Budget", format: "text", icon: "target", color: "orange", requirements: requirements(["revenue", "budgetRevenue"]), calculate: ({ context }) => ({ value: context.revenueVsBudget < 0 ? "Ja" : "Nej", detail: context.revenueVsBudget < 0 ? "Omsætningen ligger under budgettet" : "Omsætningen ligger ikke under budgettet" }) }),
   defineKpi({ id: "cash-ratio", name: "Cash Ratio", description: "Likvide beholdninger i forhold til kortfristet gæld", category: "Likviditet", level: "advanced", format: "decimal", decimals: 2, icon: "calculator", color: "cyan", requirements: requirements(["cash", "currentLiabilities"]), calculate: ({ profile }) => ({ value: ratio(sum(profile, "cash"), sum(profile, "currentLiabilities"), "Cash Ratio"), detail: "Likvider divideret med kortfristet gæld" }) }),
   defineKpi({ id: "asset-turnover", name: "Aktivernes omsætningshastighed", description: "Omsætning i forhold til de samlede aktiver", category: "Finansielle nøgletal", level: "advanced", format: "decimal", decimals: 2, icon: "calculator", color: "navy", requirements: requirements(["revenue", "assets"]), calculate: ({ profile, context }) => ({ value: ratio(context.totalRevenue || sum(profile, "revenue"), sum(profile, "assets"), "Aktivernes omsætningshastighed"), detail: "Omsætning divideret med aktiver" }) }),
-  defineKpi({ id: "inventory-binding", name: "Lagerbinding", description: "Kapital bundet i den registrerede lagerværdi", category: "Lager", level: "recommended", format: "currency", icon: "units", color: "orange", requirements: requirements(["inventory"]), calculate: ({ profile }) => ({ value: sum(profile, "inventory"), detail: "Samlet kapital bundet i lager" }) }),
-  defineKpi({ id: "average-inventory-value", name: "Gennemsnitlig lagerværdi", description: "Gennemsnittet af de registrerede lagerværdier", category: "Lager", format: "currency", decimals: 2, icon: "calculator", color: "orange", requirements: requirements(["inventory"]), calculate: ({ profile }) => ({ value: average(profile.numericValues.inventory ?? [], "Gennemsnitlig lagerværdi"), detail: "Gennemsnitlig registreret lagerværdi" }) }),
-  defineKpi({ id: "inventory-days", name: "Lagerdage", description: "Estimeret antal dage varerne ligger på lager", category: "Lager", level: "advanced", format: "decimal", decimals: 1, icon: "calculator", color: "orange", requirements: requirements(["cost", "inventory"]), calculate: ({ profile }) => ({ value: ratio(365, ratio(sum(profile, "cost"), sum(profile, "inventory"), "Lageromsætningshastighed"), "Lagerdage"), detail: "365 divideret med lageromsætningshastigheden" }) }),
-  defineKpi({ id: "inventory-item-count", name: "Antal varer", description: "Det samlede registrerede antal varer på lager", category: "Lager", format: "integer", icon: "units", color: "navy", requirements: requirements(["inventoryQuantity"]), calculate: ({ profile }) => ({ value: sum(profile, "inventoryQuantity"), detail: "Samlet antal enheder på lager" }) }),
-  defineKpi({ id: "lowest-inventory", name: "Laveste lager", description: "Den laveste registrerede lagerbeholdning", category: "Lager", format: "integer", icon: "units", color: "orange", requirements: requirements(["inventoryQuantity"]), calculate: ({ profile }) => ({ value: Math.min(...(profile.numericValues.inventoryQuantity ?? [])), detail: "Laveste registrerede lagerantal" }) }),
-  defineKpi({ id: "highest-inventory", name: "Højeste lager", description: "Den højeste registrerede lagerbeholdning", category: "Lager", format: "integer", icon: "units", color: "navy", requirements: requirements(["inventoryQuantity"]), calculate: ({ profile }) => ({ value: Math.max(...(profile.numericValues.inventoryQuantity ?? [])), detail: "Højeste registrerede lagerantal" }) }),
+  defineKpi({ id: "inventory-binding", name: "Lagerbinding (ikke defineret)", description: "Kræver en selvstændig dokumenteret definition; dublerer ikke lagerværdi", category: "Lager", level: "advanced", format: "currency", icon: "units", color: "orange", requirements: [], calculate: () => { throw new Error("Lagerbinding er ikke selvstændigt defineret og vises derfor ikke som lagerværdi."); } }),
+  defineKpi({ id: "average-inventory-value", name: "Gennemsnitlig lagerværdi", description: "Gennemsnit af komplette snapshot-totaler i det valgte scope", category: "Lager", format: "currency", decimals: 2, icon: "calculator", color: "orange", requirements: requirements(["inventoryValue"]), calculate: ({ context, profile }) => { const basis = averageInventory(context, profile); return { value: basis.value, detail: `Gennemsnit af ${basis.snapshots.length} komplette snapshots` }; } }),
+  defineKpi({ id: "inventory-days", name: "Lagerdage", description: "Faktiske kalenderdage i perioden / lageromsætningshastighed", category: "Lager", level: "advanced", format: "decimal", decimals: 1, icon: "calculator", color: "orange", requirements: requirements(["cogs", "inventoryValue"]), calculate: ({ context, profile }) => { const basis = inventoryTurnoverBasis(context, profile); return { value: ratio(basis.days, basis.value, "Lagerdage"), detail: `${basis.days} kalenderdage / lageromsætningshastighed · ${basis.detail}` }; } }),
+  defineKpi({ id: "inventory-item-count", name: "Antal varer på lager", description: "Summen af lagerantal på seneste komplette snapshotdato", category: "Lager", format: "integer", icon: "units", color: "navy", requirements: requirements(["inventoryQuantity"]), calculate: ({ context, profile }) => { const snapshot = latestSnapshot(context, profile, "inventoryQuantity"); return { value: snapshot.total, detail: `Seneste komplette lagersnapshot · ${snapshot.date}` }; } }),
+  defineKpi({ id: "lowest-inventory", name: "Laveste lager", description: "Medlem med lavest lagerantal på seneste komplette snapshot", category: "Lager", format: "text", icon: "units", color: "orange", requirements: requirements(["inventoryQuantity"]), calculate: ({ context, profile }) => inventoryExtremum(context, profile, "lowest") }),
+  defineKpi({ id: "highest-inventory", name: "Højeste lager", description: "Medlem med højest lagerantal på seneste komplette snapshot", category: "Lager", format: "text", icon: "units", color: "navy", requirements: requirements(["inventoryQuantity"]), calculate: ({ context, profile }) => inventoryExtremum(context, profile, "highest") }),
 ];
 
 const standardKpiDefinitionMap = new Map(
@@ -1027,7 +1299,7 @@ export function relevantKpiCategories(
     "Finansielle nøgletal": ["Egenkapital", "Aktiver", "Rentebærende gæld", "Forpligtelser"],
     Likviditet: ["Omsætningsaktiver", "Kortfristet gæld", "Likvide beholdninger", "Tilgodehavender"],
     Rentabilitet: ["Driftsresultat", "Årets resultat", "Aktiver", "Egenkapital"],
-    Lager: ["Lager", "Lagerantal"],
+    Lager: ["Lagerværdi", "Lagerantal", "Lagersnapshotdato"],
     Kunder: ["Kunde-id", "Kunde"],
   };
   definitions.forEach((definition) => {

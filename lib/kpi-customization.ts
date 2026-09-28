@@ -93,6 +93,8 @@ export type StandardKpiContext = {
   salesProfile?: KpiDataProfile;
   selectedMonths?: readonly string[];
   partialMonths?: readonly string[];
+  inventoryFilters?: Partial<Record<"month" | "product" | "category" | "channel" | "region", readonly string[]>>;
+  inventoryPeriod?: { start: string; end: string };
 };
 
 export type KpiEvaluation = {

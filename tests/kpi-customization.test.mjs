@@ -203,12 +203,13 @@ test("periode-, produkt- og kunde-KPI'er bruger de samme filtrerede rækker", ()
 
 test("lager- og budget-KPI'er beregnes gennem det centrale register", () => {
   const profile = buildKpiDataProfile([
-    { sourceValues: { Lagerværdi: 200, Lagerantal: 12 } },
-    { sourceValues: { Lagerværdi: 300, Lagerantal: 20 } },
+    { sourceValues: { Snapshotdato: "2026-01-31", Produkt: "A", Lagerværdi: 200, Lagerantal: 12 } },
+    { sourceValues: { Snapshotdato: "2026-01-31", Produkt: "B", Lagerværdi: 300, Lagerantal: 20 } },
   ], { budgetRevenue: [900], budgetCosts: [350], revenue: [1000] });
-  assert.equal(evaluateStandardKpi("inventory-binding", context, profile).value, 500);
-  assert.equal(evaluateStandardKpi("average-inventory-value", context, profile).value, 250);
-  assert.equal(evaluateStandardKpi("highest-inventory", context, profile).value, 20);
+  assert.equal(evaluateStandardKpi("inventory-value", context, profile).value, 500);
+  assert.equal(evaluateStandardKpi("inventory-binding", context, profile).value, null);
+  assert.equal(evaluateStandardKpi("average-inventory-value", context, profile).value, 500);
+  assert.equal(evaluateStandardKpi("highest-inventory", context, profile).value, "B");
   assert.equal(evaluateStandardKpi("budget-attainment", context, profile).value, 1000 / 900);
 });
 
@@ -220,7 +221,8 @@ test("finansielle KPI'er beregnes direkte fra det centrale register", () => {
         Aktiver: 1000,
         Omsætningsaktiver: 300,
         "Kortfristet gæld": 150,
-        Lager: 60,
+        Lagerværdi: 60,
+        Snapshotdato: "2026-01-31",
       },
     },
   ]);
