@@ -2,6 +2,7 @@ import {
   canonicalRegisteredKpiId,
   evaluateRegisteredKpi,
   evaluateRegisteredKpis,
+  isRetiredRegisteredKpiId,
   type KpiCategory,
   type KpiDataProfile,
 } from "./kpi-registry.ts";
@@ -253,8 +254,8 @@ export function parseStoredKpiConfiguration(value: string | null): KpiConfigurat
     if (record.version !== KPI_CONFIG_VERSION || !Array.isArray(record.primaryKpis) || !Array.isArray(record.secondaryKpis) || !Array.isArray(record.customKpis)) return null;
     return {
       version: KPI_CONFIG_VERSION,
-      primaryKpis: [...new Set(record.primaryKpis.filter((id): id is string => typeof id === "string").map(canonicalKpiId))].slice(0, MAX_PRIMARY_KPIS),
-      secondaryKpis: [...new Set(record.secondaryKpis.filter((id): id is string => typeof id === "string").map(canonicalKpiId))].slice(0, MAX_SECONDARY_KPIS),
+      primaryKpis: [...new Set(record.primaryKpis.filter((id): id is string => typeof id === "string" && !isRetiredRegisteredKpiId(id)).map(canonicalKpiId))].slice(0, MAX_PRIMARY_KPIS),
+      secondaryKpis: [...new Set(record.secondaryKpis.filter((id): id is string => typeof id === "string" && !isRetiredRegisteredKpiId(id)).map(canonicalKpiId))].slice(0, MAX_SECONDARY_KPIS),
       customKpis: record.customKpis.filter(isKpiDefinition),
     };
   } catch {
@@ -290,13 +291,13 @@ function isKpiFormula(value: unknown, depth = 0): value is KpiFormula {
 }
 
 export function normalizeKpiConfiguration(config: KpiConfiguration, availableIds: Set<string>, defaults: KpiConfiguration) {
-  const primaryIds = config.primaryKpis.map(canonicalKpiId);
+  const primaryIds = config.primaryKpis.filter((id) => !isRetiredRegisteredKpiId(id)).map(canonicalKpiId);
   const primary = primaryIds.filter((id, index, ids) => availableIds.has(id) && ids.indexOf(id) === index).slice(0, MAX_PRIMARY_KPIS);
   for (const id of defaults.primaryKpis) {
     if (primary.length >= MIN_PRIMARY_KPIS) break;
-    if (availableIds.has(id) && !primary.includes(id)) primary.push(id);
+    if (availableIds.has(id) && !isRetiredRegisteredKpiId(id) && !primary.includes(id)) primary.push(id);
   }
-  const secondaryIds = config.secondaryKpis.map(canonicalKpiId);
+  const secondaryIds = config.secondaryKpis.filter((id) => !isRetiredRegisteredKpiId(id)).map(canonicalKpiId);
   const secondary = secondaryIds
     .filter((id, index, ids) => availableIds.has(id) && !primary.includes(id) && ids.indexOf(id) === index)
     .slice(0, MAX_SECONDARY_KPIS);

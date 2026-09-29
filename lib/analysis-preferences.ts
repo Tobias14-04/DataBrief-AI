@@ -130,7 +130,7 @@ export const analysisTargetMetrics: readonly AnalysisTargetMetric[] = [
 const targetMetricMap = new Map(analysisTargetMetrics.map((metric) => [metric.id, metric]));
 
 const focusKpis: Record<AnalysisFocusArea, readonly string[]> = {
-  sales: ["total-revenue", "revenue-growth", "total-units", "avg-revenue-unit"],
+  sales: ["total-revenue", "revenue-growth", "total-units", "average-sales-price"],
   profitability: ["result", "gross-profit", "gross-margin"],
   costs: ["total-costs", "result", "gross-margin"],
   products: ["best-product", "total-revenue", "total-units"],
