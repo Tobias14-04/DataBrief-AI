@@ -1,4 +1,5 @@
 import {
+  canonicalRegisteredKpiId,
   evaluateRegisteredKpi,
   evaluateRegisteredKpis,
   type KpiCategory,
@@ -23,8 +24,7 @@ export const KPI_CONFIG_VERSION = 1;
 export const MAX_PRIMARY_KPIS = 4;
 export const MIN_PRIMARY_KPIS = 2;
 export const MAX_SECONDARY_KPIS = 6;
-const canonicalKpiId = (id: string) => id === "ebit-margin" ? "operating-margin"
-  : id === "highest-revenue-product" ? "best-product" : id;
+const canonicalKpiId = canonicalRegisteredKpiId;
 
 export type KpiPlacement = "primary" | "secondary";
 export type KpiLevel = "recommended" | "standard" | "advanced";
