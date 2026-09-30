@@ -82,7 +82,7 @@ test("manglende nødvendige felter prioriteres, mens valgfrie felter er sammenfo
 });
 
 test("annulleret eller afvist filskift bevarer det aktive datasæt", () => {
-  assert.match(shellSource, /label="Skift fil…"/u);
+  assert.match(shellSource, /onClick=\{onUpload\}[\s\S]*Skift fil…/u);
   assert.match(shellSource, /Det nuværende datasæt erstattes først, når den nye fil er indlæst\./u);
   assert.match(uploadSource, /if \(!file \|\| isLoading\) \{\s*return;/u);
   assert.match(uploadSource, /if \(!hadWorkbook\) \{\s*clearImportedWorkbook\(\);/u);

@@ -1341,8 +1341,8 @@ export const CostIntelligenceDashboard = memo(function CostIntelligenceDashboard
     return (
       <CommandPanel title="Omkostningsdata" icon={WalletCards} tone="warning">
         <CommandEmptyState
-          title="Omkostningsdata mangler"
-          message="Tilføj en kolonne med omkostning, kostpris eller dækningsbidrag for at åbne omkostningsanalysen."
+          title={analysis.costBasis.source === "unknown" ? "Omkostningsdata mangler" : "Ingen salgsrækker i det valgte scope"}
+          message={analysis.costBasis.reason ?? "Tilpas filtrene for at vise registrerede omkostninger i dette scope."}
           tone="warning"
         />
       </CommandPanel>

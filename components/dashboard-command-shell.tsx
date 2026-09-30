@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { resetViewScroll } from "@/lib/auto-mapping-flow";
-import { getDashboardView, type DashboardView } from "@/lib/dashboard-navigation";
+import { getDashboardView, mainDashboardView, type DashboardView } from "@/lib/dashboard-navigation";
 
 const replaceFileDescription =
   "Vælg et nyt regneark. Det nuværende datasæt erstattes først, når den nye fil er indlæst.";
@@ -35,6 +35,8 @@ const viewIcons: Record<DashboardView, LucideIcon> = {
   analysis: ChartNoAxesCombined,
   products: Boxes,
   categories: FolderKanban,
+  channels: ChartNoAxesCombined,
+  regions: ChartNoAxesCombined,
   costs: WalletCards,
   insights: BrainCircuit,
   dataset: TableProperties,
@@ -43,8 +45,6 @@ const viewIcons: Record<DashboardView, LucideIcon> = {
 const primaryViewIds: DashboardView[] = [
   "overview",
   "analysis",
-  "products",
-  "categories",
   "costs",
   "insights",
 ];
@@ -104,49 +104,12 @@ function NavigationButton({
   );
 }
 
-function SidebarAction({
-  icon: Icon,
-  label,
-  description,
-  collapsed,
-  active = false,
-  onClick,
-}: {
-  icon: LucideIcon;
-  label: string;
-  description?: string;
-  collapsed: boolean;
-  active?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={collapsed ? label : undefined}
-      title={description ?? (collapsed ? label : undefined)}
-      aria-current={active ? "page" : undefined}
-      className={`group relative flex h-11 w-full items-center gap-3 overflow-hidden rounded-lg px-3 text-left text-sm font-semibold transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 ${
-        active
-          ? "bg-cyan-300/[0.09] text-cyan-50 before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-r-full before:bg-cyan-300"
-          : "text-slate-300 hover:bg-white/[0.055] hover:text-white"
-      } ${collapsed ? "justify-center px-0" : ""
-      }`}
-    >
-      <Icon className="h-[18px] w-[18px] shrink-0 text-slate-400 transition-colors duration-200 group-hover:text-slate-200" aria-hidden="true" />
-      {!collapsed ? <span>{label}</span> : null}
-    </button>
-  );
-}
-
 function ShellSidebar({
   activeView,
   collapsed,
   mobile,
   navigationLocked,
   onViewChange,
-  onUpload,
-  onEditMapping,
   onCollapse,
   onClose,
 }: {
@@ -155,8 +118,6 @@ function ShellSidebar({
   mobile?: boolean;
   navigationLocked?: boolean;
   onViewChange: (view: DashboardView) => void;
-  onUpload: () => void;
-  onEditMapping: () => void;
   onCollapse: () => void;
   onClose?: () => void;
 }) {
@@ -205,14 +166,14 @@ function ShellSidebar({
 
       <nav className="min-h-0 flex-1 overflow-y-auto px-2.5 py-5" aria-label="Dashboardnavigation">
         {!navigationCollapsed ? (
-          <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.13em] text-slate-500">Analyse</p>
+          <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.13em] text-slate-500">Arbejdsområde</p>
         ) : null}
         <div className="space-y-1">
           {primaryViewIds.map((view) => (
             <NavigationButton
               key={view}
               view={view}
-              active={activeView === view}
+              active={mainDashboardView(activeView) === mainDashboardView(view)}
               collapsed={navigationCollapsed}
               disabled={navigationLocked}
               onClick={() => selectView(view)}
@@ -222,7 +183,7 @@ function ShellSidebar({
 
         <div className="my-4 h-px bg-white/[0.07]" />
         {!navigationCollapsed ? (
-          <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.13em] text-slate-500">Datakilde</p>
+          <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.13em] text-slate-500">Opsætning</p>
         ) : null}
         <div className="space-y-1">
           <NavigationButton
@@ -231,26 +192,6 @@ function ShellSidebar({
             collapsed={navigationCollapsed}
             disabled={navigationLocked}
             onClick={() => selectView("dataset")}
-          />
-          <SidebarAction
-            icon={Upload}
-            label="Skift fil…"
-            description={replaceFileDescription}
-            collapsed={navigationCollapsed}
-            onClick={() => {
-              onUpload();
-              onClose?.();
-            }}
-          />
-          <SidebarAction
-            icon={TableProperties}
-            label="Kolonnetilknytning"
-            collapsed={navigationCollapsed}
-            active={navigationLocked}
-            onClick={() => {
-              onEditMapping();
-              onClose?.();
-            }}
           />
         </div>
       </nav>
@@ -382,8 +323,6 @@ export function DashboardCommandShell({
           collapsed={sidebarCollapsed}
           navigationLocked={mappingMode}
           onViewChange={onViewChange}
-          onUpload={onUpload}
-          onEditMapping={onEditMapping}
           onCollapse={() => setSidebarCollapsed((current) => !current)}
         />
       </aside>
@@ -403,8 +342,6 @@ export function DashboardCommandShell({
               mobile
               navigationLocked={mappingMode}
               onViewChange={onViewChange}
-              onUpload={onUpload}
-              onEditMapping={onEditMapping}
               onCollapse={() => undefined}
               onClose={() => setMobileNavigationOpen(false)}
             />
@@ -446,7 +383,7 @@ export function DashboardCommandShell({
                 />
               </button>
 
-              <div className="hidden shrink-0 items-center gap-2 xl:flex">
+              {activeView !== "dataset" ? <div className="hidden shrink-0 items-center gap-2 xl:flex">
                 <button
                   type="button"
                   onClick={onEditMapping}
@@ -463,9 +400,9 @@ export function DashboardCommandShell({
                   <Upload className="h-4 w-4" aria-hidden="true" />
                   Skift fil…
                 </button>
-              </div>
+              </div> : null}
 
-              <div ref={datasetMenuRef} className="relative shrink-0 xl:hidden">
+              {activeView !== "dataset" ? <div ref={datasetMenuRef} className="relative shrink-0 xl:hidden">
                 <button
                   type="button"
                   onClick={() => setDatasetMenuOpen((current) => !current)}
@@ -513,7 +450,7 @@ export function DashboardCommandShell({
                     </Link>
                   </div>
                 ) : null}
-              </div>
+              </div> : null}
             </div>
           </div>
         </header>

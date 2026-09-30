@@ -78,6 +78,20 @@ export function resolvePeriodComparison(
   return { status: "available", currentMonths, previousMonths, currentLabel, previousLabel, label: comparisonLabel, reason: null };
 }
 
+export function latestAvailablePeriodComparison(
+  availableMonths: readonly string[],
+  partialMonths: readonly string[] = [],
+): PeriodComparison | null {
+  const candidates = [...new Map(availableMonths.map((month) => [monthIndex(month), month]))]
+    .filter((entry): entry is [number, string] => entry[0] !== null)
+    .sort((left, right) => right[0] - left[0]);
+  for (const [, month] of candidates) {
+    const comparison = resolvePeriodComparison(availableMonths, { selectedMonths: [month], partialMonths });
+    if (comparison.status === "available") return comparison;
+  }
+  return null;
+}
+
 export function resolveYearOverYearComparison(
   availableMonths: readonly string[],
   options: { selectedMonths?: readonly string[]; partialMonths?: readonly string[] } = {},

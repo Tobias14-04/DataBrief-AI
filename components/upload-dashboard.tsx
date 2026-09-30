@@ -53,6 +53,7 @@ import {
 import { CategoryAnalysisDashboard } from "@/components/category-analysis-dashboard";
 import { AnalysisPreferencesOnboarding } from "@/components/analysis-preferences-onboarding";
 import { CostIntelligenceDashboard } from "@/components/cost-intelligence-dashboard";
+import { DimensionAnalysisDashboard } from "@/components/dimension-analysis-dashboard";
 import { ExcelProcessingView } from "@/components/excel-processing-view";
 import { KpiCustomizer } from "@/components/kpi-customizer";
 import {
@@ -160,7 +161,7 @@ import { calculateDashboardMetrics } from "@/lib/dashboard-metrics";
 import { isFiniteNumber, parseNumericValue, parsePercentageValue } from "@/lib/numeric-foundation";
 import { buildCostIntelligence } from "@/lib/cost-intelligence";
 import { describeCostBasis } from "@/lib/result-basis";
-import { inferBoundaryPartialMonths, resolvePeriodComparison, summarizeComparisonMetric } from "@/lib/period-comparison";
+import { inferBoundaryPartialMonths, latestAvailablePeriodComparison, resolvePeriodComparison, summarizeComparisonMetric } from "@/lib/period-comparison";
 import {
   chooseRepresentativeLabel,
   comparableLabel,
@@ -183,7 +184,14 @@ import {
   type AnalysisPreferences,
   type AnalysisSupportingInsight,
 } from "@/lib/analysis-preferences";
-import type { DashboardView } from "@/lib/dashboard-navigation";
+import { dashboardLocationSearch, mainDashboardView, parseDashboardLocation, type DashboardView } from "@/lib/dashboard-navigation";
+
+function writeDashboardLocation(view: DashboardView, tab: InsightsReportTab = "insights", replace = false) {
+  const url = `${window.location.pathname}${dashboardLocationSearch(view, tab, window.location.search)}${window.location.hash}`;
+  if (url === `${window.location.pathname}${window.location.search}${window.location.hash}`) return;
+  if (replace) window.history.replaceState(window.history.state, "", url);
+  else window.history.pushState(window.history.state, "", url);
+}
 
 type SaleRow = {
   date: Date | null;
@@ -2594,6 +2602,10 @@ export default function UploadDashboard() {
     comparisonSourceRows.map((row) => row.month),
     { selectedMonths: deferredFilters.month, partialMonths },
   ), [comparisonSourceRows, deferredFilters.month, partialMonths]);
+  const latestComparison = useMemo(
+    () => latestAvailablePeriodComparison(comparisonSourceRows.map((row) => row.month), partialMonths),
+    [comparisonSourceRows, partialMonths],
+  );
   const revenueGrowth = useMemo(
     () => summarizeComparisonMetric(comparisonSourceRows, periodComparison, (row) => row.revenue),
     [comparisonSourceRows, periodComparison],
@@ -2707,13 +2719,13 @@ export default function UploadDashboard() {
     ],
   );
   const insightSourceRows = useMemo(
-    () => activeView === "insights"
+    () => activeView === "insights" || activeView === "channels" || activeView === "regions"
       ? comparisonSourceRows
       : [],
     [activeView, comparisonSourceRows],
   );
   const insightAnalysis = useMemo(
-    () => activeView === "insights"
+    () => activeView === "insights" || activeView === "channels" || activeView === "regions"
       ? buildInsightAnalysis(insightSourceRows, {
           selectedMonths: deferredFilters.month,
           partialMonths,
@@ -2963,6 +2975,17 @@ export default function UploadDashboard() {
   }, []);
 
   useEffect(() => {
+    const restoreLocation = () => {
+      const location = parseDashboardLocation(window.location.search);
+      setActiveView(location.view);
+      setInsightsTab(location.managementTab);
+    };
+    restoreLocation();
+    window.addEventListener("popstate", restoreLocation);
+    return () => window.removeEventListener("popstate", restoreLocation);
+  }, []);
+
+  useEffect(() => {
     if (kpiConfigurationHydrated && !hasCustomizedKpis) {
       setKpiConfiguration(defaultKpis);
     }
@@ -2975,12 +2998,16 @@ export default function UploadDashboard() {
   }, [kpiSaveMessage]);
 
   const resetDashboardView = useCallback(() => {
+    const destination = !data && new URLSearchParams(window.location.search).has("view")
+      ? parseDashboardLocation(window.location.search)
+      : { view: "overview" as DashboardView, managementTab: "insights" as InsightsReportTab };
     setFilters(emptyDashboardFilters);
     setReportMonth("");
-    setActiveView("overview");
-    setInsightsTab("insights");
+    setActiveView(destination.view);
+    setInsightsTab(destination.managementTab);
     setTrendMetric("revenue");
-  }, []);
+    writeDashboardLocation(destination.view, destination.managementTab, true);
+  }, [data]);
 
   const commitDashboardFilters = useCallback((nextFilters: DashboardFilters) => {
     setFilters(nextFilters);
@@ -3001,12 +3028,20 @@ export default function UploadDashboard() {
   const changeActiveView = useCallback((view: DashboardView) => {
     setAnalysisReadyNotice(null);
     setActiveView(view);
+    if (view === "insights") setInsightsTab("insights");
+    writeDashboardLocation(view);
+  }, []);
+
+  const changeInsightsTab = useCallback((tab: InsightsReportTab) => {
+    setInsightsTab(tab);
+    writeDashboardLocation("insights", tab);
   }, []);
 
   const openInsightsView = useCallback(() => {
     setAnalysisReadyNotice(null);
     setActiveView("insights");
     setInsightsTab("insights");
+    writeDashboardLocation("insights");
   }, []);
 
   function saveKpiConfiguration(configuration: KpiConfiguration) {
@@ -3436,6 +3471,27 @@ export default function UploadDashboard() {
               />
             </div>
           ) : null}
+          {mainDashboardView(activeView) === "analysis" ? (
+            <nav className="min-w-0 min-[1360px]:col-span-2" aria-label="Analyseområder">
+              <div className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1.5">
+                {([
+                  { id: "analysis", label: "Udvikling", available: true },
+                  { id: "products", label: "Produkter", available: true },
+                  { id: "categories", label: "Kategorier", available: true },
+                  { id: "channels", label: "Kanaler", available: filterOptions.channel.length > 0 },
+                  { id: "regions", label: "Regioner", available: filterOptions.region.length > 0 },
+                ] as const).filter((item) => item.available || item.id === activeView).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    aria-current={activeView === item.id ? "page" : undefined}
+                    onClick={() => changeActiveView(item.id)}
+                    className={`whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-semibold transition ${activeView === item.id ? "bg-[#0b263a] text-white" : "text-slate-600 hover:bg-slate-50 hover:text-ink"}`}
+                  >{item.label}</button>
+                ))}
+              </div>
+            </nav>
+          ) : null}
           {activeView !== "dataset" ? (
             <div className="min-w-0 min-[1360px]:col-span-2">
               <DashboardControlBar
@@ -3446,8 +3502,23 @@ export default function UploadDashboard() {
                 datasetIdentity={allRows}
                 isPending={isFilterUpdatePending}
                 onChange={commitDashboardFilters}
-                variant={activeView === "overview" ? "overview" : activeView === "analysis" ? "analysis" : "default"}
+                variant={activeView === "overview" ? "overview" : mainDashboardView(activeView) === "analysis" ? "analysis" : "default"}
               />
+            </div>
+          ) : null}
+          {(activeView === "insights" || activeView === "channels" || activeView === "regions") && !filters.month.length ? (
+            <div className="min-w-0 rounded-xl border border-cyan-200 bg-cyan-50/70 p-4 min-[1360px]:col-span-2 sm:flex sm:items-center sm:justify-between sm:gap-5" role="status">
+              <div>
+                <p className="text-sm font-semibold text-ink">Sammenlign en konkret periode</p>
+                <p className="mt-1 text-xs leading-5 text-slate-600">Alle perioder er valgt. Ændringer og drivere kræver to sammenlignelige hele kalendermåneder. {latestComparison ? `Seneste gyldige par: ${latestComparison.label}.` : "Ingen komplet måned-til-måned-sammenligning findes i det aktuelle scope."}</p>
+              </div>
+              {latestComparison ? (
+                <button
+                  type="button"
+                  onClick={() => setFilters((current) => ({ ...current, month: latestComparison.currentMonths }))}
+                  className="mt-3 inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg bg-[#0b263a] px-4 text-xs font-semibold text-white hover:bg-[#153d58] sm:mt-0"
+                >Sammenlign seneste komplette måned</button>
+              ) : null}
             </div>
           ) : null}
 
@@ -3763,14 +3834,30 @@ export default function UploadDashboard() {
             />
           ) : null}
 
+          {activeView === "channels" || activeView === "regions" ? (
+            <DimensionAnalysisDashboard
+              dimension={activeView === "channels" ? "channel" : "region"}
+              analysis={insightAnalysis}
+              supported={activeView === "channels" ? filterOptions.channel.length > 0 : filterOptions.region.length > 0}
+            />
+          ) : null}
+
           {activeView === "costs" ? (
             <section className="min-w-0 space-y-6 min-[1360px]:col-span-2" data-testid="costs-view">
               <CommandPageIntro
-                eyebrow="Omkostningsstyring"
-                title="Omkostninger"
-                description="Beslutningsorienteret analyse af omkostninger, budget, udvikling og rentabilitet i den aktuelle filtrerede visning."
+                eyebrow="Økonomisk analyse"
+                title="Økonomi"
+                description={metrics.costBasis.scope === "subset" && metrics.costBasis.status === "unavailable"
+                  ? "Det valgte delscope har ikke et fordelbart grundlag for samlet resultat. Se kilde og forklaring nedenfor."
+                  : "Omkostninger, resultat, budget og effektivitet på det dokumenterede datagrundlag."}
                 tone="warning"
               />
+              {metrics.costBasis.scope === "subset" && metrics.costBasis.status === "unavailable" ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900" role="status">
+                  <p className="font-semibold">Omkostninger kan ikke fordeles på det valgte scope</p>
+                  <p className="mt-1">{describeCostBasis(metrics.costBasis)}. {metrics.costBasis.reason}</p>
+                </div>
+              ) : null}
               {showCosts && costIntelligence ? (
                 <CostIntelligenceDashboard analysis={costIntelligence} />
               ) : (
@@ -3792,7 +3879,7 @@ export default function UploadDashboard() {
                 analysisPreferences={analysisPreferences}
                 targetStatuses={targetStatuses}
                 activeTab={insightsTab}
-                onTabChange={setInsightsTab}
+                onTabChange={changeInsightsTab}
                 isUpdating={isFilterUpdatePending}
               />
             ) : null

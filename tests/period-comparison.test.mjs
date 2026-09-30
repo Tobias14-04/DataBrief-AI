@@ -8,11 +8,18 @@ import { buildKpiDataProfile, evaluateStandardKpi } from "../lib/kpi-customizati
 import {
   growthChange,
   inferBoundaryPartialMonths,
+  latestAvailablePeriodComparison,
   resolvePeriodComparison,
   summarizeComparisonMetric,
 } from "../lib/period-comparison.ts";
 
 const months = ["januar 2026", "februar 2026", "marts 2026", "april 2026"];
+
+test("UX: genvej finder seneste gyldige komplette måned uden at ændre vækstregler", () => {
+  assert.equal(latestAvailablePeriodComparison(months)?.label, "marts 2026 → april 2026");
+  assert.equal(latestAvailablePeriodComparison(months, ["april 2026"])?.label, "februar 2026 → marts 2026");
+  assert.equal(latestAvailablePeriodComparison(["januar 2026", "marts 2026"]), null);
+});
 function row(index, revenue, overrides = {}) {
   return {
     date: new Date(2026, index, 1), month: months[index], product: "A", category: "A",
