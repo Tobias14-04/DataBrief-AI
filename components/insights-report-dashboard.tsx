@@ -305,7 +305,7 @@ function DashboardTabs({
     <div
       role="tablist"
       aria-label="Vælg mellem indsigter, rapport og strategi"
-      className="inline-grid w-full grid-cols-3 gap-1 rounded-xl border border-slate-200 bg-white/90 p-1 shadow-sm sm:w-auto"
+      className="inline-grid w-full grid-cols-3 gap-1 border-b border-slate-300 sm:w-auto"
     >
       {tabs.map((tab) => {
         const Icon = tab.icon;
@@ -322,13 +322,13 @@ function DashboardTabs({
             tabIndex={selected ? 0 : -1}
             onClick={() => selectTab(tab.id)}
             onKeyDown={handleKeyDown}
-            className={`inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2.5 text-[12px] font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 sm:min-w-[116px] sm:gap-2 sm:px-4 sm:text-[13px] ${
+            className={`inline-flex h-10 min-w-0 items-center justify-center gap-1.5 border-b-2 px-2.5 text-[12px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 sm:min-w-[108px] sm:gap-2 sm:px-3 sm:text-[13px] ${
               selected
-                ? "bg-[#0b263a] text-white shadow-[0_8px_20px_rgba(8,31,48,0.16)]"
-                : "text-slate-600 hover:bg-slate-50 hover:text-[#0b1c2d]"
+                ? "border-cyan-700 text-[#0b263a]"
+                : "border-transparent text-slate-600 hover:border-slate-300 hover:text-[#0b1c2d]"
             }`}
           >
-            <Icon className={`h-4 w-4 ${selected ? "text-cyan-300" : "text-slate-400"}`} aria-hidden="true" />
+            <Icon className={`h-4 w-4 ${selected ? "text-cyan-700" : "text-slate-400"}`} aria-hidden="true" />
             {tab.label}
           </button>
         );
@@ -364,7 +364,7 @@ const ExecutiveSnapshot = memo(function ExecutiveSnapshot({
         </div>
         <p className="hidden text-xs text-slate-500 sm:block">Kun nøgletal med dokumenteret datagrundlag</p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
         {items.slice(0, 4).map((item) => {
           const Icon = metricIcons[item.metric] ?? BarChart3;
           const latestChange = changes.find((change) => change.metric === item.metric);
@@ -723,17 +723,11 @@ function DriverPanel({
   );
 }
 
-function ObservationCard({ observation }: { observation: InsightObservation }) {
+function ObservationCard({ observation, rank }: { observation: InsightObservation; rank: number }) {
   return (
-    <li className="flex min-w-0 gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-[0_5px_16px_rgba(16,32,51,0.04)] sm:p-5">
-      <span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg border ${
-        observation.tone === "positive"
-          ? "border-emerald-100 bg-emerald-50 text-emerald-700"
-          : observation.tone === "negative"
-            ? "border-orange-100 bg-orange-50 text-orange-700"
-            : "border-cyan-100 bg-cyan-50 text-cyan-700"
-      }`}>
-        <Lightbulb className="h-4 w-4" aria-hidden="true" />
+    <li className="flex min-w-0 gap-3 border-b border-slate-100 px-1 py-3 last:border-b-0">
+      <span className="mt-0.5 text-xs font-semibold tabular-nums text-cyan-800" aria-hidden="true">
+        {String(rank).padStart(2, "0")}
       </span>
       <div className="min-w-0">
         <h3 className="text-sm font-semibold text-[#0b1c2d]">{observation.title}</h3>
@@ -759,9 +753,9 @@ function AttentionAndFocus({
         icon={Lightbulb}
       >
         {observations.length ? (
-          <ul className="grid min-h-[180px] content-start gap-3 bg-[#f7fafb] p-4 sm:grid-cols-2 sm:p-5">
-            {observations.slice(0, 5).map((observation) => (
-              <ObservationCard key={observation.id} observation={observation} />
+          <ul className="grid content-start gap-x-5 px-4 py-2 sm:grid-cols-2 sm:px-5">
+            {observations.slice(0, 5).map((observation, index) => (
+              <ObservationCard key={observation.id} observation={observation} rank={index + 1} />
             ))}
           </ul>
         ) : (
@@ -772,8 +766,8 @@ function AttentionAndFocus({
         )}
       </CommandPanel>
 
-      <section className="premium-panel-dark min-h-[260px] overflow-hidden rounded-xl text-white" aria-labelledby="recommended-focus-title">
-        <div className="border-b border-white/10 px-5 py-5 sm:px-6">
+      <section className="premium-panel-dark overflow-hidden rounded-lg text-white" aria-labelledby="recommended-focus-title">
+        <div className="border-b border-white/10 px-4 py-4 sm:px-5">
           <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-cyan-300">Næste analysetrin</p>
           <div className="mt-1.5 flex items-center justify-between gap-4">
             <h2 id="recommended-focus-title" className="text-lg font-semibold">Anbefalet fokus</h2>
@@ -783,7 +777,7 @@ function AttentionAndFocus({
           </div>
         </div>
         {recommendations.length ? (
-          <ol className="divide-y divide-white/[0.08] px-5 sm:px-6">
+          <ol className="divide-y divide-white/[0.08] px-4 sm:px-5">
             {recommendations.slice(0, 3).map((recommendation, index) => (
               <li key={recommendation.id} className="grid grid-cols-[26px_minmax(0,1fr)] gap-3 py-4 first:pt-5 last:pb-5">
                 <span className="grid h-[26px] w-[26px] place-items-center rounded-md bg-cyan-300/10 text-[11px] font-semibold text-cyan-300">
@@ -982,7 +976,7 @@ function StrategicReportSummary({
   return (
     <section
       aria-labelledby="report-section-strategic-summary"
-      className="bg-[linear-gradient(135deg,rgba(236,254,255,0.58),rgba(255,255,255,0.92))] px-5 py-7 shadow-[inset_3px_0_0_#0891b2] sm:px-7"
+      className="border-l-[3px] border-cyan-700 bg-slate-50/60 px-5 py-6 sm:px-7"
       data-report-tone="strategy"
     >
       <div className="grid gap-4 sm:grid-cols-[34px_minmax(0,1fr)]">
@@ -1077,8 +1071,8 @@ function ReportView({
   }`;
   return (
     <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_260px]">
-      <article className="premium-panel min-h-[560px] overflow-hidden rounded-xl" aria-labelledby="management-report-title" data-testid="management-report">
-        <header className="border-b border-slate-200 bg-slate-50/70 px-5 py-5 sm:px-7">
+      <article className="report-document premium-panel min-h-[560px] overflow-hidden rounded-lg" aria-labelledby="management-report-title" data-testid="management-report">
+        <header className="border-b border-slate-200 bg-white px-5 py-6 sm:px-7 sm:py-7">
           <div className="flex items-start justify-between gap-5">
             <div className="min-w-0">
               <p className={`${commandSectionLabelClass} text-brand-700`}>Ledelsesrapport</p>
@@ -1213,7 +1207,7 @@ export const InsightsReportDashboard = memo(function InsightsReportDashboard({
 
   return (
     <section
-      className="min-w-0 space-y-6 min-[1360px]:col-span-2"
+      className="min-w-0 space-y-4 min-[1360px]:col-span-2"
       data-testid="insights-report-dashboard"
       data-update-phase={phase}
       aria-busy={isUpdating || isSwapping}

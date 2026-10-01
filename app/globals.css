@@ -113,13 +113,6 @@ textarea {
   .overview-workspace,
   .analysis-workspace {
     background-color: var(--app-workspace);
-    background-image:
-      radial-gradient(circle at 82% -9%, rgba(8, 145, 178, 0.115), transparent 34rem),
-      radial-gradient(circle at 4% 58%, rgba(16, 185, 129, 0.035), transparent 27rem),
-      linear-gradient(rgba(15, 63, 82, 0.016) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(15, 63, 82, 0.016) 1px, transparent 1px);
-    background-attachment: fixed;
-    background-size: auto, auto, 42px 42px, 42px 42px;
   }
 
   .app-sidebar,
@@ -149,27 +142,22 @@ textarea {
 
   .premium-panel,
   .analysis-panel {
-    border: 1px solid var(--app-border);
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(251, 253, 254, 0.985));
-    box-shadow: var(--app-shadow);
+    border: 1px solid #dbe5ea;
+    background: #ffffff;
+    box-shadow: 0 2px 10px rgba(13, 35, 55, 0.035);
   }
 
   .premium-panel-primary,
   .analysis-panel-primary {
-    border: 1px solid var(--app-border-strong);
-    background:
-      radial-gradient(circle at 90% 0%, rgba(8, 145, 178, 0.075), transparent 16rem),
-      #ffffff;
-    box-shadow: var(--app-shadow-primary);
+    border: 1px solid #ccdce3;
+    background: #ffffff;
+    box-shadow: 0 4px 16px rgba(13, 35, 55, 0.045);
   }
 
   .premium-panel-secondary {
-    border: 1px solid rgba(206, 221, 228, 0.92);
-    background: rgba(255, 255, 255, 0.94);
-    box-shadow:
-      0 8px 24px rgba(13, 35, 55, 0.052),
-      inset 0 1px 0 rgba(255, 255, 255, 0.94);
+    border: 1px solid #dce6eb;
+    background: #ffffff;
+    box-shadow: 0 1px 5px rgba(13, 35, 55, 0.025);
   }
 
   .premium-panel-dark {
@@ -195,15 +183,15 @@ textarea {
   }
 
   .overview-section-surface {
-    border: 1px solid rgba(207, 222, 229, 0.9);
-    background: rgba(247, 251, 252, 0.78);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    border: 0;
+    background: transparent;
+    box-shadow: none;
   }
 
   .overview-card {
-    border: 1px solid var(--app-border);
+    border: 1px solid #d9e4e9;
     background: var(--app-surface);
-    box-shadow: var(--app-shadow);
+    box-shadow: 0 2px 8px rgba(13, 35, 55, 0.03);
   }
 
   .overview-card-primary {
@@ -215,17 +203,48 @@ textarea {
   }
 
   .overview-card-muted {
-    border: 1px solid var(--app-border);
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(238, 246, 248, 0.92));
-    box-shadow:
-      0 9px 25px rgba(13, 35, 55, 0.058),
-      inset 0 1px 0 rgba(255, 255, 255, 0.94);
+    border: 1px solid #dce6eb;
+    background: #ffffff;
+    box-shadow: none;
   }
 
   .analysis-table-numbers,
   .tabular-nums,
   .smooth-metric-value {
     font-variant-numeric: tabular-nums;
+  }
+
+  .analysis-data-table thead {
+    background: #f7fafb;
+    color: #576c7b;
+  }
+
+  .analysis-data-table tbody tr:hover {
+    background: #f1f8fa;
+  }
+
+  .analysis-data-table tbody td {
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
+  }
+
+  .analysis-data-table :is(th, td):not(:first-child) {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .report-document [data-report-tone] h3 {
+    letter-spacing: -0.015em;
+  }
+
+  .report-document [data-report-tone] p {
+    max-width: 74ch;
+  }
+
+  @media (min-width: 640px) {
+    .analysis-data-table thead button {
+      min-height: 2.25rem;
+    }
   }
 
   .smooth-metric-value-in {
@@ -324,22 +343,17 @@ textarea {
       animation: premium-popover-in 180ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
     }
 
-    .overview-interactive-card,
     .premium-panel,
     .premium-panel-primary,
     .premium-panel-secondary {
       transition:
-        transform 180ms ease,
         border-color 180ms ease,
         box-shadow 180ms ease;
     }
 
     .overview-interactive-card:hover {
-      transform: translateY(-2px);
-      border-color: var(--app-border-strong);
-      box-shadow:
-        0 18px 42px rgba(13, 35, 55, 0.095),
-        inset 0 1px 0 rgba(255, 255, 255, 0.94);
+      border-color: #b9d7e0;
+      box-shadow: 0 3px 12px rgba(13, 35, 55, 0.05);
     }
   }
 

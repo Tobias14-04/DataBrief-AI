@@ -144,29 +144,29 @@ function CategoryKpiCard({
   }[tone];
 
   return (
-    <article className="premium-panel-secondary relative min-w-0 overflow-hidden rounded-xl px-4 py-3.5">
+    <article className="premium-panel-secondary relative flex min-h-[108px] min-w-0 flex-col overflow-hidden rounded-lg px-3.5 py-3">
       <span className={`absolute inset-x-0 top-0 h-0.5 ${styles.accent}`} aria-hidden="true" />
-      <div className="flex min-w-0 items-start gap-3">
-        <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg border ${styles.icon}`}>
+      <div className="flex min-w-0 items-start gap-2.5">
+        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-md border ${styles.icon}`}>
           <Icon className="h-4 w-4" aria-hidden="true" />
         </span>
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-slate-500">
+          <p className="text-[11px] font-medium leading-4 text-slate-500">
             {label}
           </p>
           <p
-            className="mt-1 truncate text-[clamp(1.1rem,1.3vw,1.4rem)] font-semibold leading-7 text-[#0b1c2d]"
+            className="mt-1 truncate text-[clamp(1.1rem,1.3vw,1.4rem)] font-semibold leading-6 text-[#0b1c2d]"
             title={value}
           >
             {value}
           </p>
         </div>
       </div>
-      <p className={`mt-2.5 border-t border-slate-100 pt-2.5 text-xs font-medium leading-4 ${styles.detail}`} title={detail}>
+      <p className="mt-auto pt-2 text-[11px] leading-4 text-slate-500" title={detail}>
         {detail}
       </p>
       {note ? (
-        <p className="mt-1 text-[11px] leading-4 text-slate-500" title={note}>
+        <p className="mt-1 text-[10px] leading-4 text-slate-500" title={note}>
           {note}
         </p>
       ) : null}
@@ -628,7 +628,7 @@ export function CategoryAnalysisDashboard({
         </div>
 
         <div className="max-h-[420px] w-full min-w-0 max-w-full overflow-auto overscroll-contain [contain:inline-size_paint]">
-          <table className="w-full min-w-[980px] border-collapse">
+          <table className="analysis-data-table w-full min-w-[980px] border-collapse">
             <thead className="sticky top-0 z-10 bg-[#f3f7f9] text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 shadow-[0_1px_0_#dbe5ea]">
               <tr>
                 {visibleColumns.map((key) => {

@@ -222,25 +222,24 @@ function CostKpiCard({
 }) {
   const styles = kpiToneClasses[tone];
   return (
-    <article className="premium-panel-secondary relative min-h-[168px] min-w-0 overflow-hidden rounded-xl p-4">
-      <span className={`absolute inset-x-0 top-0 h-20 bg-gradient-to-b ${styles.glow} to-transparent`} aria-hidden="true" />
+    <article className="premium-panel-secondary relative flex min-h-[124px] min-w-0 flex-col overflow-hidden rounded-lg p-3.5">
       <span className={`absolute inset-x-0 top-0 h-0.5 ${styles.accent}`} aria-hidden="true" />
-      <div className="relative flex items-start gap-3">
-        <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg border ${styles.icon}`}>
-          <Icon className="h-[17px] w-[17px]" aria-hidden="true" />
+      <div className="relative flex items-start gap-2.5">
+        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-md border ${styles.icon}`}>
+          <Icon className="h-4 w-4" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-500">{label}</p>
-          <p className={`mt-2 break-words text-[clamp(1.35rem,1.6vw,1.85rem)] font-semibold leading-tight tabular-nums ${styles.value}`} title={value}>
+          <p className="text-xs font-medium leading-4 text-slate-500">{label}</p>
+          <p className={`mt-1.5 break-words text-[clamp(1.3rem,1.5vw,1.75rem)] font-semibold leading-tight tabular-nums ${styles.value}`} title={value}>
             {value}
           </p>
         </div>
       </div>
-      <p className={`relative mt-4 border-t border-slate-100 pt-3 text-xs font-medium leading-5 ${styles.helper}`}>
+      <p className="relative mt-auto line-clamp-2 pt-2 text-[11px] leading-4 text-slate-500" title={detail}>
         {detail}
       </p>
       {note ? (
-        <p className="relative mt-1 whitespace-pre-line text-[11px] leading-[1.1rem] text-slate-600">
+        <p className="relative mt-1 line-clamp-2 whitespace-pre-line text-[10px] leading-4 text-slate-600" title={note}>
           {note}
         </p>
       ) : null}
@@ -1003,7 +1002,7 @@ function LowProfitabilityPanel({ analysis }: { analysis: CostIntelligence }) {
       )}
     >
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[560px] text-left">
+        <table className="analysis-data-table w-full min-w-[560px] text-left">
           <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.09em] text-slate-500">
             <tr>
               <th className="px-5 py-3">Navn</th>
@@ -1260,7 +1259,7 @@ function CostDetailTable({ analysis }: { analysis: CostIntelligence }) {
       </div>
       <div className="overflow-x-auto overscroll-x-contain">
         <table
-          className="w-full text-left"
+          className="analysis-data-table w-full text-left"
           style={{ minWidth: visibleColumns.length > 5 ? `${Math.max(760, visibleColumns.length * 150)}px` : "640px" }}
         >
           <thead className="bg-[#f4f8fa] text-[11px] uppercase tracking-[0.08em] shadow-[0_1px_0_#cedde4]">
@@ -1343,8 +1342,10 @@ export const CostIntelligenceDashboard = memo(function CostIntelligenceDashboard
   return (
     <div className="space-y-4">
       <CostKpiGrid analysis={analysis} />
-      <CostBudgetPanel analysis={analysis} />
-      <CostDistributionPanel analysis={analysis} />
+      <div className="grid items-start gap-4 xl:grid-cols-2">
+        <CostBudgetPanel analysis={analysis} />
+        <CostDistributionPanel analysis={analysis} />
+      </div>
       <CostEfficiencyPanel analysis={analysis} />
       <CostDetailTable analysis={analysis} />
       <details className="group rounded-xl border border-slate-200 bg-white">

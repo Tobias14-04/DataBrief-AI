@@ -261,8 +261,8 @@ function SnapshotColumn({
   emptyMessage: string;
 }) {
   return (
-    <section className="min-w-0 rounded-lg border border-slate-200 bg-white px-4 py-3.5">
-      <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">{title}</h3>
+    <section className="min-w-0 border-l-2 border-cyan-200 px-3 py-1">
+      <h3 className="text-[11px] font-semibold text-slate-500">{title}</h3>
       {findings.length ? (
         <ul className="mt-2.5 space-y-2.5">
           {findings.map((finding) => (
@@ -316,7 +316,7 @@ const StrategicSnapshot = memo(function StrategicSnapshot({
       tone="neutral"
       testId="strategy-snapshot"
     >
-      <div className={`grid min-w-0 items-start gap-3 bg-[#f7fafb] p-4 ${snapshotCount > 1 ? "sm:grid-cols-2" : ""} ${snapshotCount === 4 ? "xl:grid-cols-4" : snapshotCount === 3 ? "xl:grid-cols-3" : snapshotCount === 2 ? "xl:grid-cols-2" : ""}`}>
+      <div className={`grid min-w-0 items-start gap-3 p-4 ${snapshotCount > 1 ? "sm:grid-cols-2" : ""} ${snapshotCount === 4 ? "xl:grid-cols-4" : snapshotCount === 3 ? "xl:grid-cols-3" : snapshotCount === 2 ? "xl:grid-cols-2" : ""}`}>
         {strategy.findingsByQuadrant.strength.length ? <SnapshotColumn
           title="Styrker"
           findings={strategy.findingsByQuadrant.strength.slice(0, 2)}
@@ -332,8 +332,8 @@ const StrategicSnapshot = memo(function StrategicSnapshot({
           findings={opportunityAndRisk}
           emptyMessage="Ingen robuste muligheder eller risici i den aktuelle visning."
         /> : null}
-        {focusAreas.length ? <section className="min-w-0 rounded-lg border border-slate-200 bg-white px-4 py-3.5">
-          <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+        {focusAreas.length ? <section className="min-w-0 border-l-2 border-cyan-300 px-3 py-1">
+          <h3 className="text-[11px] font-semibold text-slate-500">
             Anbefalet fokus
           </h3>
           <ol className="mt-2.5 space-y-2.5">
@@ -546,8 +546,8 @@ const SwotQuadrant = memo(function SwotQuadrant({
       className="premium-panel-secondary relative min-w-0 self-start overflow-hidden rounded-xl"
     >
       <span className={`absolute inset-x-0 top-0 h-0.5 ${definition.bar}`} aria-hidden="true" />
-      <header className="flex min-h-[84px] items-center gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
-        <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg border ${definition.icon}`}>
+      <header className="flex min-h-[64px] items-center gap-2.5 border-b border-slate-100 px-4 py-3 sm:px-5">
+        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-md border ${definition.icon}`}>
           <Icon className="h-4 w-4" aria-hidden="true" />
         </span>
         <div className="min-w-0">
@@ -618,7 +618,7 @@ const TowsGroup = memo(function TowsGroup({
       className="premium-panel-secondary relative min-w-0 self-start overflow-hidden rounded-xl"
     >
       <span className={`absolute inset-x-0 top-0 h-0.5 ${definition.bar}`} aria-hidden="true" />
-      <header className="border-b border-slate-100 px-4 py-3 sm:px-5">
+      <header className="border-b border-slate-100 px-4 py-2.5 sm:px-5">
         <div className="flex items-start gap-3">
           <span className={`grid h-9 min-w-9 shrink-0 place-items-center rounded-lg border px-2 text-[11px] font-bold uppercase tracking-[0.08em] ${definition.icon}`}>
             {definition.type}

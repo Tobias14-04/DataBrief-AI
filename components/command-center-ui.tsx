@@ -62,7 +62,7 @@ export const commandCardClass =
   "premium-panel-secondary overflow-hidden rounded-xl";
 
 export const commandSectionLabelClass =
-  "text-[11px] font-semibold uppercase tracking-[0.13em]";
+  "text-[10px] font-semibold uppercase tracking-[0.1em]";
 
 export function CommandPageIntro({
   eyebrow,
@@ -80,13 +80,13 @@ export function CommandPageIntro({
   const styles = toneStyles[tone];
 
   return (
-    <div className="flex flex-col gap-4 px-0.5 sm:flex-row sm:items-end sm:justify-between">
+    <div className="flex flex-col gap-3 px-0.5 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
         <p className={`${commandSectionLabelClass} ${styles.helper}`}>{eyebrow}</p>
-        <h2 className="mt-1.5 text-[clamp(1.75rem,2.4vw,2.125rem)] font-semibold leading-tight tracking-[-0.02em] text-[#0b1c2d]">
+        <h2 className="mt-1 text-[clamp(1.6rem,2.2vw,1.9rem)] font-semibold leading-tight tracking-[-0.02em] text-[#0b1c2d]">
           {title}
         </h2>
-        <p className="mt-2 max-w-3xl text-[15px] leading-6 text-slate-600">{description}</p>
+        <p className="mt-1 max-w-3xl text-sm leading-5 text-slate-600">{description}</p>
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>
@@ -117,43 +117,35 @@ export const CompactKpiCard = memo(function CompactKpiCard({
     return (
       <article
         className={`overview-card overview-interactive-card relative min-w-0 overflow-hidden rounded-xl ${
-          isBalancedOverview ? "min-h-[122px] p-3.5" : "min-h-[176px] p-5"
+          isBalancedOverview ? "min-h-[112px] p-3" : "min-h-[132px] p-4"
         }`}
       >
-        <span className={`absolute inset-x-0 top-0 h-24 bg-gradient-to-b ${styles.tint} to-transparent`} aria-hidden="true" />
-        <span className={`absolute inset-x-0 top-0 h-1 ${styles.accent}`} aria-hidden="true" />
+        <span className={`absolute inset-x-0 top-0 h-0.5 ${styles.accent}`} aria-hidden="true" />
         <div className={`relative flex items-start ${isBalancedOverview ? "gap-3.5" : "gap-4"}`}>
           <span
             className={`grid shrink-0 place-items-center rounded-lg border ${styles.overviewIcon} ${
-              isBalancedOverview ? "h-9 w-9" : "h-12 w-12"
+              isBalancedOverview ? "h-8 w-8" : "h-9 w-9"
             }`}
           >
-            <Icon className={isBalancedOverview ? "h-[18px] w-[18px]" : "h-5 w-5"} aria-hidden="true" />
+            <Icon className="h-4 w-4" aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1 pt-0.5">
-            <p
-              className={isBalancedOverview
-                ? "text-[13px] font-semibold leading-5 text-slate-600"
-                : "text-sm font-semibold leading-5 text-slate-600"}
-              title={label}
-            >
+            <p className="text-xs font-medium leading-4 text-slate-500" title={label}>
               {label}
             </p>
             <SmoothMetricValue
               value={value}
               className={`whitespace-nowrap font-semibold leading-none text-[#0b1c2d] ${
                 isBalancedOverview
-                  ? "mt-1.5 text-[clamp(1.55rem,1.65vw,2rem)]"
-                  : "mt-2 text-[clamp(1.7rem,1.8vw,2.15rem)]"
+                  ? "mt-1.5 text-[clamp(1.45rem,1.55vw,1.85rem)]"
+                  : "mt-1.5 text-[clamp(1.5rem,1.7vw,1.95rem)]"
               }`}
               title={value}
             />
           </div>
         </div>
         <p
-          className={`relative border-t border-slate-200/80 pt-3 font-medium leading-5 ${styles.helper} ${
-            isBalancedOverview ? "mt-2.5 text-[11px]" : "mt-5 text-[13px]"
-          }`}
+          className="relative mt-2 truncate border-t border-slate-100 pt-2 text-[11px] font-normal leading-4 text-slate-500"
           title={detail}
         >
           {detail}
@@ -163,14 +155,14 @@ export const CompactKpiCard = memo(function CompactKpiCard({
   }
 
   return (
-    <article className={`relative min-h-[152px] min-w-0 ${commandCardClass} p-4`}>
+    <article className={`relative min-h-[124px] min-w-0 ${commandCardClass} p-3.5`}>
       <span className={`absolute inset-x-0 top-0 h-0.5 ${styles.accent}`} aria-hidden="true" />
-      <div className="flex items-start gap-3.5">
-        <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg border ${styles.icon}`}>
+      <div className="flex items-start gap-2.5">
+        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border ${styles.icon}`}>
           <Icon className="h-4 w-4" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold leading-5 text-slate-600" title={label}>{label}</p>
+          <p className="text-xs font-medium leading-4 text-slate-500" title={label}>{label}</p>
           <SmoothMetricValue
             value={value}
             className="mt-1.5 whitespace-nowrap text-[clamp(1.45rem,1.7vw,1.85rem)] font-semibold leading-none text-[#0b1c2d]"
@@ -178,7 +170,7 @@ export const CompactKpiCard = memo(function CompactKpiCard({
           />
         </div>
       </div>
-      <p className={`mt-4 border-t border-slate-100 pt-3 text-xs font-medium leading-5 ${styles.helper}`} title={detail}>{detail}</p>
+      <p className="mt-2 truncate border-t border-slate-100 pt-2 text-[11px] leading-4 text-slate-500" title={detail}>{detail}</p>
     </article>
   );
 });
@@ -251,19 +243,19 @@ export function CommandPanel({
   const styles = toneStyles[tone];
   return (
     <section className={`premium-panel min-w-0 overflow-hidden rounded-xl ${className}`} data-testid={testId} data-variant={variant}>
-      <header className={`flex min-h-[82px] justify-between gap-4 border-b border-[#e5ecef] px-5 py-4 sm:px-6 ${
+      <header className={`flex min-h-[64px] justify-between gap-3 border-b border-[#e5ecef] px-4 py-3 sm:px-5 ${
         stackActionOnMobile ? "flex-col items-stretch sm:flex-row sm:items-center" : "items-center"
       }`}>
         <div className="min-w-0">
           {eyebrow ? <p className={`${commandSectionLabelClass} ${styles.helper}`}>{eyebrow}</p> : null}
-          <h2 className={`${eyebrow ? "mt-1.5" : ""} text-lg font-semibold leading-6 text-[#0b1c2d]`} title={title}>{title}</h2>
+          <h2 className={`${eyebrow ? "mt-1" : ""} text-base font-semibold leading-6 text-[#0b1c2d]`} title={title}>{title}</h2>
           {description ? <p className="mt-1 text-[13px] leading-5 text-slate-500" title={description}>{description}</p> : null}
         </div>
         <div className={`flex items-center gap-2 ${stackActionOnMobile ? "w-full justify-between sm:w-auto sm:shrink-0" : "shrink-0"}`}>
           {action}
           {Icon ? (
-            <span className={`grid h-11 w-11 place-items-center rounded-lg border shadow-sm ${styles.icon}`}>
-              <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+            <span className={`grid h-8 w-8 place-items-center rounded-lg border ${styles.icon}`}>
+              <Icon className="h-4 w-4" aria-hidden="true" />
             </span>
           ) : null}
         </div>
@@ -331,7 +323,7 @@ export function CommandEmptyState({
   const styles = toneStyles[tone];
 
   return (
-    <div className="grid min-h-[190px] place-items-center px-5 py-8 text-center">
+    <div className="grid min-h-[124px] place-items-center px-5 py-5 text-center">
       <div className="max-w-sm">
         <span className={`mx-auto grid h-9 w-9 place-items-center rounded-md border ${styles.icon}`}>
           <Info className="h-4 w-4" aria-hidden="true" />

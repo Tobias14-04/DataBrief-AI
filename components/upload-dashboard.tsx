@@ -3428,14 +3428,14 @@ export default function UploadDashboard() {
           ) : null}
 
           {!shouldShowManualMapping ? (
-          <div className="grid min-w-0 gap-6 min-[1360px]:grid-cols-[minmax(0,1fr)_380px]">
+          <div className={`grid min-w-0 gap-4 ${activeView === "overview" ? "min-[1200px]:grid-cols-[minmax(0,1fr)_280px]" : "min-[1360px]:grid-cols-[minmax(0,1fr)_380px]"}`}>
           {error ? (
-            <div className="min-w-0 min-[1360px]:col-span-2">
+            <div className={`min-w-0 ${activeView === "overview" ? "min-[1200px]:col-span-2" : "min-[1360px]:col-span-2"}`}>
               <WorkbookErrorNotice message={error} onDownloadSample={downloadSampleExcel} />
             </div>
           ) : null}
           {analysisReadyNotice && activeView === "overview" ? (
-            <div className="min-w-0 min-[1360px]:col-span-2">
+            <div className="min-w-0 min-[1200px]:col-span-2">
               <AnalysisReadyBanner
                 notice={analysisReadyNotice}
                 onEditMapping={() => {
@@ -3448,7 +3448,7 @@ export default function UploadDashboard() {
           ) : null}
           {mainDashboardView(activeView) === "analysis" ? (
             <nav className="min-w-0 min-[1360px]:col-span-2" aria-label="Analyseområder">
-              <div className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1.5">
+              <div className="grid grid-cols-3 gap-x-1 border-b border-slate-300 sm:flex sm:flex-wrap sm:gap-x-3">
                 {([
                   { id: "analysis", label: "Udvikling", available: true },
                   { id: "products", label: "Produkter", available: true },
@@ -3461,14 +3461,14 @@ export default function UploadDashboard() {
                     type="button"
                     aria-current={activeView === item.id ? "page" : undefined}
                     onClick={() => changeActiveView(item.id)}
-                    className={`whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-semibold transition ${activeView === item.id ? "bg-[#0b263a] text-white" : "text-slate-600 hover:bg-slate-50 hover:text-ink"}`}
+                    className={`min-h-10 whitespace-nowrap border-b-2 px-2 py-2 text-[13px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 sm:px-3 ${activeView === item.id ? "border-cyan-700 text-[#0b263a]" : "border-transparent text-slate-600 hover:border-slate-300 hover:text-ink"}`}
                   >{item.label}</button>
                 ))}
               </div>
             </nav>
           ) : null}
           {activeView !== "dataset" ? (
-            <div className="min-w-0 min-[1360px]:col-span-2">
+            <div className={`min-w-0 ${activeView === "overview" ? "min-[1200px]:col-span-2" : "min-[1360px]:col-span-2"}`}>
               <DashboardControlBar
                 filters={filters}
                 options={filterOptions}
@@ -3484,7 +3484,7 @@ export default function UploadDashboard() {
 
           {activeView === "overview" ? (
           <>
-          <section className="overview-section-surface order-1 min-w-0 space-y-4 rounded-2xl p-4 sm:px-6 sm:py-4 min-[1360px]:col-span-2" data-testid="kpi-section">
+          <section className="overview-section-surface order-1 min-w-0 space-y-3 min-[1200px]:col-span-2" data-testid="kpi-section">
             <OverviewSectionHeader
               eyebrow="Resultatoverblik"
               title="Centrale nøgletal"
@@ -3517,7 +3517,7 @@ export default function UploadDashboard() {
                 {kpiSaveMessage}
               </div>
             ) : null}
-            <div className={`grid gap-4 sm:grid-cols-2 ${primaryKpiGridClass}`}>
+            <div className={`grid gap-3 sm:grid-cols-2 ${primaryKpiGridClass}`}>
               {primaryKpis.map((definition) => {
                 const evaluation = kpiEvaluations[definition.id];
                 return (
@@ -3577,7 +3577,7 @@ export default function UploadDashboard() {
             ) : null}
           </section>
 
-          <section className="order-2 min-w-0 space-y-4 min-[1360px]:col-start-1 min-[1360px]:row-start-4" data-testid="analysis-section">
+          <section className="order-2 min-w-0 space-y-3 min-[1200px]:col-start-1" data-testid="analysis-section">
             <OverviewSectionHeader
               eyebrow="Ledelsesanalyse"
               title="Udvikling"
@@ -3596,24 +3596,9 @@ export default function UploadDashboard() {
               onMetricChange={setTrendMetric}
             />
 
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-4 sm:px-5" data-testid="overview-next-step">
-              <p className={`${commandSectionLabelClass} text-cyan-800`}>Vigtigste observationer</p>
-              <ul className="mt-2 space-y-1.5 text-sm leading-5 text-slate-700">
-                {executiveSummary.insights.slice(0, 2).map((insight) => (
-                  <li key={insight} className="border-l-2 border-cyan-300 pl-3">{insight}</li>
-                ))}
-              </ul>
-              <button
-                type="button"
-                onClick={() => changeActiveView(showCosts ? "costs" : "insights")}
-                className="mt-3 inline-flex min-h-9 items-center rounded-lg bg-[#0b263a] px-3.5 text-xs font-semibold text-white hover:bg-[#153d58]"
-              >
-                {showCosts ? "Se økonomi" : "Undersøg indsigter"}
-              </button>
-            </div>
           </section>
 
-          <aside className="order-3 min-w-0 self-start rounded-xl bg-[#0b263a] p-5 text-white min-[1360px]:col-start-2 min-[1360px]:row-start-4" data-testid="insights-rail">
+          <aside className="order-3 min-w-0 self-start rounded-lg bg-[#0b263a] p-4 text-white min-[1200px]:col-start-2" data-testid="insights-rail">
             <p className={`${commandSectionLabelClass} text-cyan-200`}>Ledelsesresume</p>
             <p className="mt-3 text-sm font-semibold leading-6">{executiveSummary.conclusion}</p>
             <p className="mt-2 text-xs leading-5 text-slate-300">{executiveSummary.status}</p>
@@ -3624,10 +3609,30 @@ export default function UploadDashboard() {
             >Åbn Ledelse</button>
           </aside>
 
+          <section className="order-4 min-w-0 border-t border-slate-200 pt-3 min-[1200px]:col-span-2" data-testid="overview-next-step">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+              <div className="min-w-0">
+                <p className={`${commandSectionLabelClass} text-cyan-800`}>Vigtigste observationer</p>
+                <ul className="mt-2 grid gap-x-6 gap-y-1.5 text-sm leading-5 text-slate-700 sm:grid-cols-2">
+                  {executiveSummary.insights.slice(0, 2).map((insight) => (
+                    <li key={insight} className="border-l-2 border-cyan-300 pl-3">{insight}</li>
+                  ))}
+                </ul>
+              </div>
+              <button
+                type="button"
+                onClick={() => changeActiveView(showCosts ? "costs" : "insights")}
+                className="inline-flex min-h-9 shrink-0 items-center rounded-lg bg-[#0b263a] px-3.5 text-xs font-semibold text-white hover:bg-[#153d58]"
+              >
+                {showCosts ? "Se økonomi" : "Undersøg indsigter"}
+              </button>
+            </div>
+          </section>
+
           </>
           ) : null}
           {activeView === "analysis" ? (
-            <section className="min-w-0 space-y-6 min-[1360px]:col-span-2" data-testid="analysis-view">
+            <section className="min-w-0 space-y-4 min-[1360px]:col-span-2" data-testid="analysis-view">
               <CommandPageIntro
                 eyebrow="Tidsserieanalyse"
                 title="Udvikling på tværs af perioder"
@@ -3727,7 +3732,7 @@ export default function UploadDashboard() {
                 variant="analysis"
               >
                 <div className="overflow-x-auto">
-                  <table className="analysis-table-numbers w-full min-w-[720px] border-separate border-spacing-0 text-left">
+                  <table className="analysis-data-table analysis-table-numbers w-full min-w-[720px] border-separate border-spacing-0 text-left">
                     <thead className="bg-[#f3f8fa] text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600">
                       <tr>
                         <th scope="col" className="border-b border-[#d8e5ea] px-5 py-4 sm:px-6">Måned</th>
