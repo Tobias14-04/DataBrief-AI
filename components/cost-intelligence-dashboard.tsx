@@ -2,7 +2,6 @@
 
 import {
   ArrowDown,
-  ArrowDownRight,
   ArrowUp,
   ArrowUpRight,
   Calculator,
@@ -251,10 +250,6 @@ function CostKpiCard({
 
 function CostKpiGrid({ analysis }: { analysis: CostIntelligence }) {
   const largestDriver = analysis.distribution.find((item) => item.name !== "Ufordelte omkostninger");
-  const costChange = analysis.comparison?.costChange ?? null;
-  const comparison = analysis.comparison
-    ? buildCostComparisonPresentation(analysis.comparison)
-    : null;
   const cards = [
     {
       label: analysis.variableOnly ? "Variable omkostninger" : "Samlede omkostninger",
@@ -279,23 +274,6 @@ function CostKpiGrid({ analysis }: { analysis: CostIntelligence }) {
       icon: TrendingUp,
       tone: analysis.actualResult !== null && analysis.actualResult >= 0 ? "positive" as const : "warning" as const,
     },
-    analysis.comparison
-      ? {
-          label: "Ændring",
-          value: comparison?.costChangeLabel ?? "Ikke beregnelig",
-          detail: comparison?.periodLabel ?? "",
-          note: `Omsætning: ${comparison?.revenueChangeLabel ?? "Ikke retvisende"}\n${comparison?.differenceText ?? ""}`,
-          icon: costChange !== null && costChange <= 0 ? ArrowDownRight : ArrowUpRight,
-          tone: costChange !== null && costChange <= 0 ? "positive" as const : "warning" as const,
-        }
-      : analysis.periodComparison.reason ? {
-          label: "Ændring",
-          value: "Utilgængelig",
-          detail: analysis.periodComparison.label ?? "Ingen sammenlignelig periode",
-          note: analysis.periodComparison.reason,
-          icon: TrendingUp,
-          tone: "neutral" as const,
-        } : null,
     largestDriver
       ? {
           label: "Største driver",
@@ -305,10 +283,10 @@ function CostKpiGrid({ analysis }: { analysis: CostIntelligence }) {
           tone: "brand" as const,
         }
       : null,
-  ].filter((card): card is NonNullable<typeof card> => card !== null).slice(0, 5);
+  ].filter((card): card is NonNullable<typeof card> => card !== null);
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" data-testid="cost-kpi-grid">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" data-testid="cost-kpi-grid">
       {cards.map((card) => <CostKpiCard key={card.label} {...card} />)}
     </div>
   );
@@ -509,18 +487,10 @@ function CostTrendChart({ analysis }: { analysis: CostIntelligence }) {
 function CostBudgetPanel({ analysis }: { analysis: CostIntelligence }) {
   if (!analysis.budget) {
     return (
-      <CommandPanel
-        title="Budgetanalyse"
-        description="Aktiveres med et registreret omkostningsbudget"
-        icon={Target}
-        tone="neutral"
-      >
-        <CommandEmptyState
-          title="Omkostningsbudget mangler"
-          message="Upload et budget med en omkostningskolonne for at se afvigelse og budgetstatus. Et omsætningsbudget bruges ikke som omkostningsbudget."
-          tone="neutral"
-        />
-      </CommandPanel>
+      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs leading-5 text-slate-600" role="status">
+        <span className="font-semibold text-ink">Budgetstatus utilgængelig.</span>{" "}
+        Et dokumenteret omkostningsbudget mangler; et omsætningsbudget bruges ikke som erstatning.
+      </div>
     );
   }
 
@@ -738,13 +708,10 @@ function CostDistributionPanel({ analysis }: { analysis: CostIntelligence }) {
 
   if (!items.length) {
     return (
-      <CommandPanel title="Omkostningsfordeling" icon={WalletCards} tone="neutral" testId="cost-distribution-panel">
-        <CommandEmptyState
-          title="Fordeling utilgængelig"
-          message={analysis.costBasis.reason ?? "Det dokumenterede omkostningsgrundlag kan ikke fordeles sikkert på kategorier."}
-          tone="neutral"
-        />
-      </CommandPanel>
+      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs leading-5 text-slate-600" data-testid="cost-distribution-panel" role="status">
+        <span className="font-semibold text-ink">Fordeling utilgængelig.</span>{" "}
+        {analysis.costBasis.reason ?? "Omkostningerne kan ikke fordeles sikkert på kategorier i dette scope."}
+      </div>
     );
   }
 
@@ -959,6 +926,15 @@ function CostEfficiencyPanel({ analysis }: { analysis: CostIntelligence }) {
         }
       : null,
   ].filter((item): item is NonNullable<typeof item> => item !== null);
+
+  if (!items.length) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs leading-5 text-slate-600" data-testid="cost-efficiency-panel" role="status">
+        <span className="font-semibold text-ink">Effektivitet utilgængelig.</span>{" "}
+        Dokumenterede omkostninger, omsætning og/eller enheder mangler i dette scope.
+      </div>
+    );
+  }
 
   return (
     <CommandPanel
@@ -1206,6 +1182,15 @@ function CostDetailTable({ analysis }: { analysis: CostIntelligence }) {
     ));
   }
 
+  if (!analysis.detailRows.length) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs leading-5 text-slate-600" data-testid="cost-detail-table" role="status">
+        <span className="font-semibold text-ink">Ingen fordelbare omkostningsdetaljer.</span>{" "}
+        {analysis.costBasis.reason ?? "Det valgte scope har ingen dokumenteret kategoriopdeling."}
+      </div>
+    );
+  }
+
   return (
     <CommandPanel
       title="Detaljeret omkostningstabel"
@@ -1339,46 +1324,43 @@ export const CostIntelligenceDashboard = memo(function CostIntelligenceDashboard
 }) {
   if (!analysis.rowCount) {
     return (
-      <CommandPanel title="Omkostningsdata" icon={WalletCards} tone="warning">
-        <CommandEmptyState
-          title={analysis.costBasis.source === "unknown" ? "Omkostningsdata mangler" : "Ingen salgsrækker i det valgte scope"}
-          message={analysis.costBasis.reason ?? "Tilpas filtrene for at vise registrerede omkostninger i dette scope."}
-          tone="warning"
-        />
-      </CommandPanel>
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
+        <span className="font-semibold">{analysis.costBasis.source === "unknown" ? "Omkostningsdata mangler." : "Ingen salgsrækker i det valgte scope."}</span>{" "}
+        {analysis.costBasis.reason ?? "Tilpas filtrene for at se registrerede omkostninger."}
+      </div>
+    );
+  }
+
+  if (analysis.costBasis.status === "unavailable" && analysis.reportedCosts === null) {
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900" role="status" data-testid="cost-scope-unavailable">
+        <span className="font-semibold">Økonomi utilgængelig i dette scope.</span>{" "}
+        {analysis.costBasis.reason ?? `${describeCostBasis(analysis.costBasis)} kan ikke fordeles sikkert på det valgte scope.`}
+      </div>
     );
   }
 
   return (
-    <div className="space-y-5 sm:space-y-6">
+    <div className="space-y-4">
       <CostKpiGrid analysis={analysis} />
-
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.75fr)]">
-        <div className="min-w-0 space-y-5">
-          {analysis.hasCostTimeline ? (
-            <CostTrendChart analysis={analysis} />
-          ) : (
-            <CommandPanel title="Omkostningsudvikling" icon={TrendingUp} tone="warning">
-              <CommandEmptyState
-                title="Omkostningsgraf utilgængelig"
-                message={analysis.costBasis.reason ?? `${describeCostBasis(analysis.costBasis)}. Omkostningerne kan ikke fordeles sikkert på perioderne.`}
-                tone="warning"
-              />
-            </CommandPanel>
-          )}
-          <CostDistributionPanel analysis={analysis} />
-          <CostChangesPanel analysis={analysis} />
-        </div>
-        <div className="space-y-5">
-          <CostBudgetPanel analysis={analysis} />
-          <CostInsightsPanel analysis={analysis} />
-          <CostEfficiencyPanel analysis={analysis} />
-        </div>
-      </div>
-
-      <RevenueCostPanel analysis={analysis} />
-      <LowProfitabilityPanel analysis={analysis} />
+      <CostBudgetPanel analysis={analysis} />
+      <CostDistributionPanel analysis={analysis} />
+      <CostEfficiencyPanel analysis={analysis} />
       <CostDetailTable analysis={analysis} />
+      <details className="group rounded-xl border border-slate-200 bg-white">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-cyan-800 hover:bg-slate-50">Flere økonomianalyser</summary>
+        <div className="space-y-4 border-t border-slate-100 p-4">
+          {analysis.hasCostTimeline ? <CostTrendChart analysis={analysis} /> : (
+            <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              Periodegraf utilgængelig: {analysis.costBasis.reason ?? `${describeCostBasis(analysis.costBasis)} kan ikke fordeles på perioder.`}
+            </p>
+          )}
+          <CostChangesPanel analysis={analysis} />
+          {analysis.hasCostTimeline ? <RevenueCostPanel analysis={analysis} /> : null}
+          {analysis.profitability.length ? <LowProfitabilityPanel analysis={analysis} /> : null}
+          <CostInsightsPanel analysis={analysis} />
+        </div>
+      </details>
     </div>
   );
 });

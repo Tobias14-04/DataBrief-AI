@@ -148,7 +148,7 @@ function ProductRanking({
   rows: ReadonlyArray<ProductAnalysisRow>;
   metric: ProductMetricKey;
 }) {
-  const rankedRows = rankProductRows(rows, metric, 10);
+  const rankedRows = rankProductRows(rows, metric, 5);
   const largestValue = Math.max(
     ...rankedRows.map((row) => Math.abs(productMetricValue(row, metric) ?? 0)),
     0,
@@ -409,7 +409,7 @@ export function ProductAnalysisDashboard({
         )}
       />
 
-      <div className="grid gap-3 min-[420px]:grid-cols-2 xl:grid-cols-4" aria-label="Produktnøgletal">
+      <div className="grid gap-3 min-[420px]:grid-cols-2 xl:grid-cols-3" aria-label="Produktnøgletal">
         <ProductKpiCard
           label="Bedste produkt"
           value={revenueLeader?.name ?? "Ikke tilgængelig"}
@@ -418,15 +418,6 @@ export function ProductAnalysisDashboard({
             : "Ingen omsætning registreret"}
           icon={PackageCheck}
           tone="cyan"
-        />
-        <ProductKpiCard
-          label="Højeste omsætning"
-          value={revenueLeader?.revenue !== null && revenueLeader
-            ? formatDanishCurrency(revenueLeader.revenue)
-            : "Ikke tilgængelig"}
-          detail={revenueLeader?.name ?? "Intet produkt"}
-          icon={CircleDollarSign}
-          tone="emerald"
         />
         <ProductKpiCard
           label="Flest solgte enheder"
@@ -447,19 +438,6 @@ export function ProductAnalysisDashboard({
           tone={averagePriceLeader ? "cyan" : "slate"}
         />
       </div>
-
-      {insight ? (
-        <aside className="flex items-start gap-3 rounded-xl border border-cyan-200/80 bg-cyan-50/75 px-4 py-3 text-sm leading-6 text-[#123047]" aria-label="Produktindsigt">
-          <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-cyan-200 bg-white text-cyan-700">
-            <Lightbulb className="h-3.5 w-3.5" aria-hidden="true" />
-          </span>
-          <p><span className="font-semibold">Produktindsigt:</span> {insight}</p>
-        </aside>
-      ) : (
-        <aside className="rounded-xl border border-slate-200 bg-white/70 px-4 py-3 text-sm text-slate-600" aria-label="Produktindsigt">
-          Der er ikke tilstrækkelige data til en produktindsigt i den aktuelle visning.
-        </aside>
-      )}
 
       <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(280px,0.78fr)_minmax(0,1.55fr)]">
         <CommandPanel
@@ -601,6 +579,10 @@ export function ProductAnalysisDashboard({
           </div>
         </CommandPanel>
       </div>
+      <aside className="flex items-start gap-3 rounded-xl border border-cyan-200/80 bg-cyan-50/75 px-4 py-3 text-sm leading-5 text-[#123047]" aria-label="Produktindsigt">
+        <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-cyan-700" aria-hidden="true" />
+        <p><span className="font-semibold">Produktindsigt:</span> {insight ?? "Der er ikke tilstrækkelige data til en produktindsigt i den aktuelle visning."}</p>
+      </aside>
     </section>
   );
 }

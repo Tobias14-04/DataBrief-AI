@@ -85,7 +85,7 @@ const FilterMenu = memo(function FilterMenu({
       : `${values.length} valgt`;
 
   return (
-    <div className="relative min-w-0 w-full sm:w-auto">
+    <div className={`relative min-w-0 w-full sm:w-auto ${field === "month" ? "col-span-2" : ""}`}>
       <button
         ref={triggerRef}
         type="button"
@@ -348,7 +348,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
       aria-label="Dashboardfiltre"
       aria-busy={isUpdating}
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
         <div className="mr-1 hidden h-11 items-center gap-3 border-r border-slate-200 pr-4 sm:flex">
           <span className="grid h-10 w-10 place-items-center rounded-lg border border-cyan-100 bg-cyan-50 text-cyan-700">
             <Filter className="h-4 w-4" aria-hidden="true" />
@@ -380,7 +380,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
         ))}
 
         {moreFields.length ? (
-          <div className="relative">
+          <div className="relative min-w-0">
             <button
               ref={moreTriggerRef}
               type="button"
@@ -389,7 +389,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
                 setMoreOpen((current) => !current);
               }}
               aria-expanded={moreOpen}
-              className={`inline-flex h-11 items-center gap-2 rounded-lg border px-3 text-[13px] font-semibold transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 ${
+              className={`inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border px-3 text-[13px] font-semibold transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 sm:w-auto ${
                 moreFields.some((field) => draftFilters[field].length)
                   ? "border-cyan-300 bg-cyan-50 text-cyan-900"
                   : "border-[#d8e3e8] bg-white text-slate-600 hover:border-cyan-300"
@@ -440,7 +440,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
         ) : null}
 
         <div className="ml-auto flex min-h-11 items-center gap-2">
-          <span className="hidden min-h-5 w-[142px] items-center justify-end sm:inline-flex">
+          <span className="hidden min-h-5 items-center justify-end sm:inline-flex min-[1360px]:w-[142px]">
             {showUpdateStatus ? (
               <span
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700"

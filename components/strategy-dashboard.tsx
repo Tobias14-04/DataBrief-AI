@@ -294,6 +294,18 @@ const StrategicSnapshot = memo(function StrategicSnapshot({
     [strategy.findingsByQuadrant.opportunity, strategy.findingsByQuadrant.threat],
   );
   const focusAreas = strategy.reportSummary.strategicFocus.slice(0, 3);
+  const hasSnapshot = strategy.findingsByQuadrant.strength.length > 0
+    || strategy.findingsByQuadrant.weakness.length > 0
+    || opportunityAndRisk.length > 0
+    || focusAreas.length > 0;
+  const snapshotCount = Number(strategy.findingsByQuadrant.strength.length > 0)
+    + Number(strategy.findingsByQuadrant.weakness.length > 0)
+    + Number(opportunityAndRisk.length > 0)
+    + Number(focusAreas.length > 0);
+
+  if (!hasSnapshot) {
+    return <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600" data-testid="strategy-snapshot">Der er endnu ingen robuste strategiske fund i det aktuelle scope.</div>;
+  }
 
   return (
     <CommandPanel
@@ -304,43 +316,37 @@ const StrategicSnapshot = memo(function StrategicSnapshot({
       tone="neutral"
       testId="strategy-snapshot"
     >
-      <div className="grid min-w-0 items-start gap-3 bg-[#f7fafb] p-4 sm:p-5 lg:grid-cols-2 xl:grid-cols-4">
-        <SnapshotColumn
+      <div className={`grid min-w-0 items-start gap-3 bg-[#f7fafb] p-4 ${snapshotCount > 1 ? "sm:grid-cols-2" : ""} ${snapshotCount === 4 ? "xl:grid-cols-4" : snapshotCount === 3 ? "xl:grid-cols-3" : snapshotCount === 2 ? "xl:grid-cols-2" : ""}`}>
+        {strategy.findingsByQuadrant.strength.length ? <SnapshotColumn
           title="Styrker"
           findings={strategy.findingsByQuadrant.strength.slice(0, 2)}
           emptyMessage="Ingen robuste styrker i den aktuelle visning."
-        />
-        <SnapshotColumn
+        /> : null}
+        {strategy.findingsByQuadrant.weakness.length ? <SnapshotColumn
           title="Svagheder"
           findings={strategy.findingsByQuadrant.weakness.slice(0, 2)}
           emptyMessage="Ingen robuste svagheder i den aktuelle visning."
-        />
-        <SnapshotColumn
+        /> : null}
+        {opportunityAndRisk.length ? <SnapshotColumn
           title="Muligheder og risici"
           findings={opportunityAndRisk}
           emptyMessage="Ingen robuste muligheder eller risici i den aktuelle visning."
-        />
-        <section className="min-w-0 rounded-lg border border-slate-200 bg-white px-4 py-3.5">
+        /> : null}
+        {focusAreas.length ? <section className="min-w-0 rounded-lg border border-slate-200 bg-white px-4 py-3.5">
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
             Anbefalet fokus
           </h3>
-          {focusAreas.length ? (
-            <ol className="mt-2.5 space-y-2.5">
-              {focusAreas.map((proposal, index) => (
-                <li key={proposal.id} className="flex gap-2.5 text-xs leading-5 text-slate-600">
-                  <span className="grid h-5 min-w-5 place-items-center rounded bg-slate-100 text-[10px] font-semibold tabular-nums text-slate-500">
-                    {index + 1}
-                  </span>
-                  <span className="line-clamp-2">{proposal.text}</span>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="mt-2.5 text-xs leading-5 text-slate-500">
-              Ingen dokumenteret strategisk kombination i den aktuelle visning.
-            </p>
-          )}
-        </section>
+          <ol className="mt-2.5 space-y-2.5">
+            {focusAreas.map((proposal, index) => (
+              <li key={proposal.id} className="flex gap-2.5 text-xs leading-5 text-slate-600">
+                <span className="grid h-5 min-w-5 place-items-center rounded bg-slate-100 text-[10px] font-semibold tabular-nums text-slate-500">
+                  {index + 1}
+                </span>
+                <span className="line-clamp-2">{proposal.text}</span>
+              </li>
+            ))}
+          </ol>
+        </section> : null}
       </div>
     </CommandPanel>
   );
@@ -673,12 +679,14 @@ export const StrategyDashboard = memo(function StrategyDashboard({
     () => new Map(strategy.findings.map((finding) => [finding.id, finding.title])),
     [strategy.findings],
   );
+  const visibleQuadrants = quadrantDefinitions.filter((definition) => strategy.findingsByQuadrant[definition.key].length > 0);
+  const visibleTows = towsDefinitions.filter((definition) => strategy.tows.some((proposal) => proposal.type === definition.type));
 
   return (
     <section className="min-w-0 space-y-4 min-[1360px]:col-span-2" data-testid="strategy-dashboard">
       <StrategicSnapshot strategy={strategy} />
 
-      <CommandPanel
+      {visibleQuadrants.length ? <CommandPanel
         eyebrow="SWOT-baseret strategisk opsamling"
         title="Strategisk overblik"
         description="Dokumenterede styrker og svagheder koblet med muligheder og risici i den aktuelle visning"
@@ -701,7 +709,7 @@ export const StrategyDashboard = memo(function StrategyDashboard({
         </aside>
 
         <div className="grid min-w-0 items-start gap-3 bg-[#f7fafb] p-4 sm:p-5 lg:grid-cols-2">
-          {quadrantDefinitions.map((definition) => (
+          {visibleQuadrants.map((definition) => (
             <SwotQuadrant
               key={definition.key}
               definition={definition}
@@ -709,9 +717,9 @@ export const StrategyDashboard = memo(function StrategyDashboard({
             />
           ))}
         </div>
-      </CommandPanel>
+      </CommandPanel> : null}
 
-      <CommandPanel
+      {visibleTows.length ? <CommandPanel
         eyebrow="TOWS"
         title="Strategiske kombinationer"
         description="TOWS omsætter de dokumenterede SWOT-fund til områder, der kan undersøges nærmere"
@@ -720,7 +728,7 @@ export const StrategyDashboard = memo(function StrategyDashboard({
         testId="strategy-tows"
       >
         <div className="grid min-w-0 items-start gap-3 bg-[#f7fafb] p-4 sm:p-5 lg:grid-cols-2">
-          {towsDefinitions.map((definition) => (
+          {visibleTows.map((definition) => (
             <TowsGroup
               key={definition.type}
               definition={definition}
@@ -729,7 +737,7 @@ export const StrategyDashboard = memo(function StrategyDashboard({
             />
           ))}
         </div>
-      </CommandPanel>
+      </CommandPanel> : null}
     </section>
   );
 });

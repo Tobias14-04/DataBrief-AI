@@ -314,11 +314,11 @@ test("onboarding ligger kun i overgangen efter en ny valideret import", () => {
 
 test("mål vises i både Indsigter og Rapport uden at ændre analysemotoren", () => {
   assert.match(insightSource, /Sådan ligger du i forhold til dine mål/u);
-  assert.match(insightSource, /<TargetStatusPanel[\s\S]*<ExecutiveSnapshot/u);
+  assert.match(insightSource, /<ExecutiveSnapshot[\s\S]*<TargetStatusPanel/u);
   assert.match(insightSource, /addTargetsToExecutiveSummary/u);
   assert.match(insightSource, /prioritizeInsightAnalysis\(displayedAnalysis, analysisPreferences\)/u);
   assert.match(insightSource, /prioritizeStrategicAnalysis/u);
   assert.match(uploadSource, /preferredOverviewTrendMetric\(preferences, availableTrendMetrics\)/u);
-  assert.match(uploadSource, /priority=\{overviewAnalysisPriority\}/u);
+  assert.match(uploadSource, /executiveSummary\.insights\.slice\(0, 2\)/u);
   assert.doesNotMatch(readFileSync(new URL("../lib/insight-engine.ts", import.meta.url), "utf8"), /analysisPreferences/u);
 });

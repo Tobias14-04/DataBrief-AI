@@ -472,7 +472,8 @@ test("kategorikomponenten har fælles kontrol, tilgængelig sortering og respons
   assert.match(source, /min-w-\[980px\]/u);
   assert.match(source, /\[contain:inline-size_paint\]/u);
   assert.match(source, /Fælles højeste dækningsgrad/u);
-  assert.match(source, /Dækningsgraden er ensartet på tværs af kategorier/u);
+  assert.match(source, /Dækningsgraden ligger omkring/u);
+  assert.match(source, /valueKey=\{effectiveSortKey\}/u);
   assert.match(source, /Aktiv sorteringskolonne/u);
   assert.match(source, /Største andel af samlede omkostninger/u);
   assert.doesNotMatch(source, /bg-violet-50/u);

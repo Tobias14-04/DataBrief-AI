@@ -117,7 +117,7 @@ export const CompactKpiCard = memo(function CompactKpiCard({
     return (
       <article
         className={`overview-card overview-interactive-card relative min-w-0 overflow-hidden rounded-xl ${
-          isBalancedOverview ? "min-h-[164px] p-[18px]" : "min-h-[176px] p-5"
+          isBalancedOverview ? "min-h-[122px] p-3.5" : "min-h-[176px] p-5"
         }`}
       >
         <span className={`absolute inset-x-0 top-0 h-24 bg-gradient-to-b ${styles.tint} to-transparent`} aria-hidden="true" />
@@ -125,7 +125,7 @@ export const CompactKpiCard = memo(function CompactKpiCard({
         <div className={`relative flex items-start ${isBalancedOverview ? "gap-3.5" : "gap-4"}`}>
           <span
             className={`grid shrink-0 place-items-center rounded-lg border ${styles.overviewIcon} ${
-              isBalancedOverview ? "h-11 w-11" : "h-12 w-12"
+              isBalancedOverview ? "h-9 w-9" : "h-12 w-12"
             }`}
           >
             <Icon className={isBalancedOverview ? "h-[18px] w-[18px]" : "h-5 w-5"} aria-hidden="true" />
@@ -152,7 +152,7 @@ export const CompactKpiCard = memo(function CompactKpiCard({
         </div>
         <p
           className={`relative border-t border-slate-200/80 pt-3 font-medium leading-5 ${styles.helper} ${
-            isBalancedOverview ? "mt-4 text-xs" : "mt-5 text-[13px]"
+            isBalancedOverview ? "mt-2.5 text-[11px]" : "mt-5 text-[13px]"
           }`}
           title={detail}
         >
@@ -200,7 +200,7 @@ export const CompactSecondaryMetric = memo(function CompactSecondaryMetric({
 
   if (variant === "overview") {
     return (
-      <div className="overview-card-muted overview-interactive-card flex min-h-[98px] min-w-0 items-center gap-3 rounded-xl px-4 py-3.5">
+      <div className="overview-card-muted overview-interactive-card flex min-h-[74px] min-w-0 items-center gap-3 rounded-xl px-4 py-2.5">
         <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg border ${styles.overviewIcon}`}>
           {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : <span className={`h-2 w-2 rounded-full ${styles.accent}`} aria-hidden="true" />}
         </span>

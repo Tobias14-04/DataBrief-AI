@@ -181,13 +181,13 @@ function CategoryRanking({
   tone,
 }: {
   rows: ReadonlyArray<CategoryAnalysisRow>;
-  valueKey: "revenue" | "grossProfit" | "grossMargin";
+  valueKey: CategoryMetricKey;
   valueFormatter: (value: number | null) => string;
   tone: "brand" | "positive";
 }) {
   const visibleRows = rows
     .filter((row) => row[valueKey] !== null)
-    .slice(0, 10);
+    .slice(0, 5);
   const largestAbsoluteValue = Math.max(
     ...visibleRows.map((row) => Math.abs(row[valueKey] ?? 0)),
     0,
@@ -517,21 +517,12 @@ export function CategoryAnalysisDashboard({
         )}
       />
 
-      <div className="grid gap-3 min-[420px]:grid-cols-2 xl:grid-cols-4" aria-label="Kategorinøgletal">
+      <div className={`grid gap-3 min-[420px]:grid-cols-2 ${costLeader ? "xl:grid-cols-3" : ""}`} aria-label="Kategorinøgletal">
         <CategoryKpiCard
           label="Største kategori"
           value={revenueLeader?.name ?? "Ikke tilgængelig"}
           detail={revenueLeader ? `${formatAmount(revenueLeader.revenue, resolvedAmountUnit)} i omsætning` : "Ingen omsætning"}
           icon={CircleDollarSign}
-          tone="cyan"
-        />
-        <CategoryKpiCard
-          label="Største omsætningsandel"
-          value={shareLeader?.name ?? "Ikke tilgængelig"}
-          detail={shareLeader?.revenueShare !== null && shareLeader
-            ? `${formatDanishPercent(shareLeader.revenueShare)} af omsætningen`
-            : "Andel kan ikke beregnes"}
-          icon={PieChart}
           tone="cyan"
         />
         <CategoryKpiCard
@@ -545,7 +536,7 @@ export function CategoryAnalysisDashboard({
           icon={TrendingUp}
           tone={marginLeader ? "emerald" : "slate"}
         />
-        <CategoryKpiCard
+        {costLeader ? <CategoryKpiCard
           label={variableOnly ? "Største andel af variable omkostninger" : "Største andel af samlede omkostninger"}
           value={costLeader?.name ?? "Ikke tilgængelig"}
           detail={costLeader?.costDistributionShare !== null && costLeader
@@ -556,80 +547,22 @@ export function CategoryAnalysisDashboard({
             : undefined}
           icon={WalletCards}
           tone={costLeader ? "orange" : "slate"}
-        />
+        /> : null}
       </div>
 
-      {insights.length ? (
-        <aside className="flex items-start gap-3 rounded-xl border border-cyan-200/80 bg-cyan-50/75 px-4 py-3 text-sm leading-6 text-[#123047]" aria-label="Kategoriindsigt">
-          <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-cyan-200 bg-white text-cyan-700">
-            <Lightbulb className="h-3.5 w-3.5" aria-hidden="true" />
-          </span>
-          <div>
-            <span className="font-semibold">Kategoriindsigt:</span>{" "}
-            {insights.map((insight, index) => (
-              <span key={insight}>
-                {insight}{index < insights.length - 1 ? " " : ""}
-              </span>
-            ))}
-          </div>
-        </aside>
-      ) : (
-        <aside className="rounded-xl border border-slate-200 bg-white/70 px-4 py-3 text-sm text-slate-600" aria-label="Kategoriindsigt">
-          Der er ikke tilstrækkelige sammenlignelige kategoridata til en faglig observation.
-        </aside>
-      )}
-
-      <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-2">
+      <div className="grid min-w-0 items-stretch gap-4">
         <CommandPanel
-          title="Omsætning pr. kategori"
-          description={`Kategoriens størrelse · rangeret efter ${activeMetricLabel}`}
+          title={`${columnLabels[effectiveSortKey]} pr. kategori`}
+          description={`Hurtigt overblik · rangeret efter ${activeMetricLabel}`}
           icon={BarChart3}
           className="h-full"
         >
           <CategoryRanking
             rows={chartRows}
-            valueKey="revenue"
-            valueFormatter={(value) => formatAmount(value, resolvedAmountUnit)}
-            tone="brand"
+            valueKey={effectiveSortKey}
+            valueFormatter={(value) => value === null ? "–" : (["revenue", "grossProfit", "cost"].includes(effectiveSortKey) ? formatAmount(value, resolvedAmountUnit) : formatDanishPercent(value))}
+            tone={effectiveSortKey === "grossProfit" || effectiveSortKey === "grossMargin" ? "positive" : "brand"}
           />
-        </CommandPanel>
-        <CommandPanel
-          title="Dækningsgrad pr. kategori"
-          description={`Aggregeret dækningsbidrag / omsætning · rangeret efter ${activeMetricLabel}`}
-          icon={TrendingUp}
-          tone="positive"
-          className="h-full"
-        >
-          {analysis.isGrossMarginUniform ? (
-            <div>
-              <div className="m-4 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-slate-700">
-                <p className="text-sm font-semibold text-[#0b1c2d]">
-                  Dækningsgraden er ensartet på tværs af kategorier
-                </p>
-                <p className="mt-1 text-[13px] leading-5">
-                  Alle {categoryCountLabel(analysis.grossMarginCategoryCount)} ligger omkring {analysis.aggregateGrossMargin === null ? "–" : formatDanishPercent(analysis.aggregateGrossMargin)}.
-                </p>
-              </div>
-              <div className="border-t border-slate-100">
-                <p className={`${commandSectionLabelClass} px-5 pt-4 text-slate-500`}>
-                  Dækningsbidrag pr. kategori
-                </p>
-                <CategoryRanking
-                  rows={chartRows}
-                  valueKey="grossProfit"
-                  valueFormatter={(value) => formatAmount(value, resolvedAmountUnit)}
-                  tone="positive"
-                />
-              </div>
-            </div>
-          ) : (
-            <CategoryRanking
-              rows={chartRows}
-              valueKey="grossMargin"
-              valueFormatter={(value) => value === null ? "–" : formatDanishPercent(value)}
-              tone="positive"
-            />
-          )}
         </CommandPanel>
       </div>
 
@@ -783,6 +716,10 @@ export function CategoryAnalysisDashboard({
           </span>
         </div>
       </CommandPanel>
+      <aside className="flex items-start gap-3 rounded-xl border border-cyan-200/80 bg-cyan-50/75 px-4 py-3 text-sm leading-5 text-[#123047]" aria-label="Kategoriindsigt">
+        <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-cyan-700" aria-hidden="true" />
+        <p><span className="font-semibold">Kategoriindsigt:</span> {insights[0] ?? (analysis.isGrossMarginUniform && analysis.aggregateGrossMargin !== null ? `Dækningsgraden ligger omkring ${formatDanishPercent(analysis.aggregateGrossMargin)} på tværs af kategorier.` : "Der er ikke tilstrækkelige sammenlignelige kategoridata til en faglig observation.")}</p>
+      </aside>
     </section>
   );
 }

@@ -68,7 +68,7 @@ test("success-status genåbnes ikke ved almindelig intern navigation", () => {
     /const changeActiveView = useCallback\(\(view: DashboardView\) => \{[\s\S]*setAnalysisReadyNotice\(null\);[\s\S]*setActiveView\(view\);/u,
   );
   assert.match(uploadSource, /onViewChange=\{changeActiveView\}/u);
-  assert.match(uploadSource, /onNavigate=\{changeActiveView\}/u);
+  assert.match(uploadSource, /onClick=\{\(\) => changeActiveView\(showCosts \? "costs" : "insights"\)\}/u);
 });
 
 test("manglende nødvendige felter prioriteres, mens valgfrie felter er sammenfoldede", () => {

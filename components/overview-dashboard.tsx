@@ -227,7 +227,7 @@ export const OverviewTrendPanel = memo(function OverviewTrendPanel({
       data-testid="revenue-chart"
       aria-busy={isPending}
     >
-      <header className="flex min-h-[112px] flex-col gap-4 rounded-t-xl border-b border-slate-200/80 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <header className="flex min-h-[88px] flex-col gap-3 rounded-t-xl border-b border-slate-200/80 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <p className={`${overviewEyebrowClass} text-brand-700`}>Primær udvikling</p>
@@ -261,7 +261,7 @@ export const OverviewTrendPanel = memo(function OverviewTrendPanel({
 
       <div className="overflow-visible px-3 pb-5 pt-3 sm:px-6 sm:pb-7">
         {data.length ? (
-          <div className="h-[340px] sm:h-[380px] xl:h-[410px]">
+          <div className="h-[260px] sm:h-[290px] xl:h-[320px]">
             <OverviewTrendChart
               data={data}
               metric={metric}
@@ -270,7 +270,7 @@ export const OverviewTrendPanel = memo(function OverviewTrendPanel({
             />
           </div>
         ) : (
-          <div className="grid min-h-[380px] place-items-center px-5 py-8 text-center">
+          <div className="grid min-h-[200px] place-items-center px-5 py-6 text-center">
             <div className="max-w-sm">
               <span className="mx-auto grid h-10 w-10 place-items-center rounded-md border border-brand-100 bg-brand-50 text-brand-700">
                 <Info className="h-4 w-4" aria-hidden="true" />

@@ -1,5 +1,5 @@
 import { ChartNoAxesCombined } from "lucide-react";
-import { CommandEmptyState, CommandPageIntro, CommandPanel } from "@/components/command-center-ui";
+import { CommandPageIntro, CommandPanel } from "@/components/command-center-ui";
 import { formatDanishCurrency } from "@/lib/dashboard-insights";
 import type { InsightAnalysis, InsightDimension, InsightDriver } from "@/lib/insight-engine";
 
@@ -11,10 +11,14 @@ export function DimensionAnalysisDashboard({
   dimension,
   analysis,
   supported,
+  comparisonLabel,
+  onCompareLatest,
 }: {
   dimension: Extract<InsightDimension, "channel" | "region">;
   analysis: InsightAnalysis | null;
   supported: boolean;
+  comparisonLabel?: string;
+  onCompareLatest?: () => void;
 }) {
   const label = dimension === "channel" ? "Kanaler" : "Regioner";
   const driver = analysis?.driverAnalyses.find((item) => item.dimension === dimension && item.metric === "revenue");
@@ -24,18 +28,30 @@ export function DimensionAnalysisDashboard({
     : [];
 
   return (
-    <section className="min-w-0 space-y-6 min-[1360px]:col-span-2" data-testid={`${dimension}-analysis-view`}>
+    <section className="min-w-0 space-y-4 min-[1360px]:col-span-2" data-testid={`${dimension}-analysis-view`}>
       <CommandPageIntro
         eyebrow="Analysedimension"
         title={label}
         description={`Se hvor omsætningsændringen er registreret på tværs af ${label.toLocaleLowerCase("da-DK")}. Det viser ikke årsagen til ændringen.`}
       />
-      <CommandPanel title={`Omsætningsdrivere · ${label.toLocaleLowerCase("da-DK")}`} icon={ChartNoAxesCombined}>
-        {!supported ? (
-          <CommandEmptyState title={`Ingen ${label.toLocaleLowerCase("da-DK")}-data`} message={`Datasættet indeholder ikke dokumenterede ${label.toLocaleLowerCase("da-DK")} i det aktuelle scope.`} />
-        ) : !driver ? (
-          <CommandEmptyState title="Ingen sammenlignelig periode" message="Vælg en sammenlignelig hel kalendermåned for at se, hvor ændringen er registreret. Periodehandlingen ovenfor kan finde den seneste gyldige sammenligning." />
-        ) : (
+      {!supported || !driver ? (
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-4 sm:flex sm:items-center sm:justify-between sm:gap-5" role="status">
+          <div>
+            <p className="text-sm font-semibold text-ink">{supported ? "Ingen sammenlignelig periode" : `Ingen ${label.toLocaleLowerCase("da-DK")}-data`}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">
+              {supported
+                ? `Vælg en komplet kalendermåned for at sammenligne ${label.toLocaleLowerCase("da-DK")}. ${comparisonLabel ? `Seneste gyldige par: ${comparisonLabel}.` : "Der findes endnu ikke et gyldigt periodepar."}`
+                : `Datasættet indeholder ikke dokumenterede ${label.toLocaleLowerCase("da-DK")} i det aktuelle scope.`}
+            </p>
+          </div>
+          {supported && onCompareLatest ? (
+            <button type="button" onClick={onCompareLatest} className="mt-3 inline-flex min-h-10 shrink-0 items-center rounded-lg bg-[#0b263a] px-4 text-xs font-semibold text-white hover:bg-[#153d58] sm:mt-0">
+              Sammenlign seneste komplette måned
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <CommandPanel title={`Omsætningsdrivere · ${label.toLocaleLowerCase("da-DK")}`} icon={ChartNoAxesCombined}>
           <div className="overflow-x-auto">
             <p className="border-b border-slate-100 px-5 py-4 text-xs text-slate-600">{driver.comparisonPeriod} · omsætningsændring {formatDanishCurrency(driver.totalChange)} · samme filtre i begge perioder</p>
             <table className="w-full min-w-[680px] text-left text-sm">
@@ -56,8 +72,8 @@ export function DimensionAnalysisDashboard({
             {!members.length ? <p className="px-5 py-5 text-sm text-slate-600">Ingen dokumenterede ændringer i denne dimension.</p> : null}
             {Math.abs(driver.reconciliationDifference) > 0.01 ? <p className="border-t border-amber-100 bg-amber-50 px-5 py-3 text-xs text-amber-800">Ikke-afstemt rest: {formatDanishCurrency(driver.reconciliationDifference)}.</p> : null}
           </div>
-        )}
-      </CommandPanel>
+        </CommandPanel>
+      )}
     </section>
   );
 }

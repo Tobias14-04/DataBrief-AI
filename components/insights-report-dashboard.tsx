@@ -5,7 +5,6 @@ import {
   ArrowRight,
   ArrowUpRight,
   BarChart3,
-  BookOpenText,
   BrainCircuit,
   CheckCircle2,
   CircleDollarSign,
@@ -16,6 +15,7 @@ import {
   LoaderCircle,
   PackageCheck,
   Percent,
+  Printer,
   SearchCheck,
   ShieldCheck,
   Target,
@@ -84,6 +84,8 @@ export type InsightsReportDashboardProps = {
   activeTab: InsightsReportTab;
   onTabChange: (tab: InsightsReportTab) => void;
   isUpdating?: boolean;
+  latestComparisonLabel?: string;
+  onCompareLatest?: () => void;
 };
 
 type InsightSwapPhase = "idle" | "fading-out" | "fading-in";
@@ -362,8 +364,8 @@ const ExecutiveSnapshot = memo(function ExecutiveSnapshot({
         </div>
         <p className="hidden text-xs text-slate-500 sm:block">Kun nøgletal med dokumenteret datagrundlag</p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {items.slice(0, 5).map((item) => {
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {items.slice(0, 4).map((item) => {
           const Icon = metricIcons[item.metric] ?? BarChart3;
           const latestChange = changes.find((change) => change.metric === item.metric);
           return (
@@ -850,13 +852,44 @@ function TargetStatusPanel({ statuses }: { statuses: readonly AnalysisTargetStat
 function InsightsView({
   analysis,
   targetStatuses,
+  latestComparisonLabel,
+  onCompareLatest,
 }: {
   analysis: InsightAnalysis;
   targetStatuses: readonly AnalysisTargetStatus[];
+  latestComparisonLabel?: string;
+  onCompareLatest?: () => void;
 }) {
+  if (!analysis.comparisonPeriod) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-xl border border-cyan-200 bg-cyan-50/70 px-4 py-4 sm:flex sm:items-center sm:justify-between sm:gap-5" role="status">
+          <div>
+            <p className="text-sm font-semibold text-ink">Ingen sammenlignelig periode</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">
+              Ændringer og drivere kræver et komplet periodepar med samme filtre. {latestComparisonLabel
+                ? `Seneste gyldige par: ${latestComparisonLabel}.`
+                : "Det aktuelle datagrundlag har ikke et gyldigt periodepar."}
+            </p>
+          </div>
+          {onCompareLatest ? (
+            <button type="button" onClick={onCompareLatest} className="mt-3 inline-flex min-h-10 shrink-0 items-center rounded-lg bg-[#0b263a] px-4 text-xs font-semibold text-white hover:bg-[#153d58] sm:mt-0">
+              Sammenlign seneste komplette måned
+            </button>
+          ) : null}
+        </div>
+        <details className="rounded-xl border border-slate-200 bg-white">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-cyan-800">Vis aktuelle nøgletal uden sammenligning</summary>
+          <div className="space-y-4 border-t border-slate-100 p-4">
+            <ExecutiveSnapshot items={analysis.snapshot} changes={analysis.changes} />
+            <TargetStatusPanel statuses={targetStatuses} />
+          </div>
+        </details>
+      </div>
+    );
+  }
   return (
-    <div className="space-y-6">
-      <TargetStatusPanel statuses={targetStatuses} />
+    <div className="space-y-4">
       <ExecutiveSnapshot items={analysis.snapshot} changes={analysis.changes} />
       <ChangesPanel changes={analysis.changes} />
       <DriverPanel drivers={analysis.driverAnalyses} analysis={analysis} />
@@ -864,6 +897,7 @@ function InsightsView({
         observations={analysis.observations}
         recommendations={analysis.recommendations}
       />
+      <TargetStatusPanel statuses={targetStatuses} />
     </div>
   );
 }
@@ -1042,9 +1076,9 @@ function ReportView({
       : ""
   }`;
   return (
-    <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+    <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_260px]">
       <article className="premium-panel min-h-[560px] overflow-hidden rounded-xl" aria-labelledby="management-report-title" data-testid="management-report">
-        <header className="border-b border-slate-200 bg-[linear-gradient(135deg,#ffffff_48%,#eefafd)] px-5 py-6 sm:px-7 sm:py-7">
+        <header className="border-b border-slate-200 bg-slate-50/70 px-5 py-5 sm:px-7">
           <div className="flex items-start justify-between gap-5">
             <div className="min-w-0">
               <p className={`${commandSectionLabelClass} text-brand-700`}>Ledelsesrapport</p>
@@ -1053,9 +1087,14 @@ function ReportView({
               </h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{reportSubtitle}</p>
             </div>
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 shadow-sm">
-              <BookOpenText className="h-5 w-5" aria-hidden="true" />
-            </span>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="report-print-action inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-cyan-300 hover:text-cyan-800"
+            >
+              <Printer className="h-4 w-4" aria-hidden="true" />
+              Print rapport
+            </button>
           </div>
         </header>
 
@@ -1143,6 +1182,8 @@ export const InsightsReportDashboard = memo(function InsightsReportDashboard({
   activeTab,
   onTabChange,
   isUpdating = false,
+  latestComparisonLabel,
+  onCompareLatest,
 }: InsightsReportDashboardProps) {
   const idPrefix = useId();
   const insightsTabId = `${idPrefix}-insights-tab`;
@@ -1229,7 +1270,12 @@ export const InsightsReportDashboard = memo(function InsightsReportDashboard({
         className={`insight-data-region ${transitionClass} focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-4`}
       >
         {activeTab === "insights" ? (
-          <InsightsView analysis={prioritizedAnalysis} targetStatuses={targetStatuses} />
+          <InsightsView
+            analysis={prioritizedAnalysis}
+            targetStatuses={targetStatuses}
+            latestComparisonLabel={latestComparisonLabel}
+            onCompareLatest={onCompareLatest}
+          />
         ) : null}
       </div>
       <div

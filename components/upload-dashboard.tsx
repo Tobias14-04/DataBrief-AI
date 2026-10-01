@@ -77,16 +77,11 @@ import {
   commandCardClass,
   commandSectionLabelClass,
 } from "@/components/command-center-ui";
-import {
-  OverviewAnalysisPreviewGrid,
-  OverviewSectionHeader,
-  OverviewTrendPanel,
-} from "@/components/overview-dashboard";
+import { OverviewSectionHeader, OverviewTrendPanel } from "@/components/overview-dashboard";
 import {
   dashboardEyebrowClass,
   dashboardIconClass,
   dashboardUtilityCardClass,
-  ExecutiveSummaryCard,
 } from "@/components/dashboard-ui";
 import {
   AUTO_MAPPING_CONFIDENCE_THRESHOLD,
@@ -124,7 +119,6 @@ import {
   formatDanishNumber as number,
   formatDanishPercent as percent,
   formatMetricTooltip,
-  getAdaptiveMarginChartMode,
   monthSortKey,
 } from "@/lib/dashboard-insights";
 import {
@@ -175,7 +169,6 @@ import {
   buildAnalysisTargetStatuses,
   createEmptyAnalysisPreferences,
   hasAnalysisPreferences,
-  preferredOverviewAnalysis,
   preferredOverviewTrendMetric,
   preferredAnalysisKpiIds,
   prioritizeKpiConfiguration,
@@ -2633,14 +2626,6 @@ export default function UploadDashboard() {
   );
   const hasData = allRows.length > 0;
   const hasFilteredData = metrics.rowCount > 0;
-  const marginChartMode = hasData
-    ? getAdaptiveMarginChartMode(baseMetrics.grossMarginSource === "gross-profit", baseMetrics.grossMarginSource === "weighted-margin")
-    : "empty";
-  const marginChartData = marginChartMode === "grossProfit"
-    ? metrics.grossProfitByCategory
-    : marginChartMode === "grossMargin"
-      ? metrics.grossMarginByCategory
-      : [];
   const showCosts = hasData && (Boolean(data?.feedback.costs) || baseMetrics.hasCosts || baseMetrics.costBasis.variableCosts !== null);
   const showBudget = hasData && Boolean(data?.feedback.budget);
   const costsByCategory = useMemo(() => (metrics.costBasis.status === "unavailable" && metrics.costBasis.source !== "variable-only") || metrics.costBasis.source === "workbook-additional"
@@ -2649,16 +2634,6 @@ export default function UploadDashboard() {
       ? data?.feedback.costs?.byCategory ?? []
       : metrics.costsByCategory,
   [data?.feedback.costs?.byCategory, metrics.costBasis, metrics.costsByCategory]);
-  const availableOverviewAnalyses = useMemo(() => [
-    ...(metrics.productsByUnits.length ? ["products" as const] : []),
-    ...(metrics.categories.length ? ["sales" as const] : []),
-    ...(marginChartMode !== "empty" ? ["profitability" as const] : []),
-    ...(showCosts && costsByCategory.length ? ["costs" as const] : []),
-  ], [costsByCategory.length, marginChartMode, metrics.categories.length, metrics.productsByUnits.length, showCosts]);
-  const overviewAnalysisPriority = useMemo(
-    () => preferredOverviewAnalysis(analysisPreferences, availableOverviewAnalyses),
-    [analysisPreferences, availableOverviewAnalyses],
-  );
   const filterOptions = useMemo<DashboardControlOptions>(() => ({
     month: uniqueValues(allRows, "month"),
     product: uniqueValues(allRows, "product"),
@@ -2952,10 +2927,10 @@ export default function UploadDashboard() {
   );
   const primaryKpiGridClass =
     primaryKpis.length === 2
-      ? "min-[1360px]:grid-cols-2"
+      ? "min-[1200px]:grid-cols-2"
       : primaryKpis.length === 3
-        ? "min-[1360px]:grid-cols-3"
-        : "min-[1360px]:grid-cols-4";
+        ? "min-[1200px]:grid-cols-3"
+        : "min-[1200px]:grid-cols-4";
 
   useEffect(() => {
     return () => {
@@ -3506,21 +3481,6 @@ export default function UploadDashboard() {
               />
             </div>
           ) : null}
-          {(activeView === "insights" || activeView === "channels" || activeView === "regions") && !filters.month.length ? (
-            <div className="min-w-0 rounded-xl border border-cyan-200 bg-cyan-50/70 p-4 min-[1360px]:col-span-2 sm:flex sm:items-center sm:justify-between sm:gap-5" role="status">
-              <div>
-                <p className="text-sm font-semibold text-ink">Sammenlign en konkret periode</p>
-                <p className="mt-1 text-xs leading-5 text-slate-600">Alle perioder er valgt. Ændringer og drivere kræver to sammenlignelige hele kalendermåneder. {latestComparison ? `Seneste gyldige par: ${latestComparison.label}.` : "Ingen komplet måned-til-måned-sammenligning findes i det aktuelle scope."}</p>
-              </div>
-              {latestComparison ? (
-                <button
-                  type="button"
-                  onClick={() => setFilters((current) => ({ ...current, month: latestComparison.currentMonths }))}
-                  className="mt-3 inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg bg-[#0b263a] px-4 text-xs font-semibold text-white hover:bg-[#153d58] sm:mt-0"
-                >Sammenlign seneste komplette måned</button>
-              ) : null}
-            </div>
-          ) : null}
 
           {activeView === "overview" ? (
           <>
@@ -3576,8 +3536,8 @@ export default function UploadDashboard() {
                 );
               })}
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 min-[1360px]:grid-cols-5">
-              {secondaryKpis.map((definition) => {
+            <div className="grid gap-3 sm:grid-cols-3">
+              {secondaryKpis.slice(0, 3).map((definition) => {
                 const evaluation = kpiEvaluations[definition.id];
                 return (
                   <CompactSecondaryMetric
@@ -3593,13 +3553,35 @@ export default function UploadDashboard() {
                 );
               })}
             </div>
+            {secondaryKpis.length > 3 ? (
+              <details className="group border-t border-slate-100 pt-2">
+                <summary className="w-fit cursor-pointer text-xs font-semibold text-cyan-800 hover:text-cyan-950">Vis {secondaryKpis.length - 3} flere nøgletal</summary>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  {secondaryKpis.slice(3).map((definition) => {
+                    const evaluation = kpiEvaluations[definition.id];
+                    return (
+                      <CompactSecondaryMetric
+                        key={definition.id}
+                        label={definition.name}
+                        value={evaluation?.available && evaluation.value !== null
+                          ? formatNumber(evaluation.value, definition.format, definition.decimals)
+                          : "Kan ikke beregnes"}
+                        icon={kpiIconMap[definition.icon]}
+                        tone={kpiTone(definition.color)}
+                        variant="overview"
+                      />
+                    );
+                  })}
+                </div>
+              </details>
+            ) : null}
           </section>
 
-          <section className="order-2 min-w-0 space-y-6 min-[1360px]:col-start-1 min-[1360px]:row-start-4" data-testid="analysis-section">
+          <section className="order-2 min-w-0 space-y-4 min-[1360px]:col-start-1 min-[1360px]:row-start-4" data-testid="analysis-section">
             <OverviewSectionHeader
               eyebrow="Ledelsesanalyse"
-              title="Omsætningsudvikling og indsigt"
-              description="Følg udviklingen, og brug indsigterne til at vælge næste analysetrin."
+              title="Udvikling"
+              description="Én hovedgraf for det valgte nøgletal i den aktuelle visning."
             />
 
             <OverviewTrendPanel
@@ -3614,76 +3596,33 @@ export default function UploadDashboard() {
               onMetricChange={setTrendMetric}
             />
 
-            <OverviewAnalysisPreviewGrid
-              products={metrics.productsByUnits}
-              categories={metrics.categories}
-              coverage={marginChartData}
-              coverageMode={marginChartMode}
-              costs={costsByCategory}
-              showCosts={showCosts}
-              priority={overviewAnalysisPriority}
-              onNavigate={changeActiveView}
-            />
+            <div className="rounded-xl border border-slate-200 bg-white px-4 py-4 sm:px-5" data-testid="overview-next-step">
+              <p className={`${commandSectionLabelClass} text-cyan-800`}>Vigtigste observationer</p>
+              <ul className="mt-2 space-y-1.5 text-sm leading-5 text-slate-700">
+                {executiveSummary.insights.slice(0, 2).map((insight) => (
+                  <li key={insight} className="border-l-2 border-cyan-300 pl-3">{insight}</li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                onClick={() => changeActiveView(showCosts ? "costs" : "insights")}
+                className="mt-3 inline-flex min-h-9 items-center rounded-lg bg-[#0b263a] px-3.5 text-xs font-semibold text-white hover:bg-[#153d58]"
+              >
+                {showCosts ? "Se økonomi" : "Undersøg indsigter"}
+              </button>
+            </div>
           </section>
 
-          <aside className="order-3 min-w-0 space-y-4 min-[1360px]:col-start-2 min-[1360px]:row-start-4 min-[1360px]:row-span-2 min-[1360px]:sticky min-[1360px]:top-20 min-[1360px]:self-start" data-testid="insights-rail">
-            {hasData ? (
-              <MonthlyReportCard
-                rows={allRows}
-                filters={deferredFilters}
-                feedback={data?.feedback}
-                preferredMonth={baseMetrics.bestMonth?.name}
-                selectedMonth={reportMonth}
-                onMonthChange={setReportMonth}
-                variant="overview"
-              />
-            ) : null}
-            <ExecutiveSummaryCard
-              insights={executiveSummary.insights}
-              conclusion={executiveSummary.conclusion}
-              status={executiveSummary.status}
-              onViewAll={openInsightsView}
-              variant="overview"
-            />
+          <aside className="order-3 min-w-0 self-start rounded-xl bg-[#0b263a] p-5 text-white min-[1360px]:col-start-2 min-[1360px]:row-start-4" data-testid="insights-rail">
+            <p className={`${commandSectionLabelClass} text-cyan-200`}>Ledelsesresume</p>
+            <p className="mt-3 text-sm font-semibold leading-6">{executiveSummary.conclusion}</p>
+            <p className="mt-2 text-xs leading-5 text-slate-300">{executiveSummary.status}</p>
+            <button
+              type="button"
+              onClick={openInsightsView}
+              className="mt-4 inline-flex min-h-9 items-center rounded-lg border border-white/20 px-3.5 text-xs font-semibold text-white hover:bg-white/10"
+            >Åbn Ledelse</button>
           </aside>
-
-          {showBudget ? (
-            <section className="overview-section-surface order-4 min-w-0 space-y-5 rounded-2xl p-4 sm:p-6 min-[1360px]:col-start-1 min-[1360px]:row-start-5" data-testid="budget-section">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className={`${commandSectionLabelClass} text-orange-700`}>Økonomisk pejlemærke</p>
-                  <h2 className="mt-1.5 text-[26px] font-semibold leading-tight text-ink">Budgetoverblik</h2>
-                </div>
-                <p className="text-xs text-slate-500">Budgettal for den aktuelle visning</p>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <CompactKpiCard
-                  label="Budgetteret omsætning"
-                  value={currency(metrics.budgetRevenue)}
-                  detail={isFiltered ? "Fordelt efter andelen af filtrerede rækker" : (data?.feedback.budget?.sheetName ?? "Budget")}
-                  icon={WalletCards}
-                  tone="brand"
-                  variant="overview"
-                />
-                <CompactKpiCard
-                  label="Budgetterede omkostninger"
-                  value={currency(metrics.budgetCosts)}
-                  detail={isFiltered ? "Fordelt efter andelen af filtrerede rækker" : "Fundne budgetomkostninger"}
-                  icon={Target}
-                  tone="warning"
-                  variant="overview"
-                />
-                <CompactKpiCard
-                  label="Budgetteret resultat"
-                  value={currency(metrics.budgetResult)}
-                  detail="Budgetteret omsætning minus omkostninger"
-                  icon={TrendingUp}
-                  tone="positive"
-                  variant="overview"
-                />
-              </div>
-            </section>
-          ) : null}
 
           </>
           ) : null}
@@ -3839,6 +3778,8 @@ export default function UploadDashboard() {
               dimension={activeView === "channels" ? "channel" : "region"}
               analysis={insightAnalysis}
               supported={activeView === "channels" ? filterOptions.channel.length > 0 : filterOptions.region.length > 0}
+              comparisonLabel={latestComparison?.label ?? undefined}
+              onCompareLatest={latestComparison ? () => setFilters((current) => ({ ...current, month: latestComparison.currentMonths })) : undefined}
             />
           ) : null}
 
@@ -3852,12 +3793,6 @@ export default function UploadDashboard() {
                   : "Omkostninger, resultat, budget og effektivitet på det dokumenterede datagrundlag."}
                 tone="warning"
               />
-              {metrics.costBasis.scope === "subset" && metrics.costBasis.status === "unavailable" ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900" role="status">
-                  <p className="font-semibold">Omkostninger kan ikke fordeles på det valgte scope</p>
-                  <p className="mt-1">{describeCostBasis(metrics.costBasis)}. {metrics.costBasis.reason}</p>
-                </div>
-              ) : null}
               {showCosts && costIntelligence ? (
                 <CostIntelligenceDashboard analysis={costIntelligence} />
               ) : (
@@ -3881,6 +3816,8 @@ export default function UploadDashboard() {
                 activeTab={insightsTab}
                 onTabChange={changeInsightsTab}
                 isUpdating={isFilterUpdatePending}
+                latestComparisonLabel={latestComparison?.label ?? undefined}
+                onCompareLatest={latestComparison ? () => setFilters((current) => ({ ...current, month: latestComparison.currentMonths })) : undefined}
               />
             ) : null
           ) : null}
