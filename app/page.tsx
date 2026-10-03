@@ -1,7 +1,7 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowRight,
-  BarChart3,
   FileCheck2,
   FileText,
   ShieldCheck,
@@ -47,7 +47,7 @@ export default function Home() {
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center gap-2.5" aria-label="Senvoriq-forside">
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-ink text-cyan-300"><BarChart3 className="h-5 w-5" aria-hidden="true" /></span>
+            <Image src="/icon.png" alt="" width={36} height={36} unoptimized className="h-9 w-9 shrink-0 object-contain" />
             <span className="text-xl font-semibold tracking-tight">Senvoriq</span>
           </Link>
           <nav aria-label="Hovednavigation" className="flex items-center gap-6">
@@ -63,7 +63,7 @@ export default function Home() {
           <div className="mx-auto grid max-w-7xl items-center gap-10 px-5 py-12 sm:px-6 lg:grid-cols-[0.86fr_1.14fr] lg:gap-12 lg:px-8 lg:py-16">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-700">Driveranalyse fra dine salgsdata</p>
-              <h1 className="mt-4 max-w-xl text-[2.45rem] font-semibold leading-[1.08] tracking-tight sm:text-5xl xl:text-[3.4rem]">Se hvad der driver udviklingen i din forretning.</h1>
+              <h1 className="mt-4 max-w-xl text-[2.45rem] font-semibold leading-[1.1] tracking-tight sm:text-5xl xl:text-[3.4rem]">Forstå hvad der driver dine tal.</h1>
               <p className="mt-5 max-w-lg text-base leading-7 text-slate-600 sm:text-lg">Senvoriq forbinder dine nøgletal med de produkter og kategorier, der ligger bag ændringerne — uden BI-opsætning.</p>
               <div className="mt-7 flex flex-wrap items-center gap-3">
                 <Link href="/upload" className={primaryCta}>Analysér mine data<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
@@ -74,7 +74,7 @@ export default function Home() {
 
             <figure className="min-w-0 overflow-hidden rounded-xl border border-slate-300 bg-white shadow-overview-primary" aria-labelledby="preview-caption">
               <div className="flex flex-wrap items-center justify-between gap-3 bg-ink px-4 py-3.5 text-white sm:px-5">
-                <span className="flex items-center gap-2 text-sm font-semibold"><BarChart3 className="h-4 w-4 text-cyan-300" aria-hidden="true" />Senvoriq<span className="ml-1 border-l border-white/20 pl-3 font-normal text-slate-300">Overblik</span></span>
+                <span className="flex items-center gap-2 text-sm font-semibold"><Image src="/icon.png" alt="" width={20} height={20} unoptimized className="h-5 w-5 shrink-0 object-contain" />Senvoriq<span className="ml-1 border-l border-white/20 pl-3 font-normal text-slate-300">Overblik</span></span>
                 <span className="rounded-md border border-cyan-300/25 bg-cyan-300/10 px-2 py-1 text-[11px] font-medium text-cyan-200">Eksempeldata</span>
               </div>
               <div className="bg-[var(--overview-workspace)] p-3 sm:p-4">

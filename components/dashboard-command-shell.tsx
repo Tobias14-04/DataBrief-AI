@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowLeft,
-  BarChart3,
   Boxes,
   BrainCircuit,
   ChartNoAxesCombined,
@@ -132,9 +132,7 @@ function ShellSidebar({
     <div className="app-sidebar flex h-full min-h-0 flex-col text-white">
       <div className={`flex h-[76px] shrink-0 items-center border-b border-white/[0.07] ${navigationCollapsed ? "justify-center px-2" : "justify-between px-4"}`}>
         <div className={`flex min-w-0 items-center ${navigationCollapsed ? "" : "gap-3"}`}>
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 text-cyan-200 shadow-[0_8px_22px_rgba(0,0,0,0.16)]">
-            <BarChart3 className="h-[19px] w-[19px]" aria-hidden="true" />
-          </span>
+          <Image src="/icon.png" alt="" width={40} height={40} unoptimized className="h-10 w-10 shrink-0 object-contain" />
           {!navigationCollapsed ? (
             <div className="min-w-0">
               <p className="truncate text-[15px] font-semibold text-white">Senvoriq</p>

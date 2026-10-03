@@ -2272,14 +2272,14 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
       data-testid="monthly-report"
       data-variant={variant}
     >
-      <div className="flex flex-wrap items-end justify-between gap-3 rounded-t-xl border-b border-[#e8eef1] bg-white px-4 py-3.5">
+      <div className="flex flex-wrap items-end justify-between gap-3 rounded-t-xl border-b border-[#e8eef1] bg-white px-4 py-3">
         <div className="flex items-center gap-2.5">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700">
             <CalendarRange className="h-4 w-4" aria-hidden="true" />
           </span>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-brand-700">Periodeanalyse</p>
-            <h2 className="mt-0.5 text-base font-semibold text-ink">Månedsrapport</h2>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Periodeanalyse</p>
+            <h2 className="mt-1 text-[17px] font-semibold leading-5 text-ink">Månedsrapport</h2>
           </div>
         </div>
         <PremiumSelect
@@ -2297,16 +2297,16 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
         {report.metrics.map((metric, index) => (
           <div
             key={metric.key}
-            className={`flex min-h-[90px] min-w-0 flex-col justify-center bg-white px-3.5 py-3 ${report.metrics.length === 5 && index === 4 ? "col-span-2 sm:col-span-2 min-[1200px]:col-span-1 min-[1400px]:col-span-2" : ""}`}
+            className={`flex min-h-[92px] min-w-0 flex-col justify-center bg-white px-4 py-3.5 ${report.metrics.length === 5 && index === 4 ? "col-span-2 sm:col-span-2 min-[1200px]:col-span-1 min-[1400px]:col-span-2" : ""}`}
           >
             <p className="text-[11px] font-medium leading-4 text-slate-500">
               {metric.label}
             </p>
             <SmoothMetricValue
               value={metric.value}
-              className={`mt-1.5 min-w-0 text-[clamp(1.25rem,1.65vw,1.5rem)] font-semibold leading-tight tabular-nums text-ink ${
-                metric.key === "budgetStatus" ? `inline-flex w-fit rounded-md px-2 py-1 text-[13px] ${budgetStatusClasses}` : ""
-              }`}
+              className={metric.key === "budgetStatus"
+                ? `mt-2 inline-flex w-fit min-w-0 whitespace-nowrap rounded-md px-1.5 py-1 text-[12px] font-semibold leading-4 text-ink ${budgetStatusClasses}`
+                : "mt-2 min-w-0 text-[clamp(1.2rem,1.45vw,1.4rem)] font-semibold leading-tight tabular-nums text-ink"}
             />
           </div>
         ))}

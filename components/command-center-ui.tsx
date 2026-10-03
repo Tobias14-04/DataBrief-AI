@@ -13,6 +13,7 @@ const toneStyles: Record<CommandTone, {
   icon: string;
   overviewIcon: string;
   tint: string;
+  cardSurface: string;
   helper: string;
   bar: string;
 }> = {
@@ -21,6 +22,7 @@ const toneStyles: Record<CommandTone, {
     icon: "border-cyan-100 bg-cyan-50 text-cyan-700",
     overviewIcon: "border-cyan-200 bg-cyan-50 text-cyan-700 shadow-[0_8px_20px_rgba(8,145,178,0.12)]",
     tint: "from-cyan-50/95",
+    cardSurface: "bg-[#f6fbfc]",
     helper: "text-cyan-700",
     bar: "bg-cyan-500",
   },
@@ -29,6 +31,7 @@ const toneStyles: Record<CommandTone, {
     icon: "border-emerald-100 bg-emerald-50 text-emerald-700",
     overviewIcon: "border-emerald-200 bg-emerald-50 text-emerald-700 shadow-[0_8px_20px_rgba(16,185,129,0.12)]",
     tint: "from-emerald-50/95",
+    cardSurface: "bg-[#f7fbf9]",
     helper: "text-emerald-700",
     bar: "bg-emerald-500",
   },
@@ -37,6 +40,7 @@ const toneStyles: Record<CommandTone, {
     icon: "border-orange-100 bg-orange-50 text-orange-700",
     overviewIcon: "border-orange-200 bg-orange-50 text-orange-700 shadow-[0_8px_20px_rgba(249,115,22,0.12)]",
     tint: "from-orange-50/95",
+    cardSurface: "bg-[#fdfaf7]",
     helper: "text-orange-700",
     bar: "bg-orange-500",
   },
@@ -45,6 +49,7 @@ const toneStyles: Record<CommandTone, {
     icon: "border-slate-200 bg-slate-100 text-slate-700",
     overviewIcon: "border-slate-200 bg-slate-100 text-slate-700 shadow-[0_8px_20px_rgba(71,85,105,0.1)]",
     tint: "from-slate-100/90",
+    cardSurface: "bg-[#f8fafb]",
     helper: "text-slate-500",
     bar: "bg-slate-500",
   },
@@ -53,6 +58,7 @@ const toneStyles: Record<CommandTone, {
     icon: "border-violet-100 bg-violet-50 text-violet-700",
     overviewIcon: "border-violet-200 bg-violet-50 text-violet-700 shadow-[0_8px_20px_rgba(139,92,246,0.12)]",
     tint: "from-violet-50/95",
+    cardSurface: "bg-[#faf9fc]",
     helper: "text-violet-700",
     bar: "bg-violet-500",
   },
@@ -116,12 +122,12 @@ export const CompactKpiCard = memo(function CompactKpiCard({
   if (variant === "overview") {
     return (
       <article
-        className={`overview-card overview-interactive-card relative min-w-0 overflow-hidden rounded-xl ${
-          isBalancedOverview ? "min-h-[112px] p-3" : "min-h-[132px] p-4"
+        className={`overview-card overview-interactive-card relative min-w-0 overflow-hidden rounded-xl ${styles.cardSurface} ${
+          isBalancedOverview ? "min-h-[114px] px-4 py-3.5" : "min-h-[132px] p-4"
         }`}
       >
         <span className={`absolute inset-x-0 top-0 h-0.5 ${styles.accent}`} aria-hidden="true" />
-        <div className={`relative flex items-start ${isBalancedOverview ? "gap-3.5" : "gap-4"}`}>
+        <div className={`relative flex items-start ${isBalancedOverview ? "gap-3" : "gap-4"}`}>
           <span
             className={`grid shrink-0 place-items-center rounded-lg border ${styles.overviewIcon} ${
               isBalancedOverview ? "h-8 w-8" : "h-9 w-9"
@@ -137,7 +143,7 @@ export const CompactKpiCard = memo(function CompactKpiCard({
               value={value}
               className={`whitespace-nowrap font-semibold leading-none text-[#0b1c2d] ${
                 isBalancedOverview
-                  ? "mt-1.5 text-[clamp(1.45rem,1.55vw,1.85rem)]"
+                  ? "mt-2 text-[clamp(1.55rem,1.75vw,1.95rem)] tracking-[-0.025em]"
                   : "mt-1.5 text-[clamp(1.5rem,1.7vw,1.95rem)]"
               }`}
               title={value}
@@ -145,7 +151,7 @@ export const CompactKpiCard = memo(function CompactKpiCard({
           </div>
         </div>
         <p
-          className="relative mt-2 truncate border-t border-slate-100 pt-2 text-[11px] font-normal leading-4 text-slate-500"
+          className="relative mt-2 truncate border-t border-slate-200/70 pt-1.5 text-[11px] font-normal leading-4 text-slate-500"
           title={detail}
         >
           {detail}
