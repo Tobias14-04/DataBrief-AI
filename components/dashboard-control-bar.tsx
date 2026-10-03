@@ -342,27 +342,27 @@ export const DashboardControlBar = memo(function DashboardControlBar({
   return (
     <section
       ref={rootRef}
-      className="premium-filter-bar relative rounded-xl p-2.5 sm:p-3"
+      className="relative border-b border-slate-200/90 pb-2.5 pt-1 sm:py-2"
       data-testid="dashboard-control-bar"
       data-variant={variant}
       aria-label="Dashboardfiltre"
       aria-busy={isUpdating}
     >
       <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
-        <div className="mr-1 hidden h-10 items-center gap-2.5 border-r border-slate-200 pr-3 sm:flex">
-          <span className="grid h-8 w-8 place-items-center rounded-lg border border-cyan-100 bg-cyan-50 text-cyan-700">
+        <div className="mr-1 hidden items-center gap-2 border-r border-slate-200 pr-3 sm:flex">
+          <span className="text-cyan-700">
             <Filter className="h-4 w-4" aria-hidden="true" />
           </span>
           <div>
             <div className="flex items-center gap-2">
-              <p className="text-[13px] font-semibold text-ink">Filtrer analyse</p>
+              <p className="text-xs font-semibold text-slate-700">Filtrer analyse</p>
               {activeEntries.length ? (
                 <span className="rounded-full bg-cyan-100 px-2 py-0.5 text-[10px] font-semibold text-cyan-800">
                   {activeEntries.length} aktive
                 </span>
               ) : null}
             </div>
-            <p className="text-xs text-slate-500">{filteredRows.toLocaleString("da-DK")} af {totalRows.toLocaleString("da-DK")} rækker</p>
+            <p className="text-[11px] text-slate-500">{filteredRows.toLocaleString("da-DK")} af {totalRows.toLocaleString("da-DK")} rækker</p>
           </div>
         </div>
 
@@ -458,7 +458,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
             disabled={!activeEntries.length}
             className={`inline-flex h-10 items-center gap-2 rounded-lg px-3 text-[13px] font-semibold transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 ${
               activeEntries.length
-                ? "bg-[#0b1c2d] text-white shadow-sm ring-1 ring-cyan-200 hover:bg-[#132c43]"
+                ? "border border-cyan-200 bg-cyan-50 text-cyan-800 hover:border-cyan-300 hover:bg-cyan-100"
                 : "cursor-not-allowed text-slate-400"
             }`}
           >

@@ -116,7 +116,11 @@ export function defaultKpiConfiguration(context: Pick<StandardKpiContext, "hasBu
   const fourthKpi = context.hasBudget ? "revenue-vs-budget" : context.hasGrossMargin || context.hasGrossProfit ? "gross-margin" : "row-count";
   const primaryKpis = ["total-revenue", profitKpi, fourthKpi, "total-units"].filter((id, index, values) => values.indexOf(id) === index);
   const secondaryKpis = ["best-product", "best-category", "best-month"];
-  if (context.hasCosts) secondaryKpis.push("total-costs", "result");
+  if (context.hasCosts) {
+    ["total-costs", "result", "gross-margin"].forEach((id) => {
+      if (!primaryKpis.includes(id)) secondaryKpis.push(id);
+    });
+  }
 
   return {
     version: KPI_CONFIG_VERSION,

@@ -293,8 +293,10 @@ test("standardlayout skifter sikkert mellem filer med og uden budget", () => {
   const withBudget = defaultKpiConfiguration({ hasBudget: true, hasGrossProfit: true, hasGrossMargin: true, hasCosts: true });
   const withoutBudget = defaultKpiConfiguration({ hasBudget: false, hasGrossProfit: true, hasGrossMargin: true, hasCosts: true });
   assert.equal(withBudget.primaryKpis.includes("revenue-vs-budget"), true);
+  assert.deepEqual(withBudget.secondaryKpis.slice(3), ["total-costs", "result", "gross-margin"]);
   assert.equal(withoutBudget.primaryKpis.includes("revenue-vs-budget"), false);
   assert.equal(withoutBudget.primaryKpis.includes("gross-margin"), true);
+  assert.equal(withoutBudget.secondaryKpis.includes("gross-margin"), false);
 });
 
 test("brugerdefineret KPI beregnes fra filtrerede rækker", () => {
