@@ -91,7 +91,7 @@ const FilterMenu = memo(function FilterMenu({
         type="button"
         onClick={() => onOpen(field)}
         aria-expanded={open}
-        className={`flex h-11 w-full max-w-full items-center justify-between gap-3 rounded-lg border px-3.5 text-left transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 sm:min-w-[150px] sm:w-auto ${
+        className={`flex h-10 w-full max-w-full items-center justify-between gap-3 rounded-lg border px-3 text-left transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 sm:min-w-[150px] sm:w-auto ${
           values.length
             ? "border-cyan-300 bg-cyan-50 text-cyan-900"
             : "border-[#d8e3e8] bg-white text-slate-700 hover:border-cyan-300"
@@ -342,15 +342,15 @@ export const DashboardControlBar = memo(function DashboardControlBar({
   return (
     <section
       ref={rootRef}
-      className="premium-filter-bar relative rounded-xl p-3 sm:p-3.5"
+      className="premium-filter-bar relative rounded-xl p-2.5 sm:p-3"
       data-testid="dashboard-control-bar"
       data-variant={variant}
       aria-label="Dashboardfiltre"
       aria-busy={isUpdating}
     >
       <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
-        <div className="mr-1 hidden h-11 items-center gap-3 border-r border-slate-200 pr-4 sm:flex">
-          <span className="grid h-10 w-10 place-items-center rounded-lg border border-cyan-100 bg-cyan-50 text-cyan-700">
+        <div className="mr-1 hidden h-10 items-center gap-2.5 border-r border-slate-200 pr-3 sm:flex">
+          <span className="grid h-8 w-8 place-items-center rounded-lg border border-cyan-100 bg-cyan-50 text-cyan-700">
             <Filter className="h-4 w-4" aria-hidden="true" />
           </span>
           <div>
@@ -389,7 +389,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
                 setMoreOpen((current) => !current);
               }}
               aria-expanded={moreOpen}
-              className={`inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border px-3 text-[13px] font-semibold transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 sm:w-auto ${
+              className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border px-3 text-[13px] font-semibold transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 sm:w-auto ${
                 moreFields.some((field) => draftFilters[field].length)
                   ? "border-cyan-300 bg-cyan-50 text-cyan-900"
                   : "border-[#d8e3e8] bg-white text-slate-600 hover:border-cyan-300"
@@ -439,7 +439,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
           </div>
         ) : null}
 
-        <div className="ml-auto flex min-h-11 items-center gap-2">
+        <div className="ml-auto flex min-h-10 items-center gap-2">
           <span className="hidden min-h-5 items-center justify-end sm:inline-flex min-[1360px]:w-[142px]">
             {showUpdateStatus ? (
               <span
@@ -456,9 +456,9 @@ export const DashboardControlBar = memo(function DashboardControlBar({
             type="button"
             onClick={resetDraftFilters}
             disabled={!activeEntries.length}
-            className={`inline-flex h-11 items-center gap-2 rounded-lg px-3 text-[13px] font-semibold transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 ${
+            className={`inline-flex h-10 items-center gap-2 rounded-lg px-3 text-[13px] font-semibold transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 ${
               activeEntries.length
-                ? "bg-[#0b1c2d] text-white hover:bg-[#132c43]"
+                ? "bg-[#0b1c2d] text-white shadow-sm ring-1 ring-cyan-200 hover:bg-[#132c43]"
                 : "cursor-not-allowed text-slate-400"
             }`}
           >
@@ -469,14 +469,14 @@ export const DashboardControlBar = memo(function DashboardControlBar({
       </div>
 
       {activeEntries.length ? (
-        <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-3">
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-2">
           <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">Aktive filtre</span>
           {activeEntries.map(({ field, value }) => (
             <button
               key={`${field}-${value}`}
               type="button"
               onClick={() => toggleDraftFilter(field, value)}
-              className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-cyan-50 px-2.5 py-1.5 text-xs font-semibold text-cyan-800 transition duration-200 hover:bg-cyan-100"
+              className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-800 transition duration-200 hover:bg-cyan-100"
               title={`Fjern ${labels[field]}: ${value}`}
             >
               <span className="truncate">{value}</span>

@@ -216,7 +216,14 @@ textarea {
 
   .analysis-data-table thead {
     background: #f7fafb;
-    color: #576c7b;
+    color: #415b6b;
+  }
+
+  .analysis-data-table thead th {
+    padding-top: 0.8rem;
+    padding-bottom: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
   }
 
   .analysis-data-table tbody tr:hover {
@@ -224,8 +231,8 @@ textarea {
   }
 
   .analysis-data-table tbody td {
-    padding-top: 0.6rem;
-    padding-bottom: 0.6rem;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
   }
 
   .analysis-data-table :is(th, td):not(:first-child) {

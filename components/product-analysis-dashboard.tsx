@@ -127,7 +127,7 @@ function ProductKpiCard({
             {label}
           </p>
           <p
-            className="mt-1 truncate text-[clamp(1.15rem,1.35vw,1.45rem)] font-semibold leading-6 text-[#0b1c2d]"
+            className="mt-1 truncate text-[clamp(1.25rem,1.5vw,1.55rem)] font-semibold leading-6 text-[#0b1c2d]"
             title={value}
           >
             {value}

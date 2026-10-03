@@ -2259,25 +2259,27 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
       }),
     };
   }, [feedback, filters, monthOptions.length, reportMonth, rows]);
-  const metricGridClass = report.metrics.length === 4
-    ? "grid-cols-2"
-    : report.metrics.length === 3
-      ? "grid-cols-2 sm:grid-cols-3"
-      : "grid-cols-2";
+  const metricGridClass = report.metrics.length >= 5
+    ? "grid-cols-2 sm:grid-cols-3 min-[1200px]:grid-cols-5 min-[1400px]:grid-cols-2"
+    : report.metrics.length === 4
+      ? "grid-cols-2 min-[1200px]:grid-cols-4 min-[1400px]:grid-cols-2"
+      : report.metrics.length === 3
+        ? "grid-cols-2 sm:grid-cols-3 min-[1400px]:grid-cols-2"
+        : "grid-cols-2";
   return (
     <section
       className="premium-panel flex min-w-0 flex-col self-start overflow-visible rounded-xl"
       data-testid="monthly-report"
       data-variant={variant}
     >
-      <div className="flex flex-wrap items-end justify-between gap-4 rounded-t-xl border-b border-[#e8eef1] bg-[linear-gradient(135deg,#ffffff_55%,#f0fafc)] px-5 py-5">
-        <div className="flex items-center gap-3">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 shadow-sm">
-            <CalendarRange className="h-5 w-5" aria-hidden="true" />
+      <div className="flex flex-wrap items-end justify-between gap-3 rounded-t-xl border-b border-[#e8eef1] bg-white px-4 py-3.5">
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700">
+            <CalendarRange className="h-4 w-4" aria-hidden="true" />
           </span>
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-brand-700">Periodeanalyse</p>
-            <h2 className="mt-1 text-lg font-semibold text-ink">Månedsrapport</h2>
+            <h2 className="mt-0.5 text-base font-semibold text-ink">Månedsrapport</h2>
           </div>
         </div>
         <PremiumSelect
@@ -2287,37 +2289,37 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
           label="Rapportmåned"
           ariaLabel="Vælg rapportmåned"
           searchable={monthOptions.length > 10}
-          className="w-[178px]"
+          className="w-[170px]"
         />
       </div>
 
       <div className={`grid ${metricGridClass} gap-px bg-[#e8eef1]`}>
-        {report.metrics.map((metric) => (
+        {report.metrics.map((metric, index) => (
           <div
             key={metric.key}
-            className="flex min-h-[108px] min-w-0 flex-col bg-white px-3.5 py-4"
+            className={`flex min-h-[90px] min-w-0 flex-col justify-center bg-white px-3.5 py-3 ${report.metrics.length === 5 && index === 4 ? "col-span-2 sm:col-span-2 min-[1200px]:col-span-1 min-[1400px]:col-span-2" : ""}`}
           >
-            <p className="min-h-8 text-[10px] font-semibold uppercase leading-4 tracking-[0.1em] text-slate-500">
+            <p className="text-[11px] font-medium leading-4 text-slate-500">
               {metric.label}
             </p>
             <SmoothMetricValue
               value={metric.value}
-              className={`mt-1 min-w-0 whitespace-nowrap text-[18px] font-semibold leading-6 tabular-nums text-ink ${
-                metric.key === "budgetStatus" ? `inline-flex w-fit rounded-md px-2 py-1 text-[11px] ${budgetStatusClasses}` : ""
+              className={`mt-1.5 min-w-0 text-[clamp(1.25rem,1.65vw,1.5rem)] font-semibold leading-tight tabular-nums text-ink ${
+                metric.key === "budgetStatus" ? `inline-flex w-fit rounded-md px-2 py-1 text-[13px] ${budgetStatusClasses}` : ""
               }`}
             />
           </div>
         ))}
       </div>
 
-      <div className="mt-auto rounded-b-xl border-t border-[#e8eef1] bg-[#f8fbfc] px-5 py-5">
-        <p className="border-l-2 border-brand-500 pl-4 text-[13px] font-medium leading-6 text-slate-700">
+      <div className="mt-auto rounded-b-xl border-t border-[#e8eef1] bg-[#f8fbfc] px-4 py-3.5">
+        <p className="border-l-2 border-brand-500 pl-3 text-[13px] font-medium leading-5 text-slate-700">
           {reportRows.length
             ? report.summary
             : `Ingen rækker matcher de aktuelle filtre for ${formatDanishMonth(reportMonth)}.`}
         </p>
         {report.costBasis ? (
-          <p className="mt-2 pl-4 text-[11px] leading-5 text-slate-500">
+          <p className="mt-2 pl-3 text-[11px] leading-4 text-slate-500">
             Resultatgrundlag: {describeCostBasis(report.costBasis)}.
             {report.costBasis.reason ? ` ${report.costBasis.reason}` : ""}
           </p>
@@ -3428,7 +3430,7 @@ export default function UploadDashboard() {
           ) : null}
 
           {!shouldShowManualMapping ? (
-          <div className={`grid min-w-0 gap-4 ${activeView === "overview" ? "min-[1200px]:grid-cols-[minmax(0,1fr)_280px]" : "min-[1360px]:grid-cols-[minmax(0,1fr)_380px]"}`}>
+          <div className={`grid min-w-0 ${activeView === "overview" ? "gap-6 min-[1200px]:grid-cols-[minmax(0,1fr)_280px]" : "gap-4 min-[1360px]:grid-cols-[minmax(0,1fr)_380px]"}`}>
           {error ? (
             <div className={`min-w-0 ${activeView === "overview" ? "min-[1200px]:col-span-2" : "min-[1360px]:col-span-2"}`}>
               <WorkbookErrorNotice message={error} onDownloadSample={downloadSampleExcel} />
@@ -3555,7 +3557,7 @@ export default function UploadDashboard() {
             </div>
             {secondaryKpis.length > 3 ? (
               <details className="group border-t border-slate-100 pt-2">
-                <summary className="w-fit cursor-pointer text-xs font-semibold text-cyan-800 hover:text-cyan-950">Vis {secondaryKpis.length - 3} flere nøgletal</summary>
+                <summary className="w-fit cursor-pointer rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-cyan-800 shadow-sm transition-colors hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">Vis {secondaryKpis.length - 3} flere nøgletal</summary>
                 <div className="mt-3 grid gap-3 sm:grid-cols-3">
                   {secondaryKpis.slice(3).map((definition) => {
                     const evaluation = kpiEvaluations[definition.id];
@@ -3609,7 +3611,7 @@ export default function UploadDashboard() {
             >Åbn Ledelse</button>
           </aside>
 
-          <section className="order-4 min-w-0 border-t border-slate-200 pt-3 min-[1200px]:col-span-2" data-testid="overview-next-step">
+          <section className="order-4 min-w-0 border-t border-slate-200 pt-4 min-[1200px]:col-span-2" data-testid="overview-next-step">
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
               <div className="min-w-0">
                 <p className={`${commandSectionLabelClass} text-cyan-800`}>Vigtigste observationer</p>
@@ -3648,7 +3650,7 @@ export default function UploadDashboard() {
                 />}
               />
 
-              <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(340px,0.68fr)]">
+              <div className="grid items-start gap-4 min-[1400px]:grid-cols-[minmax(0,1fr)_320px]">
                 <CommandPanel
                   eyebrow="Primær analyse"
                   title={activeTrendDefinition.label}
@@ -3659,7 +3661,7 @@ export default function UploadDashboard() {
                   variant="analysis"
                   className="analysis-panel-primary"
                 >
-                  <div className="h-[380px] overflow-visible bg-[linear-gradient(180deg,#ffffff_0%,#fbfdfe_100%)] px-3 pb-6 pt-5 sm:h-[440px] sm:px-5 sm:pb-7 sm:pt-6">
+                  <div className="h-[380px] overflow-visible bg-white px-3 pb-6 pt-5 sm:h-[440px] sm:px-5 sm:pb-7 sm:pt-6">
                     {hasFilteredData ? (
                       <ResponsiveContainer width="100%" height="100%">
                         <RechartsAreaChart data={metrics.monthly} margin={{ top: 14, right: 24, bottom: 30, left: 8 }}>
@@ -3744,7 +3746,7 @@ export default function UploadDashboard() {
                     </thead>
                     <tbody className="text-[13px]">
                       {metrics.monthly.map((month) => (
-                        <tr key={month.sortKey} className="bg-white transition-colors even:bg-[#fbfdfe] hover:bg-cyan-50/55">
+                        <tr key={month.sortKey} className="bg-white transition-colors hover:bg-cyan-50/55">
                           <td className="border-b border-slate-100 px-5 py-4 text-sm font-semibold text-ink sm:px-6">{formatDanishMonth(month.name)}</td>
                           <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700">{currency(month.revenue)}</td>
                           <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700">{number(month.units)}</td>
