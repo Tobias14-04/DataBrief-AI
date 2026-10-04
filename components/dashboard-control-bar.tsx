@@ -468,6 +468,10 @@ export const DashboardControlBar = memo(function DashboardControlBar({
         </div>
       </div>
 
+      <p className="mt-2 text-[11px] text-slate-500 sm:hidden">
+        {filteredRows.toLocaleString("da-DK")} af {totalRows.toLocaleString("da-DK")} rækker
+      </p>
+
       {activeEntries.length ? (
         <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-2">
           <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">Aktive filtre</span>
@@ -479,7 +483,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
               className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-800 transition duration-200 hover:bg-cyan-100"
               title={`Fjern ${labels[field]}: ${value}`}
             >
-              <span className="truncate">{value}</span>
+              <span className="truncate">{labels[field]}: {value}</span>
               <X className="h-3 w-3 shrink-0" aria-hidden="true" />
             </button>
           ))}
