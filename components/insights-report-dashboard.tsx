@@ -44,7 +44,6 @@ import { PremiumSelect } from "@/components/premium-select";
 import { SmoothMetricValue } from "@/components/smooth-metric-value";
 import { StrategyDashboard } from "@/components/strategy-dashboard";
 import {
-  addTargetsToExecutiveSummary,
   prioritizeInsightAnalysis,
   prioritizeStrategicAnalysis,
   resolveCompanyFocus,
@@ -58,6 +57,7 @@ import {
   formatDanishPercent,
 } from "@/lib/dashboard-insights";
 import { summarizeDriverTopN } from "@/lib/insight-engine";
+import { buildManagementReport } from "@/lib/management-report";
 import type {
   InsightAnalysis,
   InsightDriver,
@@ -67,14 +67,11 @@ import type {
   InsightObservation,
   InsightRecommendation,
   InsightReliability,
-  InsightReportSection,
   InsightSnapshotItem,
   InsightTone,
 } from "@/lib/insight-engine";
 import {
   buildStrategicAnalysis,
-  type StrategicAnalysis,
-  type StrategicQuadrant,
 } from "@/lib/strategy-engine";
 
 export type InsightsReportTab = "insights" | "report" | "strategy";
@@ -915,20 +912,11 @@ function reportSectionTreatment(sectionKey: string) {
       body: "text-slate-700",
     };
   }
-  if (sectionKey === "risks") {
+  if (sectionKey === "assessment") {
     return {
-      tone: "risk",
-      section: "bg-orange-50/30 shadow-[inset_3px_0_0_#fb923c]",
-      number: "bg-orange-100 text-orange-800",
-      heading: "text-base",
-      body: "text-slate-700",
-    };
-  }
-  if (sectionKey === "opportunities") {
-    return {
-      tone: "opportunity",
-      section: "bg-emerald-50/30 shadow-[inset_3px_0_0_#34d399]",
-      number: "bg-emerald-100 text-emerald-800",
+      tone: "status",
+      section: "bg-slate-50/60",
+      number: "bg-slate-100 text-slate-700",
       heading: "text-base",
       body: "text-slate-700",
     };
@@ -960,110 +948,17 @@ function reportSectionTreatment(sectionKey: string) {
   };
 }
 
-const strategicQuadrantLabels: Record<StrategicQuadrant, string> = {
-  strength: "Styrker",
-  weakness: "Svagheder",
-  opportunity: "Datadrevne muligheder",
-  threat: "Datadrevne risici",
-};
-
-function StrategicReportSummary({
-  strategy,
-  sectionNumber,
-}: {
-  strategy: StrategicAnalysis;
-  sectionNumber: number;
-}) {
-  const quadrants = (["strength", "weakness", "opportunity", "threat"] as const)
-    .map((quadrant) => ({
-      quadrant,
-      items: strategy.reportSummary.quadrants[quadrant],
-    }))
-    .filter((entry) => entry.items.length > 0);
-  const focus = strategy.reportSummary.strategicFocus;
-
-  return (
-    <section
-      aria-labelledby="report-section-strategic-summary"
-      className="border-l-[3px] border-cyan-700 bg-slate-50/60 px-5 py-6 sm:px-7"
-      data-report-tone="strategy"
-    >
-      <div className="grid gap-4 sm:grid-cols-[34px_minmax(0,1fr)]">
-        <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#0b263a] text-[11px] font-semibold text-cyan-200 shadow-sm" aria-hidden="true">
-          {String(sectionNumber).padStart(2, "0")}
-        </span>
-        <div className="min-w-0">
-          <h3 id="report-section-strategic-summary" className="text-lg font-semibold text-[#0b1c2d]">Strategisk opsamling</h3>
-          <p className="mt-2 text-xs leading-5 text-slate-500">
-            Fundene vedrører {strategy.dataBasis.scopeLabel}. Kun dokumenterede interne forhold indgår; eksterne markedsforhold er ikke vurderet.
-          </p>
-          {quadrants.length ? (
-            <div className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2">
-              {quadrants.map(({ quadrant, items }) => (
-                <section key={quadrant} aria-labelledby={`report-strategy-${quadrant}`}>
-                  <h4 id={`report-strategy-${quadrant}`} className="text-xs font-semibold uppercase tracking-[0.08em] text-cyan-800">
-                    {strategicQuadrantLabels[quadrant]}
-                  </h4>
-                  <ul className="mt-2 space-y-2 text-[13px] leading-5 text-slate-700">
-                    {items.map((item) => (
-                      <li key={item.findingId}>
-                        <span className="font-semibold text-[#0b1c2d]">{item.title}.</span>{" "}{item.description}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              ))}
-            </div>
-          ) : null}
-          {focus.length ? (
-            <section className="mt-5 border-t border-cyan-100 pt-4" aria-labelledby="report-strategic-focus">
-              <h4 id="report-strategic-focus" className="text-sm font-semibold text-[#0b1c2d]">Strategisk fokus</h4>
-              <ol className="mt-2 space-y-2 text-[13px] leading-5 text-slate-700">
-                {focus.map((item) => <li key={item.id}>{item.text}</li>)}
-              </ol>
-            </section>
-          ) : null}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function ReportView({
   analysis,
-  strategy,
+  analysisPreferences,
   targetStatuses,
 }: {
   analysis: InsightAnalysis;
-  strategy: StrategicAnalysis;
+  analysisPreferences: AnalysisPreferences;
   targetStatuses: readonly AnalysisTargetStatus[];
 }) {
-  const sections = addTargetsToExecutiveSummary(
-    analysis.report.sections,
-    targetStatuses,
-  ).filter((section) => section.available);
-  const hasStrategicSummary = Object.values(strategy.reportSummary.quadrants)
-    .some((items) => items.length > 0)
-    || strategy.reportSummary.strategicFocus.length > 0;
-  const hasReportContent = sections.some((section) => section.key !== "data-basis")
-    || hasStrategicSummary;
-  const reportEntries: Array<
-    | { kind: "section"; section: InsightReportSection }
-    | { kind: "strategy" }
-  > = [];
-  let strategicSummaryInserted = false;
-  for (const section of sections) {
-    if (section.key === "data-basis" && hasStrategicSummary && !strategicSummaryInserted) {
-      reportEntries.push({ kind: "strategy" });
-      strategicSummaryInserted = true;
-    }
-    reportEntries.push({ kind: "section", section });
-    if (section.key === "recommended-focus" && hasStrategicSummary && !strategicSummaryInserted) {
-      reportEntries.push({ kind: "strategy" });
-      strategicSummaryInserted = true;
-    }
-  }
-  if (hasStrategicSummary && !strategicSummaryInserted) reportEntries.push({ kind: "strategy" });
+  const sections = buildManagementReport(analysis, analysisPreferences, targetStatuses);
+  const hasReportContent = sections.some((section) => section.key !== "data-basis");
   const reportSubtitle = analysis.dataBasis.scopeMode === "all-filtered-periods"
     ? `${analysis.dataBasis.scopeLabel}.${analysis.currentPeriod && analysis.comparisonPeriod
         ? ` Udviklingen sammenlignes fra ${analysis.comparisonPeriod.label} til ${analysis.currentPeriod.label}.`
@@ -1073,14 +968,9 @@ function ReportView({
         ? `${analysis.currentPeriod.label} sammenlignet med ${analysis.comparisonPeriod.label}.`
         : `${analysis.currentPeriod.label}. Der findes ingen tidligere sammenlignelig periode.`
       : "Den aktuelle filtrerede visning.";
-  const dataBasisSummary = `Analysen omfatter ${formatDanishNumber(analysis.dataBasis.rowCount)} af ${formatDanishNumber(analysis.dataBasis.totalRowCount)} rækker fra ${analysis.dataBasis.sourceName}.${
-    analysis.dataBasis.activeFilterLabels.length
-      ? ` Aktive filtre: ${analysis.dataBasis.activeFilterLabels.join(", ")}.`
-      : ""
-  }`;
   return (
-    <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_260px]">
-      <article className="report-document premium-panel min-h-[560px] overflow-hidden rounded-lg" aria-labelledby="management-report-title" data-testid="management-report">
+    <div className="mx-auto max-w-4xl">
+      <article className="report-document premium-panel overflow-hidden rounded-lg" aria-labelledby="management-report-title" data-testid="management-report">
         <header className="border-b border-slate-200 bg-white px-5 py-6 sm:px-7 sm:py-7">
           <div className="flex items-start justify-between gap-5">
             <div className="min-w-0">
@@ -1103,17 +993,7 @@ function ReportView({
 
         {hasReportContent ? (
           <div className="divide-y divide-slate-100">
-            {reportEntries.map((entry, index) => {
-              if (entry.kind === "strategy") {
-                return (
-                  <StrategicReportSummary
-                    key="strategic-report-summary"
-                    strategy={strategy}
-                    sectionNumber={index + 1}
-                  />
-                );
-              }
-              const { section } = entry;
+            {sections.map((section, index) => {
               const treatment = reportSectionTreatment(section.key);
               return (
               <section
@@ -1128,6 +1008,7 @@ function ReportView({
                   </span>
                   <div className="min-w-0">
                     <h3 id={`report-section-${section.key}`} className={`${treatment.heading} font-semibold text-[#0b1c2d]`}>{section.title}</h3>
+                    <p className="mt-1 text-[11px] font-medium leading-4 text-slate-500">{section.scope}</p>
                     <div className={`mt-2 space-y-2.5 text-sm leading-6 ${treatment.body}`}>
                       {section.paragraphs.map((paragraph, paragraphIndex) => (
                         <p key={`${section.key}-paragraph-${paragraphIndex}`}>{paragraph}</p>
@@ -1147,33 +1028,6 @@ function ReportView({
         )}
       </article>
 
-      <aside className="space-y-4 xl:sticky xl:top-24">
-        <section className="premium-panel-dark rounded-xl p-5 text-white" aria-labelledby="report-basis-title">
-          <span className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/[0.06] text-cyan-200">
-            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-          </span>
-          <h2 id="report-basis-title" className="mt-4 text-base font-semibold">Dokumenteret datagrundlag</h2>
-          <p className="mt-2 text-[13px] leading-6 text-slate-300">
-            {dataBasisSummary}
-          </p>
-          <p className="mt-4 border-t border-white/10 pt-4 text-xs font-medium leading-5 text-cyan-200">
-            {reliabilityLabel(analysis.reliability)}
-          </p>
-        </section>
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-start gap-3">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-orange-50 text-orange-700">
-              <SearchCheck className="h-4 w-4" aria-hidden="true" />
-            </span>
-            <div>
-              <h2 className="text-sm font-semibold text-[#0b1c2d]">Sådan skal rapporten læses</h2>
-              <p className="mt-1 text-xs leading-5 text-slate-600">
-                Drivere viser, hvor bevægelsen er registreret. De dokumenterer ikke i sig selv den bagvedliggende forretningsmæssige årsag.
-              </p>
-            </div>
-          </div>
-        </section>
-      </aside>
     </div>
   );
 }
@@ -1293,7 +1147,7 @@ export const InsightsReportDashboard = memo(function InsightsReportDashboard({
         {activeTab === "report" ? (
           <ReportView
             analysis={prioritizedAnalysis}
-            strategy={strategicAnalysis}
+            analysisPreferences={analysisPreferences}
             targetStatuses={targetStatuses}
           />
         ) : null}

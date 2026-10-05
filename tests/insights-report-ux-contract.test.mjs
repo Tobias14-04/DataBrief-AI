@@ -76,10 +76,9 @@ test("den tunge analysemotor aktiveres kun på Indsigter og genbruger deferred f
   assert.doesNotMatch(strategyEngineSource, /applyDashboardFilters|InsightSourceRow/u);
 });
 
-test("rapporten viser kun tilgængelige evidence-baserede sektioner", () => {
-  assert.match(componentSource, /addTargetsToExecutiveSummary\([\s\S]*analysis\.report\.sections,[\s\S]*targetStatuses,[\s\S]*\)\.filter\(\(section\) => section\.available\)/u);
-  assert.match(componentSource, /Dokumenteret datagrundlag/u);
-  assert.match(componentSource, /Drivere viser, hvor bevægelsen er registreret/u);
+test("rapporten bruger et prioriteret, evidensbaseret beslutningsforløb", () => {
+  assert.match(componentSource, /buildManagementReport\(analysis, analysisPreferences, targetStatuses\)/u);
+  assert.match(componentSource, /report-section-\$\{section\.key\}/u);
   assert.match(componentSource, /hasReportContent/u);
   assert.match(componentSource, /Seneste periode:/u);
   assert.match(componentSource, /Ledelsesoverblik/u);
@@ -117,15 +116,17 @@ test("KPI'er, ændringer og drivere bruger billige CSS-overgange uden sektions-r
   assert.match(globalStyles, /prefers-reduced-motion: reduce[\s\S]*\.insight-driver-bar[\s\S]*transition: none/u);
 });
 
-test("rapporten har diskret semantisk hierarki for resume, risici, muligheder, fokus og datagrundlag", () => {
+test("rapporten har diskret semantisk hierarki uden kopieret strategisektion", () => {
   assert.match(componentSource, /sectionKey === "executive-summary"/u);
-  assert.match(componentSource, /sectionKey === "risks"/u);
-  assert.match(componentSource, /sectionKey === "opportunities"/u);
+  assert.match(componentSource, /sectionKey === "assessment"/u);
   assert.match(componentSource, /sectionKey === "recommended-focus"/u);
   assert.match(componentSource, /sectionKey === "data-basis"/u);
   assert.match(componentSource, /data-report-tone=\{treatment\.tone\}/u);
-  assert.match(componentSource, /StrategicReportSummary/u);
-  assert.match(componentSource, /section\.key === "recommended-focus"[\s\S]*kind: "strategy"/u);
+  assert.doesNotMatch(componentSource, /StrategicReportSummary/u);
+  assert.match(componentSource, /\{section\.scope\}/u);
+  assert.match(globalStyles, /@page\s*\{\s*size: A4/u);
+  assert.match(globalStyles, /body:has\(\[data-testid="management-report"\]\) \*\s*\{\s*visibility: hidden/u);
+  assert.match(globalStyles, /break-inside: avoid-page/u);
 });
 
 test("Strategi-viewet adskiller interne data fra eksterne forhold og har tilgængelig dokumentation", () => {
