@@ -27,10 +27,10 @@ const globalStyles = readFileSync(
   "utf8",
 );
 
-test("den samlede side har tilgængelige Indsigter/Rapport/Strategi-tabs med standardvisningen Indsigter", () => {
+test("den samlede side har tilgængelige Indsigter/Rapport/Strategisk overblik-tabs med standardvisningen Indsigter", () => {
   assert.match(uploadSource, /useState<InsightsReportTab>\("insights"\)/u);
   assert.match(componentSource, /export type InsightsReportTab = "insights" \| "report" \| "strategy"/u);
-  assert.match(componentSource, /id: "strategy", label: "Strategi"/u);
+  assert.match(componentSource, /id: "strategy", label: "Strategisk overblik"/u);
   assert.match(componentSource, /role="tablist"/u);
   assert.match(componentSource, /role="tab"/u);
   assert.match(componentSource, /aria-selected=\{selected\}/u);
@@ -83,7 +83,7 @@ test("rapporten bruger et prioriteret, evidensbaseret beslutningsforløb", () =>
   assert.match(componentSource, /Seneste periode:/u);
   assert.match(componentSource, /Ledelsesoverblik/u);
   assert.doesNotMatch(componentSource, /Executive snapshot/u);
-  assert.match(strategyComponentSource, /eyebrow="Strategisk overblik"/u);
+  assert.match(strategyComponentSource, /eyebrow="Kort fortalt"/u);
   assert.doesNotMatch(strategyComponentSource, /Strategisk snapshot/u);
   assert.match(strategyEngineSource, /bidrog til \$\{movement\}/u);
   assert.doesNotMatch(strategyEngineSource, /bidrager positivt til/u);
@@ -99,7 +99,7 @@ test("filteropdateringer bevarer eksisterende data og viser kun forsinket status
   assert.match(componentSource, /aria-busy=\{isUpdating \|\| isSwapping\}/u);
   assert.match(componentSource, /Opdaterer indsigter…/u);
   assert.match(componentSource, /Opdaterer rapport…/u);
-  assert.match(componentSource, /Opdaterer strategisk opsamling…/u);
+  assert.match(componentSource, /Opdaterer strategisk overblik…/u);
   assert.match(controlBarSource, /setShowUpdateStatus/u);
   assert.match(controlBarSource, /window\.setTimeout\(\(\) => setShowUpdateStatus\(true\), 130\)/u);
   assert.match(controlBarSource, /w-\[142px\]/u);
@@ -129,22 +129,22 @@ test("rapporten har diskret semantisk hierarki uden kopieret strategisektion", (
   assert.match(globalStyles, /break-inside: avoid-page/u);
 });
 
-test("Strategi-viewet adskiller interne data fra eksterne forhold og har tilgængelig dokumentation", () => {
-  assert.match(componentSource, /title=\{activeTab === "insights"[\s\S]*"Strategisk opsamling"/u);
-  assert.match(strategyComponentSource, /SWOT-baseret strategisk opsamling/u);
-  assert.match(strategyComponentSource, /Eksterne markedsforhold indgår ikke/u);
-  assert.match(strategyComponentSource, /Strategisk datagrundlag: \{strategy\.dataBasis\.scopeLabel\}/u);
-  assert.match(strategyComponentSource, /STYRKER/u);
-  assert.match(strategyComponentSource, /SVAGHEDER/u);
-  assert.match(strategyComponentSource, /DATADREVNE MULIGHEDER/u);
-  assert.match(strategyComponentSource, /DATADREVNE RISICI/u);
+test("Strategisk overblik adskiller interne data fra eksterne forhold og har tilgængelig dokumentation", () => {
+  assert.match(componentSource, /title=\{activeTab === "insights"[\s\S]*"Strategisk overblik"/u);
+  assert.match(strategyComponentSource, /eyebrow="Interne fund"/u);
+  assert.match(strategyComponentSource, /Eksterne markedsforhold er ikke vurderet/u);
+  assert.match(strategyComponentSource, /Overordnet scope: \{strategy\.dataBasis\.scopeLabel\}\. Hvert fund viser sin egen periode/u);
+  assert.match(strategyComponentSource, /POSITIVE SIGNALER/u);
+  assert.match(strategyComponentSource, /UDFORDRINGER/u);
+  assert.match(strategyComponentSource, /RISICI OG EKSPONERINGER/u);
+  assert.doesNotMatch(strategyComponentSource, /DATADREVNE MULIGHEDER|SWOT-baseret|TOWS/u);
   assert.match(strategyComponentSource, /Se dokumentation/u);
   assert.match(strategyComponentSource, /aria-expanded=\{expanded\}/u);
   assert.match(strategyComponentSource, /aria-controls=\{regionId\}/u);
   assert.match(strategyComponentSource, /role="region"/u);
   assert.match(strategyComponentSource, /lg:grid-cols-2/u);
   assert.match(strategyComponentSource, /testId="strategy-snapshot"/u);
-  assert.match(strategyComponentSource, /strategy\.findingsByQuadrant\.strength\.slice\(0, 2\)/u);
+  assert.match(strategyComponentSource, /positiveSignals\.slice\(0, 2\)/u);
   assert.match(strategyComponentSource, /strategy\.findingsByQuadrant\.weakness\.slice\(0, 2\)/u);
   assert.match(strategyComponentSource, /\.slice\(0, 2\)/u);
   assert.match(strategyComponentSource, /strategicFocus\.slice\(0, 3\)/u);
@@ -152,15 +152,17 @@ test("Strategi-viewet adskiller interne data fra eksterne forhold og har tilgæn
   assert.match(strategyComponentSource, /Vis alle \$\{formatDanishNumber\(findings\.length\)\}/u);
   assert.match(strategyComponentSource, /Vis færre/u);
   assert.match(strategyComponentSource, /aria-label="Dokumentationsmetadata"/u);
+  assert.match(strategyComponentSource, /finding\.reliabilityBasis/u);
+  assert.match(strategyComponentSource, /finding\.scopeLabel/u);
 });
 
-test("TOWS vises automatisk som konkrete undersøgelsesområder med synlig sporbarhed", () => {
-  assert.match(strategyComponentSource, /Strategiske kombinationer/u);
-  assert.match(strategyComponentSource, /områder, der kan undersøges nærmere/u);
-  assert.match(strategyComponentSource, /SO · Styrker \+ muligheder/u);
-  assert.match(strategyComponentSource, /ST · Styrker \+ risici/u);
-  assert.match(strategyComponentSource, /WO · Svagheder \+ muligheder/u);
-  assert.match(strategyComponentSource, /WT · Svagheder \+ risici/u);
+test("interne sammenhænge vises som undersøgelsesområder med synlig sporbarhed", () => {
+  assert.match(strategyComponentSource, /Dokumenterede sammenhænge/u);
+  assert.match(strategyComponentSource, /De dokumenterer ikke årsagssammenhæng/u);
+  assert.match(strategyComponentSource, /To positive signaler/u);
+  assert.match(strategyComponentSource, /Positivt signal og eksponering/u);
+  assert.match(strategyComponentSource, /Udfordring og positivt signal/u);
+  assert.match(strategyComponentSource, /Udfordring og eksponering/u);
   assert.match(strategyComponentSource, /proposal\.sourceFindingIds\.length/u);
   assert.match(strategyComponentSource, /proposal\.evidenceIds\.length/u);
   assert.match(strategyEngineSource, /seenEvidencePairs/u);

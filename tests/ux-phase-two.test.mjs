@@ -48,7 +48,7 @@ test("Økonomi prioriterer status, budget, fordeling, effektivitet og tabel", ()
   assert.match(block, /analysis\.costBasis\.status === "unavailable" && analysis\.reportedCosts === null/u);
 });
 
-test("Strategi viser kun SWOT- og TOWS-grupper med indhold", () => {
+test("Strategisk overblik viser kun interne fund og sammenhænge med indhold", () => {
   const strategy = source("strategy-dashboard");
   assert.match(strategy, /visibleQuadrants\.map/u);
   assert.match(strategy, /visibleTows\.map/u);

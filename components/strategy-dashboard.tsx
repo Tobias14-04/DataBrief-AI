@@ -7,7 +7,6 @@ import {
   ChevronDown,
   CircleDot,
   Info,
-  Lightbulb,
   Link2,
   ShieldAlert,
   ShieldCheck,
@@ -57,15 +56,15 @@ type TowsDefinition = AccentStyle & {
 };
 
 const EXTERNAL_CONTEXT_NOTICE =
-  "Muligheder og risici er udledt af det registrerede datagrundlag. Eksterne markedsforhold indgår ikke, medmindre de findes i datasættet.";
+  "Positive signaler, udfordringer og eksponeringer er udledt af registrerede interne data. Eksterne markedsforhold er ikke vurderet.";
 const DEFAULT_FINDING_COUNT = 3;
 
 const quadrantDefinitions: readonly QuadrantDefinition[] = [
   {
     key: "strength",
-    title: "STYRKER",
-    description: "Dokumenterede interne fordele",
-    emptyMessage: "Ingen robuste styrker identificeret i den aktuelle visning.",
+    title: "POSITIVE SIGNALER",
+    description: "Positive dokumenterede forhold",
+    emptyMessage: "Ingen positive signaler dokumenteret i den aktuelle visning.",
     iconComponent: ShieldCheck,
     bar: "bg-emerald-500",
     icon: "border-emerald-100 bg-emerald-50 text-emerald-700",
@@ -73,29 +72,19 @@ const quadrantDefinitions: readonly QuadrantDefinition[] = [
   },
   {
     key: "weakness",
-    title: "SVAGHEDER",
-    description: "Dokumenterede interne begrænsninger",
-    emptyMessage: "Ingen robuste svagheder identificeret i den aktuelle visning.",
+    title: "UDFORDRINGER",
+    description: "Forhold, der bør undersøges nærmere",
+    emptyMessage: "Ingen udfordringer dokumenteret i den aktuelle visning.",
     iconComponent: AlertTriangle,
     bar: "bg-orange-400",
     icon: "border-orange-100 bg-orange-50 text-orange-700",
     label: "text-orange-700",
   },
   {
-    key: "opportunity",
-    title: "DATADREVNE MULIGHEDER",
-    description: "Muligheder udledt af registrerede mønstre",
-    emptyMessage: "Ingen robuste datadrevne muligheder identificeret i den aktuelle visning.",
-    iconComponent: Lightbulb,
-    bar: "bg-cyan-500",
-    icon: "border-cyan-100 bg-cyan-50 text-cyan-700",
-    label: "text-cyan-700",
-  },
-  {
     key: "threat",
-    title: "DATADREVNE RISICI",
-    description: "Risici udledt af registrerede mønstre",
-    emptyMessage: "Ingen robuste datadrevne risici identificeret i den aktuelle visning.",
+    title: "RISICI OG EKSPONERINGER",
+    description: "Dokumenteret koncentration eller negativ udvikling",
+    emptyMessage: "Ingen eksponeringer dokumenteret i den aktuelle visning.",
     iconComponent: ShieldAlert,
     bar: "bg-orange-600",
     icon: "border-orange-100 bg-orange-50 text-orange-700",
@@ -106,36 +95,36 @@ const quadrantDefinitions: readonly QuadrantDefinition[] = [
 const towsDefinitions: readonly TowsDefinition[] = [
   {
     type: "so",
-    title: "SO · Styrker + muligheder",
-    description: "Brug styrker til at udnytte muligheder.",
-    emptyMessage: "Ingen robust SO-kombination kan udledes af den aktuelle visning.",
+    title: "To positive signaler",
+    description: "Undersøg om de dokumenterede signaler hænger sammen.",
+    emptyMessage: "Ingen særskilt sammenhæng mellem positive signaler kan dokumenteres.",
     bar: "bg-emerald-500",
     icon: "border-emerald-100 bg-emerald-50 text-emerald-700",
     label: "text-emerald-700",
   },
   {
     type: "st",
-    title: "ST · Styrker + risici",
-    description: "Brug styrker til at reducere risici.",
-    emptyMessage: "Ingen robust ST-kombination kan udledes af den aktuelle visning.",
+    title: "Positivt signal og eksponering",
+    description: "Vurder signalet og eksponeringen i samme scope.",
+    emptyMessage: "Ingen særskilt sammenhæng kan dokumenteres.",
     bar: "bg-cyan-500",
     icon: "border-cyan-100 bg-cyan-50 text-cyan-700",
     label: "text-cyan-700",
   },
   {
     type: "wo",
-    title: "WO · Svagheder + muligheder",
-    description: "Brug muligheder til at adressere svagheder.",
-    emptyMessage: "Ingen robust WO-kombination kan udledes af den aktuelle visning.",
+    title: "Udfordring og positivt signal",
+    description: "Undersøg om det positive signal belyser udfordringen.",
+    emptyMessage: "Ingen særskilt sammenhæng kan dokumenteres.",
     bar: "bg-cyan-500",
     icon: "border-cyan-100 bg-cyan-50 text-cyan-700",
     label: "text-cyan-700",
   },
   {
     type: "wt",
-    title: "WT · Svagheder + risici",
-    description: "Reducer eksponering mod kombinerede svagheder og risici.",
-    emptyMessage: "Ingen robust WT-kombination kan udledes af den aktuelle visning.",
+    title: "Udfordring og eksponering",
+    description: "Vurder de to dokumenterede forhold sammen.",
+    emptyMessage: "Ingen særskilt sammenhæng kan dokumenteres.",
     bar: "bg-orange-500",
     icon: "border-orange-100 bg-orange-50 text-orange-700",
     label: "text-orange-700",
@@ -284,53 +273,48 @@ const StrategicSnapshot = memo(function StrategicSnapshot({
 }: {
   strategy: StrategicAnalysis;
 }) {
-  const opportunityAndRisk = useMemo(
-    () => [
-      ...strategy.findingsByQuadrant.opportunity,
-      ...strategy.findingsByQuadrant.threat,
-    ]
-      .sort((left, right) => right.priority - left.priority || left.id.localeCompare(right.id, "da-DK"))
-      .slice(0, 2),
-    [strategy.findingsByQuadrant.opportunity, strategy.findingsByQuadrant.threat],
+  const positiveSignals = useMemo(
+    () => strategy.findings.filter((finding) => finding.quadrant === "strength" || finding.quadrant === "opportunity"),
+    [strategy.findings],
   );
   const focusAreas = strategy.reportSummary.strategicFocus.slice(0, 3);
-  const hasSnapshot = strategy.findingsByQuadrant.strength.length > 0
+  const hasSnapshot = positiveSignals.length > 0
     || strategy.findingsByQuadrant.weakness.length > 0
-    || opportunityAndRisk.length > 0
+    || strategy.findingsByQuadrant.threat.length > 0
     || focusAreas.length > 0;
-  const snapshotCount = Number(strategy.findingsByQuadrant.strength.length > 0)
+  const snapshotCount = Number(positiveSignals.length > 0)
     + Number(strategy.findingsByQuadrant.weakness.length > 0)
-    + Number(opportunityAndRisk.length > 0)
+    + Number(strategy.findingsByQuadrant.threat.length > 0)
     + Number(focusAreas.length > 0);
 
   if (!hasSnapshot) {
-    return <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600" data-testid="strategy-snapshot">Der er endnu ingen robuste strategiske fund i det aktuelle scope.</div>;
+    return <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600" data-testid="strategy-snapshot">Der er endnu ingen dokumenterede fund i det aktuelle scope.</div>;
   }
 
   return (
     <CommandPanel
-      eyebrow="Strategisk overblik"
-      title="Vigtigste dokumenterede fokus"
-      description="Et kort overblik over de højest prioriterede fund i den aktuelle visning"
+      eyebrow="Kort fortalt"
+      title="Vigtigste dokumenterede forhold"
+      description="Prioriterede interne fund og områder, der bør undersøges"
       icon={CircleDot}
       tone="neutral"
       testId="strategy-snapshot"
     >
       <div className={`grid min-w-0 items-start gap-3 p-4 ${snapshotCount > 1 ? "sm:grid-cols-2" : ""} ${snapshotCount === 4 ? "xl:grid-cols-4" : snapshotCount === 3 ? "xl:grid-cols-3" : snapshotCount === 2 ? "xl:grid-cols-2" : ""}`}>
-        {strategy.findingsByQuadrant.strength.length ? <SnapshotColumn
-          title="Styrker"
-          findings={strategy.findingsByQuadrant.strength.slice(0, 2)}
-          emptyMessage="Ingen robuste styrker i den aktuelle visning."
+        {positiveSignals.length ? <SnapshotColumn
+          title="Positive signaler"
+          findings={positiveSignals.slice(0, 2)}
+          emptyMessage="Ingen positive signaler i den aktuelle visning."
         /> : null}
         {strategy.findingsByQuadrant.weakness.length ? <SnapshotColumn
-          title="Svagheder"
+          title="Udfordringer"
           findings={strategy.findingsByQuadrant.weakness.slice(0, 2)}
-          emptyMessage="Ingen robuste svagheder i den aktuelle visning."
+          emptyMessage="Ingen udfordringer i den aktuelle visning."
         /> : null}
-        {opportunityAndRisk.length ? <SnapshotColumn
-          title="Muligheder og risici"
-          findings={opportunityAndRisk}
-          emptyMessage="Ingen robuste muligheder eller risici i den aktuelle visning."
+        {strategy.findingsByQuadrant.threat.length ? <SnapshotColumn
+          title="Risici og eksponeringer"
+          findings={strategy.findingsByQuadrant.threat.slice(0, 2)}
+          emptyMessage="Ingen eksponeringer i den aktuelle visning."
         /> : null}
         {focusAreas.length ? <section className="min-w-0 border-l-2 border-cyan-300 px-3 py-1">
           <h3 className="text-[11px] font-semibold text-slate-500">
@@ -408,6 +392,13 @@ const FindingDocumentation = memo(function FindingDocumentation({
           value={formatDanishNumber(finding.sampleSize)}
         />
       </dl>
+      <p className="mt-2 text-xs leading-5 text-slate-600">
+        <span className="font-semibold text-slate-700">Datagrundlag:</span> {finding.scopeLabel}.{" "}
+        {finding.scopeFilters.length ? `Aktive filtre: ${finding.scopeFilters.join(", ")}.` : "Ingen aktive filtre."}
+      </p>
+      <p className="mt-1 text-xs leading-5 text-slate-500">
+        <span className="font-semibold">Pålidelighed {reliabilityLabel(finding.confidence)}:</span> {finding.reliabilityBasis}
+      </p>
 
       {measurements.length ? (
         <dl className="mt-4 grid gap-2 sm:grid-cols-2" aria-label="Dokumenterede målinger">
@@ -483,6 +474,9 @@ const FindingCard = memo(function FindingCard({ finding }: { finding: StrategicF
       <article>
         <h4 className="text-sm font-semibold leading-5 text-[#0b1c2d]">{finding.title}</h4>
         <p className="mt-1.5 line-clamp-2 text-[13px] leading-5 text-slate-600">{finding.description}</p>
+        <p className="mt-2 text-[11px] font-medium leading-4 text-slate-500">
+          {finding.scopeLabel}{finding.scopeFilters.length ? ` · ${finding.scopeFilters.join(", ")}` : " · Ingen aktive filtre"}
+        </p>
 
         <div className="mt-2.5">
           <button
@@ -604,11 +598,11 @@ function TowsEmptyState({ message }: { message: string }) {
 const TowsGroup = memo(function TowsGroup({
   definition,
   proposals,
-  findingTitles,
+  findingById,
 }: {
   definition: TowsDefinition;
   proposals: readonly TowsProposal[];
-  findingTitles: ReadonlyMap<string, string>;
+  findingById: ReadonlyMap<string, StrategicFinding>;
 }) {
   const headingId = useId();
 
@@ -621,7 +615,7 @@ const TowsGroup = memo(function TowsGroup({
       <header className="border-b border-slate-100 px-4 py-2.5 sm:px-5">
         <div className="flex items-start gap-3">
           <span className={`grid h-9 min-w-9 shrink-0 place-items-center rounded-lg border px-2 text-[11px] font-bold uppercase tracking-[0.08em] ${definition.icon}`}>
-            {definition.type}
+            <Waypoints className="h-4 w-4" aria-hidden="true" />
           </span>
           <div className="min-w-0">
             <h3 id={headingId} className={`text-sm font-semibold leading-5 ${definition.label}`}>
@@ -644,18 +638,24 @@ const TowsGroup = memo(function TowsGroup({
                   <div className="min-w-0">
                     <h4 className="text-sm font-semibold leading-5 text-[#0b1c2d]">{proposal.title}</h4>
                     <p className="mt-1.5 text-[13px] leading-5 text-slate-600">{proposal.text}</p>
+                    <p className="mt-2 text-[11px] leading-4 text-slate-500">
+                      Gælder: {Array.from(new Set(proposal.sourceFindingIds.map((id) => findingById.get(id)?.scopeLabel).filter(Boolean))).join(" · ")}
+                      {Array.from(new Set(proposal.sourceFindingIds.flatMap((id) => findingById.get(id)?.scopeFilters ?? []))).length
+                        ? ` · Filtre: ${Array.from(new Set(proposal.sourceFindingIds.flatMap((id) => findingById.get(id)?.scopeFilters ?? []))).join(", ")}`
+                        : " · Ingen aktive filtre"}
+                    </p>
                   </div>
                 </div>
                 <div className="mt-3 border-t border-slate-100 pt-2.5 text-[11px] leading-5 text-slate-500">
                   <p>
                     <span className="font-semibold text-slate-600">Bygger på:</span>{" "}
                     {proposal.sourceFindingIds
-                      .map((findingId) => findingTitles.get(findingId))
+                      .map((findingId) => findingById.get(findingId)?.title)
                       .filter((title): title is string => Boolean(title))
                       .join(" · ")}
                   </p>
                   <p className="sr-only">
-                    Forslaget kobler {formatDanishNumber(proposal.sourceFindingIds.length)} SWOT-fund og {formatDanishNumber(proposal.evidenceIds.length)} evidensreferencer.
+                    Fokusområdet kobler {formatDanishNumber(proposal.sourceFindingIds.length)} interne fund og {formatDanishNumber(proposal.evidenceIds.length)} evidensreferencer.
                   </p>
                 </div>
               </article>
@@ -675,11 +675,14 @@ export const StrategyDashboard = memo(function StrategyDashboard({
   const notice = strategy.externalContextNotice.trim() === EXTERNAL_CONTEXT_NOTICE
     ? strategy.externalContextNotice.trim()
     : EXTERNAL_CONTEXT_NOTICE;
-  const findingTitles = useMemo(
-    () => new Map(strategy.findings.map((finding) => [finding.id, finding.title])),
+  const findingById = useMemo(
+    () => new Map(strategy.findings.map((finding) => [finding.id, finding])),
     [strategy.findings],
   );
-  const visibleQuadrants = quadrantDefinitions.filter((definition) => strategy.findingsByQuadrant[definition.key].length > 0);
+  const positiveSignals = strategy.findings.filter((finding) => finding.quadrant === "strength" || finding.quadrant === "opportunity");
+  const visibleQuadrants = quadrantDefinitions.filter((definition) => (
+    definition.key === "strength" ? positiveSignals.length > 0 : strategy.findingsByQuadrant[definition.key].length > 0
+  ));
   const visibleTows = towsDefinitions.filter((definition) => strategy.tows.some((proposal) => proposal.type === definition.type));
 
   return (
@@ -687,9 +690,9 @@ export const StrategyDashboard = memo(function StrategyDashboard({
       <StrategicSnapshot strategy={strategy} />
 
       {visibleQuadrants.length ? <CommandPanel
-        eyebrow="SWOT-baseret strategisk opsamling"
-        title="Strategisk overblik"
-        description="Dokumenterede styrker og svagheder koblet med muligheder og risici i den aktuelle visning"
+        eyebrow="Interne fund"
+        title="Dokumenterede forhold"
+        description="Positive signaler, udfordringer og eksponeringer fra det registrerede datagrundlag"
         icon={Waypoints}
         testId="strategy-swot"
       >
@@ -703,7 +706,9 @@ export const StrategyDashboard = memo(function StrategyDashboard({
           <div className="min-w-0">
             <p>{notice}</p>
             <p className="mt-1 text-xs text-cyan-800">
-              Strategisk datagrundlag: {strategy.dataBasis.scopeLabel}.
+              Overordnet scope: {strategy.dataBasis.scopeLabel}. Hvert fund viser sin egen periode. {strategy.dataBasis.activeFilterLabels.length
+                ? `Aktive filtre: ${strategy.dataBasis.activeFilterLabels.join(", ")}.`
+                : "Ingen aktive filtre."}
             </p>
           </div>
         </aside>
@@ -713,16 +718,16 @@ export const StrategyDashboard = memo(function StrategyDashboard({
             <SwotQuadrant
               key={definition.key}
               definition={definition}
-              findings={strategy.findingsByQuadrant[definition.key]}
+              findings={definition.key === "strength" ? positiveSignals : strategy.findingsByQuadrant[definition.key]}
             />
           ))}
         </div>
       </CommandPanel> : null}
 
       {visibleTows.length ? <CommandPanel
-        eyebrow="TOWS"
-        title="Strategiske kombinationer"
-        description="TOWS omsætter de dokumenterede SWOT-fund til områder, der kan undersøges nærmere"
+        eyebrow="Anbefalet fokus"
+        title="Dokumenterede sammenhænge"
+        description="Par af interne fund, der kan undersøges i sammenhæng. De dokumenterer ikke årsagssammenhæng."
         icon={Waypoints}
         tone="neutral"
         testId="strategy-tows"
@@ -733,7 +738,7 @@ export const StrategyDashboard = memo(function StrategyDashboard({
               key={definition.type}
               definition={definition}
               proposals={strategy.tows.filter((proposal) => proposal.type === definition.type)}
-              findingTitles={findingTitles}
+              findingById={findingById}
             />
           ))}
         </div>

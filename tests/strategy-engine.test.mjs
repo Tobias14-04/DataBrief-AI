@@ -303,7 +303,7 @@ test("H: strategien opfinder ikke konkurrent-, makro-, lov- eller markedsfakta",
 
   assert.equal(
     strategy.externalContextNotice,
-    "Muligheder og risici er udledt af det registrerede datagrundlag. Eksterne markedsforhold indgår ikke, medmindre de findes i datasættet.",
+    "Positive signaler, udfordringer og eksponeringer er udledt af registrerede interne data. Eksterne markedsforhold er ikke vurderet.",
   );
   assert.doesNotMatch(
     generatedClaims,
@@ -752,5 +752,44 @@ test("Z: enhedsændringer uden omsætning bruger enhedsbasen som materialitetsgr
   ]);
 
   assert.equal(allFindings(strategy).some((finding) => finding.metric === "units"), false);
+});
+
+test("AA: hvert fund viser sit faktiske periodepar, filtre og uændrede evidensreferencer", () => {
+  const rows = [
+    ...periodRows(0, [{ product: "A", revenue: 100, grossProfit: 60, cost: 40 }]),
+    ...periodRows(1, [{ product: "A", revenue: 140, grossProfit: 90, cost: 50 }]),
+  ];
+  const { insights, strategy } = analyze(rows, {
+    selectedMonth: "februar 2026",
+    activeFilterLabels: ["Produkt: A"],
+  });
+  const changeFinding = allFindings(strategy).find((finding) =>
+    finding.evidenceIds.includes(insights.changes.find((change) => change.metric === "revenue")?.evidenceId));
+  assert.ok(changeFinding);
+  assert.match(changeFinding.scopeLabel, /januar 2026.*februar 2026/u);
+  assert.deepEqual(changeFinding.scopeFilters, ["Produkt: A"]);
+  assert.ok(changeFinding.evidenceIds.every((id) => insights.evidence.some((item) => item.id === id)));
+  assert.match(changeFinding.reliabilityBasis, /datapunkter.*måledækning/u);
+});
+
+test("AB: snapshot uden sammenligning opfinder ikke en periode, og høj/mellem forklares efter kilde", () => {
+  const high = analyze([
+    ...periodRows(0, [{ product: "A", revenue: 100 }]),
+    ...periodRows(1, [{ product: "A", revenue: 140 }]),
+  ]).strategy;
+  const medium = analyze([
+    ...periodRows(0, [{ product: "A", revenue: 100 }], 1),
+    ...periodRows(1, [{ product: "A", revenue: 140 }], 1),
+  ]).strategy;
+  assert.ok(allFindings(high).some((finding) => finding.confidence === "high"));
+  assert.ok(allFindings(medium).some((finding) => finding.confidence === "medium"));
+  const snapshot = analyze(Array.from({ length: 10 }, () => row()), {
+    budget: { revenue: 2_000, basis: "proportional" },
+  }).strategy;
+  const budgetFinding = allFindings(snapshot).find((finding) => finding.title.includes("budget"));
+  assert.ok(budgetFinding);
+  assert.equal(budgetFinding.scopeLabel, snapshot.dataBasis.scopeLabel);
+  assert.doesNotMatch(budgetFinding.scopeLabel, /→/u);
+  assert.match(budgetFinding.reliabilityBasis, /proportionelt fordelt/u);
 });
 

@@ -27,7 +27,7 @@ export const dashboardViews: DashboardViewDefinition[] = [
   { id: "channels", label: "Kanaler", title: "Analyse", description: "Se hvor ændringer er registreret på tværs af kanaler." },
   { id: "regions", label: "Regioner", title: "Analyse", description: "Se hvor ændringer er registreret på tværs af regioner." },
   { id: "costs", label: "Økonomi", title: "Økonomi", description: "Omkostninger, resultat, budget og effektivitet på dokumenteret grundlag." },
-  { id: "insights", label: "Ledelse", title: "Ledelse", description: "Indsigter, ledelsesrapport og strategisk opsamling." },
+  { id: "insights", label: "Ledelse", title: "Ledelse", description: "Indsigter, ledelsesrapport og strategisk overblik." },
   { id: "dataset", label: "Data / opsætning", title: "Data / opsætning", description: "Datasæt, filskift og kolonnetilknytning." },
 ];
 

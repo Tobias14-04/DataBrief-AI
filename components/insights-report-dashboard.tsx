@@ -275,7 +275,7 @@ function DashboardTabs({
   }> = [
     { id: "insights", label: "Indsigter", icon: BrainCircuit, tabId: insightsTabId, panelId: insightsPanelId },
     { id: "report", label: "Rapport", icon: FileText, tabId: reportTabId, panelId: reportPanelId },
-    { id: "strategy", label: "Strategi", icon: Target, tabId: strategyTabId, panelId: strategyPanelId },
+    { id: "strategy", label: "Strategisk overblik", icon: Target, tabId: strategyTabId, panelId: strategyPanelId },
   ];
 
   function selectTab(tab: InsightsReportTab, focus = false) {
@@ -303,7 +303,7 @@ function DashboardTabs({
   return (
     <div
       role="tablist"
-      aria-label="Vælg mellem indsigter, rapport og strategi"
+      aria-label="Vælg mellem indsigter, rapport og strategisk overblik"
       className="inline-grid w-full grid-cols-3 gap-1 border-b border-slate-300 sm:w-auto"
     >
       {tabs.map((tab) => {
@@ -1081,12 +1081,12 @@ export const InsightsReportDashboard = memo(function InsightsReportDashboard({
           : activeTab === "report" ? "Aktuel rapport" : "Strategisk beslutningsstøtte"}
         title={activeTab === "insights"
           ? "Indsigter"
-          : activeTab === "report" ? "Ledelsesrapport" : "Strategisk opsamling"}
+          : activeTab === "report" ? "Ledelsesrapport" : "Strategisk overblik"}
         description={activeTab === "insights"
           ? "Forstå udviklingen, find de vigtigste drivere og se, hvad der bør undersøges."
           : activeTab === "report"
             ? "Læs en kortfattet ledelsesrapport baseret på den valgte periode og de aktive filtre."
-            : "Omsæt dokumenterede indsigter til styrker, svagheder, muligheder, risici og konkrete fokusområder."}
+            : "Se dokumenterede interne signaler, udfordringer og eksponeringer med tydeligt datagrundlag."}
         action={(
           <div className="flex w-full flex-col items-stretch gap-1.5 sm:w-auto sm:items-end">
             <div className="flex min-h-5 items-center justify-end">
@@ -1100,7 +1100,7 @@ export const InsightsReportDashboard = memo(function InsightsReportDashboard({
                   <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                   {activeTab === "insights"
                     ? "Opdaterer indsigter…"
-                    : activeTab === "report" ? "Opdaterer rapport…" : "Opdaterer strategisk opsamling…"}
+                    : activeTab === "report" ? "Opdaterer rapport…" : "Opdaterer strategisk overblik…"}
                 </span>
               ) : null}
             </div>

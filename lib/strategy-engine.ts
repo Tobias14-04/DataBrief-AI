@@ -39,6 +39,9 @@ export type StrategicFinding = {
   priority: number;
   sampleSize: number;
   supportingFacts: string[];
+  scopeLabel: string;
+  scopeFilters: string[];
+  reliabilityBasis: string;
 };
 
 export type TowsRecommendation = {
@@ -193,12 +196,12 @@ function findingPriority(impact: number, confidence: InsightReliability, strateg
   return impact * reliabilityWeight + strategicRelevance / 1_000;
 }
 
-type FindingInput = Omit<StrategicFinding, "priority" | "reliability" | "supportingFacts"> & {
+type FindingInput = Omit<StrategicFinding, "priority" | "reliability" | "supportingFacts" | "scopeLabel" | "scopeFilters" | "reliabilityBasis"> & {
   strategicRelevance: number;
   supportingFacts?: string[];
 };
 
-function createFinding(input: FindingInput): StrategicFinding | null {
+function createFinding(input: FindingInput & Pick<StrategicFinding, "scopeLabel" | "scopeFilters" | "reliabilityBasis">): StrategicFinding | null {
   if (input.confidence === "low" || !finite(input.sampleSize) || input.sampleSize < 2) return null;
   if (!finite(input.economicImpact) || input.economicImpact <= 0) return null;
   if (!input.evidenceIds.length) return null;
@@ -345,28 +348,28 @@ function buildTows(
       type: "so",
       left: "strength",
       right: "opportunity",
-      title: "Styrke og mulighed i sammenhæng",
-      text: (strength, opportunity) => `Undersøg, om ${lowerFirst(opportunity.title)} kan udvikles med afsæt i ${lowerFirst(strength.title)}.`,
+      title: "To positive signaler i sammenhæng",
+      text: (strength, opportunity) => `Undersøg sammenhængen mellem ${lowerFirst(strength.title)} og ${lowerFirst(opportunity.title)}.`,
     },
     {
       type: "st",
       left: "strength",
       right: "threat",
-      title: "Styrke med tilknyttet risiko",
+      title: "Positivt signal og eksponering",
       text: (strength, threat) => `Følg udviklingen i ${lowerFirst(threat.title)} tæt, og vurder den i sammenhæng med ${lowerFirst(strength.title)}.`,
     },
     {
       type: "wo",
       left: "weakness",
       right: "opportunity",
-      title: "Mulighed over for svaghed",
+      title: "Positivt signal og udfordring",
       text: (weakness, opportunity) => `Undersøg, om ${lowerFirst(opportunity.title)} kan belyse ${lowerFirst(weakness.title)}.`,
     },
     {
       type: "wt",
       left: "weakness",
       right: "threat",
-      title: "Kombineret intern eksponering",
+      title: "Udfordring og eksponering",
       text: (weakness, threat) => `Prioritér analyse af ${lowerFirst(weakness.title)} sammen med ${lowerFirst(threat.title)}, så den kombinerede interne eksponering kan vurderes.`,
     },
   ];
@@ -459,8 +462,28 @@ export function buildStrategicAnalysis(analysis: InsightAnalysis): StrategicAnal
 
   function add(input: FindingInput) {
     if (!input.evidenceIds.every((id) => evidenceById.has(id))) return;
+    const sources = input.evidenceIds.map((id) => evidenceById.get(id)!);
+    const periodEvidence = sources.find((item) => item.previousPeriod && item.currentPeriod);
+    const hasChangeEvidence = sources.some((item) => item.type === "change");
+    const scopeLabel = periodEvidence
+      ? `${periodEvidence.previousPeriod} → ${periodEvidence.currentPeriod}`
+      : hasChangeEvidence && analysis.comparisonPeriod && analysis.currentPeriod
+        ? `${analysis.comparisonPeriod.label} → ${analysis.currentPeriod.label}`
+        : analysis.dataBasis.scopeLabel;
+    const scopeFilters = Array.from(new Set([
+      ...analysis.dataBasis.activeFilterLabels,
+      ...sources.flatMap((item) => item.scopeFilters ?? []),
+    ]));
+    const reliabilityBasis = sources.some((item) => item.type === "budget")
+      ? `Budgetstatus følger ${analysis.dataBasis.budgetBasis === "proportional" ? "et proportionelt fordelt" : "et registreret"} grundlag. ${input.sampleSize} datapunkter indgår.`
+      : sources.some((item) => item.type === "distribution")
+        ? `Fordelingsstatus afhænger af den registrerede fordeling og kildens dækning. Grundlaget omfatter ${input.sampleSize} datapunkter.`
+        : `Status bygger på ${input.sampleSize} datapunkter og de tilknyttede evidensreferencer. For periode- og driverdata kræver høj mindst 10 datapunkter og fuld måledækning; mellem kræver mindst 2 og mindst 95 % dækning. Registrerede omkostningskilder vurderes særskilt.`;
     const finding = createFinding({
       ...input,
+      scopeLabel,
+      scopeFilters,
+      reliabilityBasis,
       supportingFacts: input.supportingFacts?.length
         ? input.supportingFacts
         : evidenceFacts(evidenceById, input.evidenceIds),
@@ -623,7 +646,7 @@ export function buildStrategicAnalysis(analysis: InsightAnalysis): StrategicAnal
           id: stableId("strategy", "opportunity", driver.evidenceId),
           quadrant: "opportunity",
           title: `Dokumenteret fremgang i ${driver.dimensionValue}`,
-          description: `${driver.dimensionValue} står for ${formatDanishPercent(currentShare)} af den aktuelle ${metricLabels[driverAnalysis.metric]} og havde et positivt registreret bidrag på ${signedMetric(driverAnalysis.metric, driver.absoluteChange).replace(/\.$/u, "")}. Det kan være relevant at undersøge potentialet nærmere.`,
+          description: `${driver.dimensionValue} står for ${formatDanishPercent(currentShare)} af den aktuelle ${metricLabels[driverAnalysis.metric]} og havde et positivt registreret bidrag på ${signedMetric(driverAnalysis.metric, driver.absoluteChange).replace(/\.$/u, "")}. Undersøg, om mønsteret er stabilt.`,
           evidenceIds: [driver.evidenceId, ...(analysisEvidence ? [analysisEvidence.id] : [])],
           metric: driverAnalysis.metric,
           dimension: driverAnalysis.dimension,
@@ -681,7 +704,7 @@ export function buildStrategicAnalysis(analysis: InsightAnalysis): StrategicAnal
         id: stableId("strategy", "opportunity", "margin-share", revenueDriver.evidenceId, grossProfitDriver.evidenceId),
         quadrant: "opportunity",
         title: `${revenueDriver.dimensionValue} kombinerer rentabilitet med en mindre intern andel`,
-        description: `${revenueDriver.dimensionValue} havde en beregnet dækningsgrad på ${formatDanishPercent(currentMargin)} mod ${formatDanishPercent(overallMargin)} samlet og stod for ${formatDanishPercent(currentShare)} af omsætningen. Det kan være relevant at undersøge potentialet nærmere.`,
+        description: `${revenueDriver.dimensionValue} havde en beregnet dækningsgrad på ${formatDanishPercent(currentMargin)} mod ${formatDanishPercent(overallMargin)} samlet og stod for ${formatDanishPercent(currentShare)} af omsætningen. Undersøg, om forskellen holder over tid.`,
         evidenceIds,
         metric: "grossMargin",
         dimension: revenueAnalysis.dimension,
@@ -871,7 +894,7 @@ export function buildStrategicAnalysis(analysis: InsightAnalysis): StrategicAnal
     findingsByQuadrant,
     tows,
     reportSummary,
-    externalContextNotice: "Muligheder og risici er udledt af det registrerede datagrundlag. Eksterne markedsforhold indgår ikke, medmindre de findes i datasættet.",
+    externalContextNotice: "Positive signaler, udfordringer og eksponeringer er udledt af registrerede interne data. Eksterne markedsforhold er ikke vurderet.",
     dataBasis,
   };
 }
