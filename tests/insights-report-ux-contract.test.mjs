@@ -125,8 +125,10 @@ test("rapporten har diskret semantisk hierarki uden kopieret strategisektion", (
   assert.doesNotMatch(componentSource, /StrategicReportSummary/u);
   assert.match(componentSource, /\{section\.scope\}/u);
   assert.match(globalStyles, /@page\s*\{\s*size: A4/u);
-  assert.match(globalStyles, /body:has\(\[data-testid="management-report"\]\) \*\s*\{\s*visibility: hidden/u);
-  assert.match(globalStyles, /break-inside: avoid-page/u);
+  assert.match(globalStyles, /body:has\(\[data-testid="management-report"\]\) \*:not\(:has\(\[data-testid="management-report"\]\)\)/u);
+  assert.match(globalStyles, /\*:has\(\[data-testid="management-report"\]\)\s*\{[\s\S]*?transform: none !important/u);
+  assert.match(globalStyles, /\[data-testid="management-report"\]\s*\{\s*position: static !important/u);
+  assert.match(globalStyles, /break-inside: avoid/u);
   assert.match(componentSource, /report-summary-metrics/u);
   assert.match(componentSource, /<details className="report-evidence/u);
   assert.match(componentSource, /Kilde: \$\{analysis\.dataBasis\.sourceName\}/u);
