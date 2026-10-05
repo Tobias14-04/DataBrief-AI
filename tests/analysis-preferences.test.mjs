@@ -14,6 +14,8 @@ import {
   prioritizeKpiConfiguration,
   prioritizeOverviewSupportingInsights,
   prioritizeStrategicAnalysis,
+  resolveCompanyFocus,
+  selectExecutiveSnapshotItems,
   toggleAnalysisFocusArea,
 } from "../lib/analysis-preferences.ts";
 import { buildInsightAnalysis } from "../lib/insight-engine.ts";
@@ -63,6 +65,113 @@ const profitabilityProfile = {
   primaryGoal: "improve-profit",
   targets: [{ kpiId: "result", value: 750_000, direction: "at-least" }],
 };
+const growthProfile = {
+  focusAreas: ["sales"],
+  primaryGoal: "grow-sales",
+  targets: [],
+};
+
+test("virksomhedsfokus genbruger onboardingens mål, fokusområder og KPI-mål", () => {
+  assert.deepEqual(resolveCompanyFocus(growthProfile), { area: "sales", label: "Salg", source: "primary-goal" });
+  assert.deepEqual(resolveCompanyFocus(profitabilityProfile), { area: "profitability", label: "Indtjening", source: "primary-goal" });
+  assert.deepEqual(resolveCompanyFocus(productProfile), { area: "products", label: "Produkter", source: "primary-goal" });
+  assert.deepEqual(resolveCompanyFocus({ focusAreas: ["costs"], primaryGoal: "overview", targets: [] }), {
+    area: "costs", label: "Omkostninger", source: "focus-area",
+  });
+  assert.deepEqual(resolveCompanyFocus({ focusAreas: [], primaryGoal: "overview", targets: [{ kpiId: "gross-margin", value: 0.5, direction: "at-least" }] }), {
+    area: "profitability", label: "Indtjening", source: "target",
+  });
+  assert.equal(resolveCompanyFocus(createEmptyAnalysisPreferences()), null);
+});
+
+test("Ledelsesoverblik vælger højst fire dokumenterede KPI'er efter onboarding uden at ændre værdier", () => {
+  const analysis = buildInsightAnalysis([
+    row("januar 2026", 1_000, 400),
+    row("februar 2026", 1_200, 500),
+  ]);
+  const originalValues = new Map(analysis.snapshot.map((item) => [item.metric, item.value]));
+  const metrics = (preferences) => selectExecutiveSnapshotItems(analysis, preferences).map((item) => item.metric);
+
+  assert.deepEqual(metrics(growthProfile).slice(0, 3), ["revenue", "units", "averagePrice"]);
+  assert.deepEqual(metrics(profitabilityProfile).slice(0, 3), ["result", "grossProfit", "grossMargin"]);
+  assert.deepEqual(metrics(costProfile).slice(0, 3), ["cost", "costShare", "result"]);
+  assert.deepEqual(metrics(productProfile).slice(0, 2), ["revenue", "units"]);
+  assert.deepEqual(metrics(createEmptyAnalysisPreferences()), analysis.snapshot.slice(0, 4).map((item) => item.metric));
+  for (const preferences of [growthProfile, profitabilityProfile, costProfile, productProfile]) {
+    const selected = selectExecutiveSnapshotItems(analysis, preferences);
+    assert.equal(selected.length, 4);
+    assert.equal(new Set(selected.map((item) => item.metric)).size, selected.length);
+    selected.forEach((item) => assert.equal(item.value, originalValues.get(item.metric)));
+  }
+});
+
+test("manglende KPI-grundlag falder videre uden opdigtet nul eller periodeændring", () => {
+  const analysis = buildInsightAnalysis([
+    row("januar 2026", 1_000, 400),
+    row("februar 2026", 1_200, 500),
+  ], { selectedMonths: ["februar 2026"], activeFilterLabels: ["Region: København"] });
+  const unavailable = new Set(["result", "grossProfit", "grossMargin"]);
+  const limited = {
+    ...analysis,
+    snapshot: analysis.snapshot.filter((item) => !unavailable.has(item.metric)),
+    evidence: analysis.evidence.filter((fact) => !unavailable.has(fact.metric)),
+  };
+  const selected = selectExecutiveSnapshotItems(limited, profitabilityProfile);
+  assert.equal(selected.some((item) => unavailable.has(item.metric)), false);
+  assert.equal(selected[0]?.metric, "revenue");
+  assert.equal(analysis.comparisonPeriod?.label, "januar 2026");
+  assert.deepEqual(limited.changes, analysis.changes);
+  assert.deepEqual(limited.currentPeriod, analysis.currentPeriod);
+
+  const invalid = { ...limited, snapshot: [{ ...selected[0], value: Number.POSITIVE_INFINITY }, ...limited.snapshot] };
+  assert.equal(selectExecutiveSnapshotItems(invalid, profitabilityProfile).some((item) => !Number.isFinite(item.value)), false);
+  assert.deepEqual(selectExecutiveSnapshotItems({ ...limited, evidence: [] }, profitabilityProfile), []);
+  assert.ok(selected.every((item) => Number.isFinite(item.value)));
+});
+
+test("filtreret scope og samme periodepar bevares ved skift af virksomhedsprofil", () => {
+  const rows = [
+    row("januar 2026", 1_000, 400, "Café"),
+    row("januar 2026", 10_000, 2_000, "Sandwich"),
+    row("februar 2026", 1_200, 500, "Café"),
+    row("februar 2026", 20_000, 4_000, "Sandwich"),
+  ];
+  const scoped = buildInsightAnalysis(rows.filter((item) => item.product === "Café"), {
+    selectedMonths: ["februar 2026"],
+    activeFilterLabels: ["Produkt: Café"],
+  });
+  const revenue = scoped.snapshot.find((item) => item.metric === "revenue");
+  assert.equal(revenue?.value, 1_200);
+  assert.equal(scoped.comparisonPeriod?.label, "januar 2026");
+  for (const profile of [growthProfile, profitabilityProfile, costProfile]) {
+    const prioritized = prioritizeInsightAnalysis(scoped, profile);
+    assert.equal(prioritized.snapshot.find((item) => item.metric === "revenue")?.value, revenue.value);
+    assert.deepEqual(prioritized.currentPeriod, scoped.currentPeriod);
+    assert.deepEqual(prioritized.comparisonPeriod, scoped.comparisonPeriod);
+    assert.ok(selectExecutiveSnapshotItems(prioritized, profile).every((item) =>
+      scoped.snapshot.some((original) => original.evidenceId === item.evidenceId && original.value === item.value)));
+  }
+});
+
+test("onboarding er sekundær for observationer når dokumenteret økonomisk betydning er markant forskellig", () => {
+  const analysis = buildInsightAnalysis([
+    row("januar 2026", 1_000, 400),
+    row("februar 2026", 1_200, 500),
+  ]);
+  const revenueEvidence = analysis.evidence.find((fact) => fact.type === "change" && fact.metric === "revenue");
+  const costEvidence = analysis.evidence.find((fact) => fact.type === "change" && fact.metric === "cost");
+  assert.ok(revenueEvidence && costEvidence);
+  const withObservations = {
+    ...analysis,
+    observations: [
+      { id: "large-revenue", title: "Stor omsætning", text: "Dokumenteret", tone: "neutral", priority: 1_000, evidenceIds: [revenueEvidence.id] },
+      { id: "small-cost", title: "Lille omkostning", text: "Dokumenteret", tone: "neutral", priority: 100, evidenceIds: [costEvidence.id] },
+    ],
+  };
+  const prioritized = prioritizeInsightAnalysis(withObservations, costProfile);
+  assert.deepEqual(prioritized.observations.map((item) => item.id), ["large-revenue", "small-cost"]);
+  assert.deepEqual(prioritized.observations.map((item) => item.text), withObservations.observations.map((item) => item.text));
+});
 
 test("spørgsmål 1 tillader højst to valgte fokusområder", () => {
   let selected = toggleAnalysisFocusArea([], "sales");

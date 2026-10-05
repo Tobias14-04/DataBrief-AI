@@ -47,6 +47,8 @@ import {
   addTargetsToExecutiveSummary,
   prioritizeInsightAnalysis,
   prioritizeStrategicAnalysis,
+  resolveCompanyFocus,
+  selectExecutiveSnapshotItems,
   type AnalysisPreferences,
   type AnalysisTargetStatus,
 } from "@/lib/analysis-preferences";
@@ -340,9 +342,11 @@ function DashboardTabs({
 const ExecutiveSnapshot = memo(function ExecutiveSnapshot({
   items,
   changes,
+  focusLabel,
 }: {
   items: InsightSnapshotItem[];
   changes: InsightMetricChange[];
+  focusLabel: string | null;
 }) {
   if (!items.length) {
     return (
@@ -361,6 +365,7 @@ const ExecutiveSnapshot = memo(function ExecutiveSnapshot({
         <div>
           <p className={`${commandSectionLabelClass} text-brand-700`}>Aktuel visning</p>
           <h2 id="executive-snapshot-title" className="mt-1.5 text-xl font-semibold text-[#0b1c2d]">Ledelsesoverblik</h2>
+          {focusLabel ? <p className="mt-1 text-xs text-slate-500">Prioriteret ud fra dit valgte fokus: {focusLabel}</p> : null}
         </div>
         <p className="hidden text-xs text-slate-500 sm:block">Kun nøgletal med dokumenteret datagrundlag</p>
       </div>
@@ -845,15 +850,19 @@ function TargetStatusPanel({ statuses }: { statuses: readonly AnalysisTargetStat
 
 function InsightsView({
   analysis,
+  analysisPreferences,
   targetStatuses,
   latestComparisonLabel,
   onCompareLatest,
 }: {
   analysis: InsightAnalysis;
+  analysisPreferences: AnalysisPreferences;
   targetStatuses: readonly AnalysisTargetStatus[];
   latestComparisonLabel?: string;
   onCompareLatest?: () => void;
 }) {
+  const snapshotItems = selectExecutiveSnapshotItems(analysis, analysisPreferences);
+  const focusLabel = resolveCompanyFocus(analysisPreferences)?.label ?? null;
   if (!analysis.comparisonPeriod) {
     return (
       <div className="space-y-4">
@@ -875,7 +884,7 @@ function InsightsView({
         <details className="rounded-xl border border-slate-200 bg-white">
           <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-cyan-800">Vis aktuelle nøgletal uden sammenligning</summary>
           <div className="space-y-4 border-t border-slate-100 p-4">
-            <ExecutiveSnapshot items={analysis.snapshot} changes={analysis.changes} />
+            <ExecutiveSnapshot items={snapshotItems} changes={analysis.changes} focusLabel={focusLabel} />
             <TargetStatusPanel statuses={targetStatuses} />
           </div>
         </details>
@@ -884,7 +893,7 @@ function InsightsView({
   }
   return (
     <div className="space-y-4">
-      <ExecutiveSnapshot items={analysis.snapshot} changes={analysis.changes} />
+      <ExecutiveSnapshot items={snapshotItems} changes={analysis.changes} focusLabel={focusLabel} />
       <ChangesPanel changes={analysis.changes} />
       <DriverPanel drivers={analysis.driverAnalyses} analysis={analysis} />
       <AttentionAndFocus
@@ -1266,6 +1275,7 @@ export const InsightsReportDashboard = memo(function InsightsReportDashboard({
         {activeTab === "insights" ? (
           <InsightsView
             analysis={prioritizedAnalysis}
+            analysisPreferences={analysisPreferences}
             targetStatuses={targetStatuses}
             latestComparisonLabel={latestComparisonLabel}
             onCompareLatest={onCompareLatest}

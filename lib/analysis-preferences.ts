@@ -10,6 +10,7 @@ import type {
   InsightMetricKey,
   InsightReportSection,
   InsightReportSectionKey,
+  InsightSnapshotItem,
 } from "./insight-engine.ts";
 import type { StrategicAnalysis, StrategicFinding } from "./strategy-engine.ts";
 
@@ -59,6 +60,12 @@ export type AnalysisPreferences = {
   focusAreas: AnalysisFocusArea[];
   primaryGoal: AnalysisPrimaryGoal | null;
   targets: AnalysisTarget[];
+};
+
+export type CompanyFocus = {
+  area: AnalysisFocusArea;
+  label: string;
+  source: "primary-goal" | "focus-area" | "target";
 };
 
 export type AnalysisTargetMetric = {
@@ -189,6 +196,25 @@ const goalTopics: Record<AnalysisPrimaryGoal, readonly AnalysisFocusArea[]> = {
   "early-warning": ["changes", "trends"],
   overview: [],
 };
+
+const companyFocusLabels: Record<AnalysisFocusArea, string> = {
+  sales: "Salg",
+  profitability: "Indtjening",
+  costs: "Omkostninger",
+  products: "Produkter",
+  trends: "Udvikling over tid",
+  changes: "Ændringer siden sidste periode",
+};
+
+/** Shared focus signal for Indsigter, and later Rapport and Strategi. */
+export function resolveCompanyFocus(preferences: AnalysisPreferences): CompanyFocus | null {
+  const goalArea = preferences.primaryGoal ? goalTopics[preferences.primaryGoal]?.[0] : undefined;
+  if (goalArea) return { area: goalArea, label: companyFocusLabels[goalArea], source: "primary-goal" };
+  const selectedArea = preferences.focusAreas.find((area) => area in companyFocusLabels);
+  if (selectedArea) return { area: selectedArea, label: companyFocusLabels[selectedArea], source: "focus-area" };
+  const targetArea = preferences.targets.flatMap((target) => targetTopics[target.kpiId] ?? [])[0];
+  return targetArea ? { area: targetArea, label: companyFocusLabels[targetArea], source: "target" } : null;
+}
 
 const targetTrendMetrics: Record<AnalysisTargetKpiId, readonly AnalysisOverviewTrendMetric[]> = {
   "total-revenue": ["revenue"],
@@ -503,6 +529,29 @@ function metricPreferenceScore(metric: InsightMetricKey | null, preferences: Ana
   return score;
 }
 
+/** Selects only documented, finite values; preference changes order, never calculations. */
+export function selectExecutiveSnapshotItems(
+  analysis: InsightAnalysis,
+  preferences: AnalysisPreferences,
+): InsightSnapshotItem[] {
+  const documented = new Map(analysis.evidence
+    .filter((fact) => fact.type === "metric" && fact.sampleSize > 0 && Number.isFinite(fact.currentValue))
+    .map((fact) => [fact.id, fact]));
+  const eligible = analysis.snapshot.filter((item) => {
+    const fact = documented.get(item.evidenceId);
+    return Number.isFinite(item.value) && fact?.metric === item.metric && fact.currentValue === item.value;
+  });
+  const ordered = hasAnalysisPreferences(preferences)
+    ? stablePrioritize(eligible, (item) => metricPreferenceScore(item.metric, preferences))
+    : eligible;
+  const seen = new Set<InsightMetricKey>();
+  return ordered.filter((item) => {
+    if (seen.has(item.metric)) return false;
+    seen.add(item.metric);
+    return true;
+  }).slice(0, 4);
+}
+
 function dimensionPreferenceScore(dimension: InsightDimension | null, preferences: AnalysisPreferences) {
   if (dimension !== "product" && dimension !== "category") return 0;
   if (!preferences.focusAreas.includes("products") && preferences.primaryGoal !== "top-products") return 0;
@@ -571,6 +620,9 @@ export function prioritizeInsightAnalysis(
     );
     return topicScore + evidenceScore(section.evidenceIds);
   });
+  const observationScore = (observation: InsightAnalysis["observations"][number]) => (
+    observation.priority * (1 + Math.min(evidenceScore(observation.evidenceIds), 300) / 3_000)
+  );
 
   return {
     ...analysis,
@@ -578,8 +630,8 @@ export function prioritizeInsightAnalysis(
     changes,
     driverAnalyses,
     observations: [...analysis.observations].sort((left, right) => (
-      evidenceScore(right.evidenceIds) - evidenceScore(left.evidenceIds)
-      || right.priority - left.priority
+      observationScore(right) - observationScore(left)
+      || evidenceScore(right.evidenceIds) - evidenceScore(left.evidenceIds)
       || left.id.localeCompare(right.id, "da-DK")
     )),
     recommendations: [...analysis.recommendations].sort((left, right) => (
