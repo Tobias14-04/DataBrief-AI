@@ -39,7 +39,10 @@ test("gyldig månedssammenligning viser få ændringer og positive/negative regi
   assert.match(drivers.scope, /januar 2026.*februar 2026/u);
   assert.match(drivers.paragraphs.join(" "), /A.*\+20/u);
   assert.match(drivers.paragraphs.join(" "), /B.*−30/u);
-  assert.match(drivers.paragraphs.at(-1), /ikke den bagvedliggende årsag/u);
+  assert.match(drivers.paragraphs.at(-1), /ikke hvorfor den opstod/u);
+  assert.match(drivers.paragraphs[0], /af nettoændringen/u);
+  assert.ok(section(sections, "executive-summary").paragraphs.length <= 4);
+  assert.ok(section(sections, "executive-summary").metrics.every((item) => item.evidenceId));
   assert.equal(sections.some((item) => item.title === "Centrale nøgletal"), false);
   assert.equal(sections.some((item) => item.title === "Strategisk opsamling"), false);
 });
@@ -56,9 +59,14 @@ test("budget er status, ikke automatisk risiko eller mulighed", () => {
   const sections = report([row(january, "A", 100), row(february, "A", 120)], {
     selectedMonth: february, budget: { revenue: 130, basis: "registered" },
   });
-  assert.match(section(sections, "assessment").paragraphs.join(" "), /Budgetstatus/u);
+  assert.match(section(sections, "assessment").paragraphs.join(" "), /Budget:/u);
   assert.doesNotMatch(section(sections, "assessment").paragraphs.join(" "), /risiko|mulighed/u);
   assert.equal(section(report([row(january, "A", 100)]), "assessment"), undefined);
+  const above = report([row(january, "A", 100), row(february, "A", 120)], {
+    selectedMonth: february, budget: { revenue: 110, basis: "registered" },
+  });
+  assert.match(section(above, "assessment").paragraphs.join(" "), /over budgettet/u);
+  assert.match(section(sections, "assessment").paragraphs.join(" "), /under budgettet/u);
 });
 
 test("filtre og datakilde fremgår, og manglende omkostning opfindes ikke", () => {
@@ -80,9 +88,46 @@ test("onboarding prioriterer produktdimension uden at ændre evidens eller bereg
   const product = buildManagementReport(analysis, profile("products"), []);
   assert.match(section(product, "drivers").paragraphs[0], /Produkt/u);
   assert.notDeepEqual(section(product, "drivers").evidenceIds, section(neutral, "drivers").evidenceIds);
-  assert.match(section(product, "data-basis").paragraphs.join(" "), /valgte fokus: Produkter/u);
-  assert.doesNotMatch(section(neutral, "data-basis").paragraphs.join(" "), /valgte fokus/u);
+  assert.match(section(product, "data-basis").paragraphs.join(" "), /virksomhedens fokus: Produkter/u);
+  assert.doesNotMatch(section(neutral, "data-basis").paragraphs.join(" "), /virksomhedens fokus/u);
   for (const item of product) {
     for (const id of item.evidenceIds) assert.ok(analysis.evidence.some((fact) => fact.id === id));
   }
+});
+
+test("resuméet gentager ikke resultat og dækningsgrad som tekst og tal", () => {
+  const sections = report([row(january, "A", 100), row(february, "A", 120)], { selectedMonth: february });
+  const summary = section(sections, "executive-summary");
+  assert.ok(summary.paragraphs.length >= 2 && summary.paragraphs.length <= 4);
+  assert.doesNotMatch(summary.paragraphs.join(" "), /Dækningsgrad|Resultatet er/u);
+  assert.ok(summary.metrics.length <= 2);
+});
+
+test("nul nettoændring bruger eksplicit absolut bevægelse, ikke en opdigtet nettoandel", () => {
+  const sections = report([
+    row(january, "A", 100), row(january, "B", 100),
+    row(february, "A", 120), row(february, "B", 80),
+  ], { selectedMonth: february });
+  const drivers = section(sections, "drivers");
+  assert.ok(drivers);
+  assert.match(drivers.paragraphs.join(" "), /af den absolutte bevægelse/u);
+  assert.doesNotMatch(drivers.paragraphs.join(" "), /af nettoændringen/u);
+});
+
+test("negativ omsætningsudvikling får korrekt retning uden at blive forklaret kausalt", () => {
+  const sections = report([row(january, "A", 120), row(february, "A", 100)], { selectedMonth: february });
+  assert.match(section(sections, "executive-summary").paragraphs.join(" "), /et fald i omsætning/u);
+  assert.match(section(sections, "development").paragraphs.join(" "), /Omsætning faldt/u);
+  assert.match(section(sections, "drivers").paragraphs.join(" "), /ikke hvorfor den opstod/u);
+});
+
+test("rapporten bruger samme afgrænsning og gyldige evidensreferencer i alle sektioner", () => {
+  const analysis = buildInsightAnalysis([
+    row(january, "A", 100), row(january, "B", 100),
+    row(february, "A", 120), row(february, "B", 70),
+  ], { selectedMonth: february, activeFilterLabels: ["Region: Nord"], sourceName: "Kilde.xlsx" });
+  const sections = buildManagementReport(analysis, empty, []);
+  assert.ok(sections.every((item) => item.scope.includes("Region: Nord")));
+  assert.ok(sections.every((item) => item.evidenceIds.every((id) => analysis.evidence.some((fact) => fact.id === id))));
+  assert.match(section(sections, "data-basis").paragraphs[0], /Kilde\.xlsx/u);
 });

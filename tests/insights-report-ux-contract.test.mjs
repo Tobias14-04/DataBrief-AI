@@ -127,6 +127,12 @@ test("rapporten har diskret semantisk hierarki uden kopieret strategisektion", (
   assert.match(globalStyles, /@page\s*\{\s*size: A4/u);
   assert.match(globalStyles, /body:has\(\[data-testid="management-report"\]\) \*\s*\{\s*visibility: hidden/u);
   assert.match(globalStyles, /break-inside: avoid-page/u);
+  assert.match(componentSource, /report-summary-metrics/u);
+  assert.match(componentSource, /<details className="report-evidence/u);
+  assert.match(componentSource, /Kilde: \$\{analysis\.dataBasis\.sourceName\}/u);
+  assert.match(componentSource, /Ref\.: \$\{fact\.id\}/u);
+  assert.match(globalStyles, /section\[data-report-tone="focus"\]/u);
+  assert.match(globalStyles, /\.report-evidence\s*\{\s*display: none !important/u);
 });
 
 test("Strategisk overblik adskiller interne data fra eksterne forhold og har tilgængelig dokumentation", () => {

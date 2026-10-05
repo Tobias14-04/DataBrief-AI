@@ -8,6 +8,7 @@ export type ManagementReportSection = {
   paragraphs: string[];
   evidenceIds: string[];
   scope: string;
+  metrics?: Array<{ label: string; value: string; evidenceId: string }>;
 };
 
 const focusMetrics: Record<string, readonly InsightMetricKey[]> = {
@@ -38,6 +39,14 @@ function changeSentence(change: InsightMetricChange) {
   return `${change.label} ${direction}${change.absoluteChange === 0 ? "" : ` med ${amount}`}${change.percentageChange !== null ? ` (${formatDanishPercent(change.percentageChange)})` : ""}.`;
 }
 
+function changeDirection(change: InsightMetricChange) {
+  return change.absoluteChange > 0 ? "en stigning" : "et fald";
+}
+
+function signedCurrency(value: number) {
+  return `${value > 0 ? "+" : value < 0 ? "−" : ""}${formatDanishCurrency(Math.abs(value))}`;
+}
+
 export function buildManagementReport(
   analysis: InsightAnalysis,
   preferences: AnalysisPreferences,
@@ -48,7 +57,7 @@ export function buildManagementReport(
   const periodScope = analysis.dataBasis.scopeLabel;
   const filters = analysis.dataBasis.activeFilterLabels.length
     ? `Aktive filtre: ${analysis.dataBasis.activeFilterLabels.join(", ")}` : "Ingen aktive filtre";
-  const comparisonScope = analysis.currentPeriod && analysis.comparisonPeriod
+  const comparisonScope = analysis.dataBasis.hasComparison && analysis.currentPeriod && analysis.comparisonPeriod
     ? `${analysis.comparisonPeriod.label} → ${analysis.currentPeriod.label} · ${filters}` : null;
   const snapshot = new Map(analysis.snapshot.map((item) => [item.metric, item]));
   const changes = comparisonScope ? [...analysis.changes].sort((left, right) =>
@@ -58,22 +67,20 @@ export function buildManagementReport(
   const revenue = snapshot.get("revenue");
   const margin = snapshot.get("grossMargin");
   const result = snapshot.get("result");
-  const headline = [
-    revenue ? `Omsætningen var ${revenue.formattedValue}` : null,
-    margin ? `dækningsgraden ${margin.formattedValue}` : null,
-    result ? `resultatet ${result.formattedValue}` : null,
-  ].filter(Boolean).join(", ");
   const revenueDrivers = comparisonScope ? analysis.driverAnalyses.filter((item) => item.metric === "revenue") : [];
   const preferredDimension = focus?.area === "products" ? "product" : "category";
   const primaryDrivers = revenueDrivers.find((item) => item.dimension === preferredDimension && item.hasKnownMembers)
     ?? revenueDrivers.find((item) => item.hasKnownMembers) ?? revenueDrivers[0];
-  const drivers = primaryDrivers
-    ? [...primaryDrivers.positiveDrivers, ...primaryDrivers.negativeDrivers]
-      .filter((item) => item.absoluteChange !== 0)
-      .sort((left, right) => Math.abs(right.absoluteChange) - Math.abs(left.absoluteChange))
-      .slice(0, 2) : [];
+  const positiveDrivers = primaryDrivers?.positiveDrivers.filter((item) => item.absoluteChange !== 0) ?? [];
+  const negativeDrivers = primaryDrivers?.negativeDrivers.filter((item) => item.absoluteChange !== 0) ?? [];
+  const drivers = positiveDrivers.length && negativeDrivers.length
+    ? [positiveDrivers[0], negativeDrivers[0]].sort((left, right) => Math.abs(right.absoluteChange) - Math.abs(left.absoluteChange))
+    : [...positiveDrivers, ...negativeDrivers]
+      .sort((left, right) => Math.abs(right.absoluteChange) - Math.abs(left.absoluteChange)).slice(0, 2);
   const driverText = (driver: (typeof drivers)[number]) =>
-    `${primaryDrivers!.dimensionLabel} ${driver.dimensionValue}: ${driver.absoluteChange > 0 ? "+" : "−"}${formatDanishCurrency(Math.abs(driver.absoluteChange))} i registreret omsætningsbidrag${driver.movementShare !== null ? `, ${formatDanishPercent(driver.movementShare)} af den absolutte bevægelse` : ""}.`;
+    `${primaryDrivers!.dimensionLabel} ${driver.dimensionValue} bidrog med ${signedCurrency(driver.absoluteChange)} til omsætningsændringen${driver.contribution !== null
+      ? ` (${formatDanishPercent(driver.contribution)} af nettoændringen)`
+      : driver.movementShare !== null ? ` (${formatDanishPercent(driver.movementShare)} af den absolutte bevægelse)` : ""}.`;
   const recommendations = analysis.recommendations
     .filter((item) => item.evidenceIds.length > 0 && item.evidenceIds.every((id) => evidence.has(id)))
     .sort((left, right) => {
@@ -84,41 +91,55 @@ export function buildManagementReport(
       }, 0);
       return score(right.evidenceIds) - score(left.evidenceIds);
     }).slice(0, 3);
-  const sections: ManagementReportSection[] = [];
-  const summary = [
-    headline ? `${headline.charAt(0).toUpperCase()}${headline.slice(1)} i ${periodScope}.` : `Analysen dækker ${periodScope}.`,
-    comparisonScope
-      ? topChanges[0] ? `Vigtigste dokumenterede bevægelse: ${changeSentence(topChanges[0])}` : "Ingen dokumenteret ændring i de sammenlignelige perioder."
-      : "Der findes ingen tidligere sammenlignelig periode; rapporten viser kun et øjebliksbillede.",
-    drivers[0] ? `Største registrerede driver: ${driverText(drivers[0])}` : null,
-    recommendations[0] ? `Prioriteret fokus: ${recommendations[0].text}` : null,
-  ].filter((item): item is string => Boolean(item));
-  if (targetStatuses.length) summary.push(`Målstatus: ${targetStatuses[0].text}`);
-  sections.push({ key: "executive-summary", title: "Ledelsesresumé", paragraphs: summary,
-    evidenceIds: unique([revenue?.evidenceId, margin?.evidenceId, result?.evidenceId, topChanges[0]?.evidenceId, drivers[0]?.evidenceId, ...(recommendations[0]?.evidenceIds ?? [])].filter((id): id is string => Boolean(id))),
-    scope: `${periodScope} · ${filters}` });
-  if (topChanges.length && comparisonScope) sections.push({ key: "development", title: "Vigtigste udvikling",
-    paragraphs: topChanges.map(changeSentence), evidenceIds: topChanges.map((item) => item.evidenceId), scope: comparisonScope });
-  if (drivers.length && primaryDrivers) sections.push({ key: "drivers", title: "Hvor ændringen er registreret",
-    paragraphs: [...drivers.map(driverText), "Bidragene viser registreringsstedet, ikke den bagvedliggende årsag."],
-    evidenceIds: drivers.map((item) => item.evidenceId), scope: `${primaryDrivers.comparisonPeriod} · ${filters}` });
   const observations = analysis.observations.filter((item) =>
     item.tone !== "neutral" && !item.id.startsWith("observation-budget")
     && item.id !== "observation-driver" && item.evidenceIds.every((id) =>
       evidence.has(id) && !["change", "driver", "budget"].includes(evidence.get(id)!.type)));
-  const assessments = observations.slice(0, 2).map((item) => item.text);
+  const priorityObservations = observations.slice(0, 2);
+  const firstRisk = observations.find((item) => item.tone === "negative");
+  if (firstRisk && !priorityObservations.some((item) => item.id === firstRisk.id)) {
+    priorityObservations.splice(1, priorityObservations.length === 2 ? 1 : 0, firstRisk);
+  }
+  const assessments = priorityObservations.map((item) => ({ text: item.text, evidenceIds: item.evidenceIds }));
   const budgetFacts = analysis.evidence.filter((item) => item.type === "budget");
   if (budgetFacts.length) {
     const budgetObservation = analysis.observations.find((item) => item.id.startsWith("observation-budget"));
     const fact = budgetFacts[0];
     const difference = fact.absoluteChange ?? 0;
-    assessments.push(budgetObservation
-      ? `Budgetstatus: ${budgetObservation.text}`
-      : `Budgetstatus: ${fact.title} ${difference === 0 ? "er på budget" : `afviger med ${formatDanishCurrency(Math.abs(difference))} ${difference > 0 ? "over" : "under"} budgettet`}${analysis.dataBasis.budgetBasis === "proportional" ? " på proportionelt fordelt grundlag" : ""}.`);
+    assessments.push({
+      text: budgetObservation
+        ? `Budget: ${budgetObservation.text}`
+        : `Budget: ${fact.title} ${difference === 0 ? "er på budget" : `afviger med ${formatDanishCurrency(Math.abs(difference))} ${difference > 0 ? "over" : "under"} budgettet`}${analysis.dataBasis.budgetBasis === "proportional" ? " på proportionelt fordelt grundlag" : ""}.`,
+      evidenceIds: [fact.id],
+    });
   }
-  if (assessments.length) sections.push({ key: "assessment", title: "Status og opmærksomhedspunkter",
-    paragraphs: assessments, evidenceIds: unique([...observations.slice(0, 2).flatMap((item) => item.evidenceIds), ...budgetFacts.map((item) => item.id)]),
-    scope: comparisonScope ?? `${periodScope} · ${filters}` });
+  const relevantTarget = targetStatuses.find((item) => item.state === "behind");
+  if (relevantTarget) assessments.push({ text: `Målstatus: ${relevantTarget.text}`, evidenceIds: [] });
+  const sections: ManagementReportSection[] = [];
+  const summary = [
+    revenue ? `Omsætningen udgør ${revenue.formattedValue} i ${periodScope}.` : `Analysen dækker ${periodScope}.`,
+    comparisonScope
+      ? topChanges[0] ? `En væsentlig registreret bevægelse er ${changeDirection(topChanges[0])} i ${topChanges[0].label.toLocaleLowerCase("da-DK")}.` : "Ingen dokumenteret ændring mellem de sammenlignelige perioder."
+      : "Ingen gyldig tidligere periode; rapporten viser et øjebliksbillede.",
+    drivers[0] && primaryDrivers
+      ? `Største omsætningsbidrag er registreret i ${primaryDrivers.dimensionLabel.toLocaleLowerCase("da-DK")} ${drivers[0].dimensionValue}.`
+      : null,
+    recommendations[0] ? `Første analyse: ${recommendations[0].text.split(",")[0].replace(/[.!?]+$/u, "").replace(/\s+nærmere$/u, "")}.` : null,
+  ].filter((item): item is string => Boolean(item));
+  sections.push({ key: "executive-summary", title: "Ledelsesresumé", paragraphs: summary,
+    evidenceIds: unique([revenue?.evidenceId, margin?.evidenceId, result?.evidenceId, topChanges[0]?.evidenceId, drivers[0]?.evidenceId, ...(recommendations[0]?.evidenceIds ?? [])].filter((id): id is string => Boolean(id))),
+    scope: `${periodScope} · ${filters}`,
+    metrics: [result, margin].filter((item): item is NonNullable<typeof item> => Boolean(item))
+      .map((item) => ({ label: item.label, value: item.formattedValue, evidenceId: item.evidenceId })),
+  });
+  if (topChanges.length && comparisonScope) sections.push({ key: "development", title: "Vigtigste ændringer",
+    paragraphs: topChanges.map(changeSentence), evidenceIds: topChanges.map((item) => item.evidenceId), scope: comparisonScope });
+  if (drivers.length && primaryDrivers) sections.push({ key: "drivers", title: "Dokumenterede drivere",
+    paragraphs: [...drivers.map(driverText), "Bidrag viser, hvor ændringen er registreret, ikke hvorfor den opstod."],
+    evidenceIds: drivers.map((item) => item.evidenceId), scope: `${primaryDrivers.previousPeriod} → ${primaryDrivers.currentPeriod} · ${filters}` });
+  if (assessments.length) sections.push({ key: "assessment", title: "Opmærksomhedspunkter",
+    paragraphs: assessments.map((item) => item.text), evidenceIds: unique(assessments.flatMap((item) => item.evidenceIds)),
+    scope: `${periodScope} · ${filters}` });
   if (recommendations.length) sections.push({ key: "recommended-focus", title: "Anbefalet fokus",
     paragraphs: recommendations.map((item) => item.text), evidenceIds: unique(recommendations.flatMap((item) => item.evidenceIds)),
     scope: comparisonScope ?? `${periodScope} · ${filters}` });
@@ -126,8 +147,8 @@ export function buildManagementReport(
   const limitations = dataFacts?.supportingFacts.filter((fact) => /utilgængelig|uden en gyldig periode|omkostningsgrundlag|Resultatgrundlag/u.test(fact)) ?? [];
   sections.push({ key: "data-basis", title: "Datagrundlag og begrænsninger",
     paragraphs: [`${formatDanishNumber(analysis.dataBasis.rowCount)} af ${formatDanishNumber(analysis.dataBasis.totalRowCount)} rækker fra ${analysis.dataBasis.sourceName}.`,
-      `Analysegrundlag: ${analysis.reliability === "high" ? "højt" : analysis.reliability === "medium" ? "middel" : "begrænset"}.`,
-      ...(focus ? [`Prioriteringen tager højde for virksomhedens valgte fokus: ${focus.label}.`] : []), ...limitations],
+      ...(focus ? [`Prioriteret efter virksomhedens fokus: ${focus.label}.`] : []),
+      ...unique(limitations).slice(0, 2)],
     evidenceIds: dataFacts ? [dataFacts.id] : [], scope: `${periodScope} · ${filters}` });
   return sections;
 }

@@ -50,7 +50,7 @@
 @media print {
   @page {
     size: A4;
-    margin: 15mm 16mm;
+    margin: 13mm 15mm;
   }
 
   html,
@@ -81,8 +81,32 @@
   }
 
   body [data-testid="management-report"] section {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  body [data-testid="management-report"] section[data-report-tone="summary"],
+  body [data-testid="management-report"] section[data-report-tone="focus"] {
     break-inside: avoid-page;
     page-break-inside: avoid;
+  }
+
+  body [data-testid="management-report"] section h3 {
+    break-after: avoid-page;
+  }
+
+  body [data-testid="management-report"] section {
+    padding-top: 11px !important;
+    padding-bottom: 11px !important;
+  }
+
+  body [data-testid="management-report"] > header {
+    padding-top: 0 !important;
+    padding-bottom: 12px !important;
+  }
+
+  body [data-testid="management-report"] .report-evidence {
+    display: none !important;
   }
 
   body [data-testid="management-report"] header {

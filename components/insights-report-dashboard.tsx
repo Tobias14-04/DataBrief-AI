@@ -60,6 +60,7 @@ import { summarizeDriverTopN } from "@/lib/insight-engine";
 import { buildManagementReport } from "@/lib/management-report";
 import type {
   InsightAnalysis,
+  InsightEvidence,
   InsightDriver,
   InsightDriverAnalysis,
   InsightMetricChange,
@@ -958,13 +959,18 @@ function ReportView({
   targetStatuses: readonly AnalysisTargetStatus[];
 }) {
   const sections = buildManagementReport(analysis, analysisPreferences, targetStatuses);
+  const evidenceById = new Map(analysis.evidence.map((item) => [item.id, item]));
+  const evidenceValue = (fact: InsightEvidence, value: number) => fact.metric === "units"
+    ? formatDanishNumber(value)
+    : fact.metric === "grossMargin" || fact.metric === "costShare"
+      ? formatDanishPercent(value) : formatDanishCurrency(value);
   const hasReportContent = sections.some((section) => section.key !== "data-basis");
   const reportSubtitle = analysis.dataBasis.scopeMode === "all-filtered-periods"
-    ? `${analysis.dataBasis.scopeLabel}.${analysis.currentPeriod && analysis.comparisonPeriod
+    ? `${analysis.dataBasis.scopeLabel}.${analysis.dataBasis.hasComparison && analysis.currentPeriod && analysis.comparisonPeriod
         ? ` Udviklingen sammenlignes fra ${analysis.comparisonPeriod.label} til ${analysis.currentPeriod.label}.`
         : " Der findes ingen tidligere sammenlignelig periode."}`
     : analysis.currentPeriod
-      ? analysis.comparisonPeriod
+      ? analysis.dataBasis.hasComparison && analysis.comparisonPeriod
         ? `${analysis.currentPeriod.label} sammenlignet med ${analysis.comparisonPeriod.label}.`
         : `${analysis.currentPeriod.label}. Der findes ingen tidligere sammenlignelig periode.`
       : "Den aktuelle filtrerede visning.";
@@ -1014,6 +1020,44 @@ function ReportView({
                         <p key={`${section.key}-paragraph-${paragraphIndex}`}>{paragraph}</p>
                       ))}
                     </div>
+                    {section.metrics && section.metrics.length > 0 && (
+                      <div className="report-summary-metrics mt-4 grid gap-2 sm:grid-cols-2">
+                        {section.metrics.map((metric) => (
+                          <div key={metric.evidenceId} className="rounded-lg border border-cyan-100 bg-white/80 px-3 py-2">
+                            <p className="text-[11px] font-medium text-slate-500">{metric.label}</p>
+                            <p className="mt-0.5 text-base font-semibold tabular-nums text-[#0b1c2d]">{metric.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {section.evidenceIds.length > 0 && (
+                      <details className="report-evidence mt-4 border-t border-slate-200/70 pt-3 text-xs text-slate-600">
+                        <summary className="w-fit cursor-pointer font-medium text-cyan-800 hover:text-cyan-950">Se datagrundlag og evidens</summary>
+                        <div className="mt-3 space-y-3">
+                          {section.evidenceIds.map((id) => {
+                            const fact = evidenceById.get(id);
+                            if (!fact) return null;
+                            return (
+                              <div key={id} className="border-l-2 border-cyan-100 pl-3">
+                                <p className="font-semibold text-slate-700">{fact.title}</p>
+                                <p>{[section.scope,
+                                fact.previousPeriod && fact.currentPeriod
+                                  ? `${fact.previousPeriod} → ${fact.currentPeriod}` : null,
+                                fact.dimensionValue ? `Medlem: ${fact.dimensionValue}` : null,
+                                fact.currentValue !== undefined ? `Aktuelt: ${evidenceValue(fact, fact.currentValue)}` : null,
+                                fact.previousValue !== undefined ? `Sammenligning: ${evidenceValue(fact, fact.previousValue)}` : null,
+                                fact.absoluteChange !== undefined && fact.metric ? `Ændring: ${formatMetricDelta(fact.metric, fact.absoluteChange)}` : null,
+                                `${formatDanishNumber(fact.sampleSize)} datapunkter`,
+                                `Kilde: ${analysis.dataBasis.sourceName}`,
+                                reliabilityLabel(fact.reliability),
+                                `Ref.: ${fact.id}`].filter(Boolean).join(" · ")}</p>
+                                {fact.supportingFacts.length > 0 && <p className="mt-1 text-slate-500">{fact.supportingFacts.join(" ")}</p>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </details>
+                    )}
                   </div>
                 </div>
               </section>
