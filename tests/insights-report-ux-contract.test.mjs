@@ -145,6 +145,7 @@ test("Strategisk overblik adskiller interne data fra eksterne forhold og har til
   assert.match(strategyComponentSource, /lg:grid-cols-2/u);
   assert.match(strategyComponentSource, /testId="strategy-snapshot"/u);
   assert.match(strategyComponentSource, /positiveSignals\.slice\(0, 2\)/u);
+  assert.doesNotMatch(strategyComponentSource, /line-clamp-2 text-xs leading-5 text-slate-500">\{finding\.description\}/u);
   assert.match(strategyComponentSource, /strategy\.findingsByQuadrant\.weakness\.slice\(0, 2\)/u);
   assert.match(strategyComponentSource, /\.slice\(0, 2\)/u);
   assert.match(strategyComponentSource, /strategicFocus\.slice\(0, 3\)/u);
@@ -157,8 +158,9 @@ test("Strategisk overblik adskiller interne data fra eksterne forhold og har til
 });
 
 test("interne sammenhænge vises som undersøgelsesområder med synlig sporbarhed", () => {
-  assert.match(strategyComponentSource, /Dokumenterede sammenhænge/u);
-  assert.match(strategyComponentSource, /De dokumenterer ikke årsagssammenhæng/u);
+  assert.match(strategyComponentSource, /title="Sammenhænge"/u);
+  assert.match(strategyComponentSource, /beviser ikke årsagssammenhæng/u);
+  assert.match(strategyComponentSource, /briefStrategicFocus\(proposal, findingById\)/u);
   assert.match(strategyComponentSource, /To positive signaler/u);
   assert.match(strategyComponentSource, /Positivt signal og eksponering/u);
   assert.match(strategyComponentSource, /Udfordring og positivt signal/u);

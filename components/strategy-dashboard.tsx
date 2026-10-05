@@ -24,6 +24,7 @@ import {
   formatDanishPercent,
 } from "@/lib/dashboard-insights";
 import type { StrategicAnalysis } from "@/lib/strategy-engine";
+import { briefStrategicFocus, briefStrategicFocusSummary, briefStrategicPairTitle } from "@/lib/strategy-copy";
 
 type QuadrantKey = "strength" | "weakness" | "opportunity" | "threat";
 type TowsType = "so" | "st" | "wo" | "wt";
@@ -63,7 +64,7 @@ const quadrantDefinitions: readonly QuadrantDefinition[] = [
   {
     key: "strength",
     title: "POSITIVE SIGNALER",
-    description: "Positive dokumenterede forhold",
+    description: "Gunstige nøgletal og udvikling",
     emptyMessage: "Ingen positive signaler dokumenteret i den aktuelle visning.",
     iconComponent: ShieldCheck,
     bar: "bg-emerald-500",
@@ -83,7 +84,7 @@ const quadrantDefinitions: readonly QuadrantDefinition[] = [
   {
     key: "threat",
     title: "RISICI OG EKSPONERINGER",
-    description: "Dokumenteret koncentration eller negativ udvikling",
+    description: "Koncentration eller negativ udvikling",
     emptyMessage: "Ingen eksponeringer dokumenteret i den aktuelle visning.",
     iconComponent: ShieldAlert,
     bar: "bg-orange-600",
@@ -257,7 +258,6 @@ function SnapshotColumn({
           {findings.map((finding) => (
             <li key={finding.id} className="min-w-0 border-l-2 border-cyan-200 pl-3">
               <p className="text-[13px] font-semibold leading-5 text-[#0b1c2d]">{finding.title}</p>
-              <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-500">{finding.description}</p>
             </li>
           ))}
         </ul>
@@ -270,8 +270,10 @@ function SnapshotColumn({
 
 const StrategicSnapshot = memo(function StrategicSnapshot({
   strategy,
+  findingById,
 }: {
   strategy: StrategicAnalysis;
+  findingById: ReadonlyMap<string, StrategicFinding>;
 }) {
   const positiveSignals = useMemo(
     () => strategy.findings.filter((finding) => finding.quadrant === "strength" || finding.quadrant === "opportunity"),
@@ -294,8 +296,8 @@ const StrategicSnapshot = memo(function StrategicSnapshot({
   return (
     <CommandPanel
       eyebrow="Kort fortalt"
-      title="Vigtigste dokumenterede forhold"
-      description="Prioriterede interne fund og områder, der bør undersøges"
+      title="Vigtigste forhold"
+      description="Prioriteret efter betydning og virksomhedens fokus"
       icon={CircleDot}
       tone="neutral"
       testId="strategy-snapshot"
@@ -326,7 +328,7 @@ const StrategicSnapshot = memo(function StrategicSnapshot({
                 <span className="grid h-5 min-w-5 place-items-center rounded bg-slate-100 text-[10px] font-semibold tabular-nums text-slate-500">
                   {index + 1}
                 </span>
-                <span className="line-clamp-2">{proposal.text}</span>
+                <span className="line-clamp-2">{briefStrategicFocusSummary(proposal, findingById)}</span>
               </li>
             ))}
           </ol>
@@ -636,8 +638,8 @@ const TowsGroup = memo(function TowsGroup({
                     {String(index + 1).padStart(2, "0")}
                   </span>
                   <div className="min-w-0">
-                    <h4 className="text-sm font-semibold leading-5 text-[#0b1c2d]">{proposal.title}</h4>
-                    <p className="mt-1.5 text-[13px] leading-5 text-slate-600">{proposal.text}</p>
+                    <h4 className="text-sm font-semibold leading-5 text-[#0b1c2d]">{briefStrategicPairTitle(proposal, findingById)}</h4>
+                    <p className="mt-1.5 text-[13px] leading-5 text-slate-600">{briefStrategicFocus(proposal, findingById)}</p>
                     <p className="mt-2 text-[11px] leading-4 text-slate-500">
                       Gælder: {Array.from(new Set(proposal.sourceFindingIds.map((id) => findingById.get(id)?.scopeLabel).filter(Boolean))).join(" · ")}
                       {Array.from(new Set(proposal.sourceFindingIds.flatMap((id) => findingById.get(id)?.scopeFilters ?? []))).length
@@ -687,12 +689,12 @@ export const StrategyDashboard = memo(function StrategyDashboard({
 
   return (
     <section className="min-w-0 space-y-4 min-[1360px]:col-span-2" data-testid="strategy-dashboard">
-      <StrategicSnapshot strategy={strategy} />
+      <StrategicSnapshot strategy={strategy} findingById={findingById} />
 
       {visibleQuadrants.length ? <CommandPanel
         eyebrow="Interne fund"
-        title="Dokumenterede forhold"
-        description="Positive signaler, udfordringer og eksponeringer fra det registrerede datagrundlag"
+        title="Centrale forhold"
+        description="Med periode, scope og kilde"
         icon={Waypoints}
         testId="strategy-swot"
       >
@@ -726,8 +728,8 @@ export const StrategyDashboard = memo(function StrategyDashboard({
 
       {visibleTows.length ? <CommandPanel
         eyebrow="Anbefalet fokus"
-        title="Dokumenterede sammenhænge"
-        description="Par af interne fund, der kan undersøges i sammenhæng. De dokumenterer ikke årsagssammenhæng."
+        title="Sammenhænge"
+        description="To forhold kan vurderes sammen, men beviser ikke årsagssammenhæng."
         icon={Waypoints}
         tone="neutral"
         testId="strategy-tows"
