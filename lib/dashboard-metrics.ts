@@ -5,7 +5,7 @@ import {
 } from "./data-labels.ts";
 import { addGrossMarginRow, createGrossMarginBasis, resolveGrossMargin, type GrossMarginBasis } from "./gross-margin.ts";
 import { isFiniteNumber } from "./numeric-foundation.ts";
-import { resolveCostBasis, type WorkbookCostSource } from "./result-basis.ts";
+import { documentedVariableRowCost, resolveCostBasis, type CostBasis, type WorkbookCostSource } from "./result-basis.ts";
 
 export type DashboardMetricRow = {
   date: Date | null;
@@ -38,6 +38,9 @@ type GroupedValue = {
 
 type MonthValue = GroupedValue & {
   sortKey: number;
+  rowCount: number;
+  variableCost: number;
+  variableCostCount: number;
 };
 
 type DashboardMetricFeedback = {
@@ -45,10 +48,26 @@ type DashboardMetricFeedback = {
   budget?: { revenue: number; costs: number };
 };
 
+export function documentedMonthlyCost(month: MonthValue, basis: CostBasis): number | null {
+  if (basis.source === "row-cost" && basis.status === "available") {
+    return isFiniteNumber(month.cost) ? month.cost : null;
+  }
+  if (basis.source === "variable-only" && basis.variableCosts !== null
+    && month.variableCostCount === month.rowCount) {
+    return isFiniteNumber(month.variableCost) ? month.variableCost : null;
+  }
+  return null;
+}
+
+export function documentedMonthlyCostLabel(basis: CostBasis): string {
+  return basis.source === "variable-only" && basis.variableCosts !== null
+    ? "Variable omkostninger" : "Omkostninger";
+}
+
 export function calculateDashboardMetrics(
   rows: DashboardMetricRow[],
   feedback?: DashboardMetricFeedback,
-  options: { fullRows?: readonly DashboardMetricRow[]; budgetScale?: number } = {},
+  options: { fullRows?: readonly DashboardMetricRow[] } = {},
 ) {
   type GroupAccumulator = GroupedValue & {
     marginBasis: GrossMarginBasis;
@@ -125,11 +144,20 @@ export function calculateDashboardMetrics(
       grossProfit: 0,
       cost: 0,
       sortKey,
+      rowCount: 0,
+      variableCost: 0,
+      variableCostCount: 0,
     };
     currentMonth.revenue += row.revenue;
     currentMonth.units += row.units;
     currentMonth.grossProfit += row.grossProfit ?? 0;
     currentMonth.cost += row.cost ?? 0;
+    currentMonth.rowCount += 1;
+    const variableRowCost = documentedVariableRowCost(row);
+    if (variableRowCost !== null) {
+      currentMonth.variableCost += variableRowCost;
+      currentMonth.variableCostCount += 1;
+    }
     months.set(monthKey, currentMonth);
   });
 
@@ -161,9 +189,13 @@ export function calculateDashboardMetrics(
     .sort((a, b) => b.cost - a.cost);
   const monthly = Array.from(months.values()).sort((a, b) => a.sortKey - b.sortKey);
   const monthsByRevenue = [...monthly].sort((a, b) => b.revenue - a.revenue);
-  const budgetScale = options.budgetScale ?? 1;
+  const budgetScale = options.fullRows?.length ? rows.length / options.fullRows.length : 1;
   const budgetRevenue = (feedback?.budget?.revenue ?? 0) * budgetScale;
   const budgetCosts = (feedback?.budget?.costs ?? 0) * budgetScale;
+  const revenueVsBudget = feedback?.budget ? totalRevenue - budgetRevenue : 0;
+  const budgetStatus: "På budget" | "Over budgettet" | "Under budgettet" | null = feedback?.budget
+    ? revenueVsBudget === 0 ? "På budget" : revenueVsBudget > 0 ? "Over budgettet" : "Under budgettet"
+    : null;
 
   return {
     totalRevenue,
@@ -182,7 +214,8 @@ export function calculateDashboardMetrics(
     budgetRevenue,
     budgetCosts,
     budgetResult: budgetRevenue - budgetCosts,
-    revenueVsBudget: feedback?.budget ? totalRevenue - budgetRevenue : 0,
+    revenueVsBudget,
+    budgetStatus,
     bestProduct: productsByRevenue[0],
     products: productsByRevenue,
     hasProductData,

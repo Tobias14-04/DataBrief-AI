@@ -64,7 +64,7 @@ test("dashboardets centrale aggregering beregner KPI'er og fordelinger i samme p
   assert.deepEqual(metrics.productsByUnits.map((product) => product.name), ["Café latte", "Croissant"]);
 });
 
-test("budget kan skaleres, men globalt workbook-resultat falder ikke tilbage til rækkeomkostninger", () => {
+test("budget skaleres centralt efter scope, men globalt workbook-resultat falder ikke tilbage til rækkeomkostninger", () => {
   const feedback = {
     costs: { total: 500 },
     budget: { revenue: 1000, costs: 400 },
@@ -72,7 +72,6 @@ test("budget kan skaleres, men globalt workbook-resultat falder ikke tilbage til
   const fullMetrics = calculateDashboardMetrics(rows, feedback);
   const filteredMetrics = calculateDashboardMetrics(rows.slice(0, 1), feedback, {
     fullRows: rows,
-    budgetScale: 0.25,
   });
 
   assert.equal(fullMetrics.totalCosts, 500);
@@ -81,9 +80,10 @@ test("budget kan skaleres, men globalt workbook-resultat falder ikke tilbage til
   assert.equal(filteredMetrics.totalCosts, null);
   assert.equal(filteredMetrics.actualResult, null);
   assert.equal(filteredMetrics.costBasis.status, "unavailable");
-  assert.equal(filteredMetrics.budgetRevenue, 250);
-  assert.equal(filteredMetrics.budgetCosts, 100);
-  assert.equal(filteredMetrics.revenueVsBudget, -150);
+  assert.ok(Math.abs(filteredMetrics.budgetRevenue - 1000 / 3) < 1e-10);
+  assert.ok(Math.abs(filteredMetrics.budgetCosts - 400 / 3) < 1e-10);
+  assert.ok(Math.abs(filteredMetrics.revenueVsBudget - (100 - 1000 / 3)) < 1e-10);
+  assert.equal(filteredMetrics.budgetStatus, "Under budgettet");
 });
 
 test("dashboardgrupper bruger intern sammenligningsnøgle og original Unicode-label", () => {

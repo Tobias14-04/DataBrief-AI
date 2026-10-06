@@ -50,16 +50,20 @@ export function hasFullRowScope(rows: readonly ResultRow[], fullRows: readonly R
   return true;
 }
 
+export function documentedVariableRowCost(row: ResultRow): number | null {
+  return isFiniteNumber(row.variableCost) ? row.variableCost
+    : row.costScope === "variable" && isFiniteNumber(row.cost) ? row.cost
+      : isFiniteNumber(row.grossProfit) && isFiniteNumber(row.revenue) ? row.revenue - row.grossProfit
+        : null;
+}
+
 export function resolveCostBasis(
   rows: readonly ResultRow[],
   options: { fullRows?: readonly ResultRow[]; workbook?: WorkbookCostSource | null } = {},
 ): CostBasis {
   const scope = options.fullRows && !hasFullRowScope(rows, options.fullRows) ? "subset" : "full";
   const workbook = options.workbook ?? null;
-  const rowVariableCosts = rows.map((row) => isFiniteNumber(row.variableCost)
-    ? row.variableCost
-    : row.costScope === "variable" && isFiniteNumber(row.cost) ? row.cost
-    : isFiniteNumber(row.grossProfit) && isFiniteNumber(row.revenue) ? row.revenue - row.grossProfit : null);
+  const rowVariableCosts = rows.map(documentedVariableRowCost);
   const variableCosts = rows.length > 0 && rowVariableCosts.every(isFiniteNumber)
     ? rowVariableCosts.reduce<number>((sum, value) => sum + value!, 0)
     : null;

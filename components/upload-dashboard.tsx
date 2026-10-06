@@ -151,7 +151,7 @@ import {
   type DashboardFilterKey,
   type DashboardFilters,
 } from "@/lib/dashboard-filtering";
-import { calculateDashboardMetrics } from "@/lib/dashboard-metrics";
+import { calculateDashboardMetrics, documentedMonthlyCost, documentedMonthlyCostLabel } from "@/lib/dashboard-metrics";
 import { isFiniteNumber, parseNumericValue, parsePercentageValue } from "@/lib/numeric-foundation";
 import { buildCostIntelligence } from "@/lib/cost-intelligence";
 import { describeCostBasis } from "@/lib/result-basis";
@@ -1214,7 +1214,7 @@ async function analyzeWorkbook(
 function calculateMetrics(
   rows: SaleRow[],
   feedback?: MappingFeedback,
-  options: { fullRows?: readonly SaleRow[]; budgetScale?: number } = {},
+  options: { fullRows?: readonly SaleRow[] } = {},
 ) {
   return calculateDashboardMetrics(rows, feedback, options);
 }
@@ -2220,23 +2220,17 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
     ? selectedMonth
     : filters.month[0] || (preferredMonth && monthOptions.includes(preferredMonth) ? preferredMonth : monthOptions.at(-1) ?? "");
   const { reportRows, report, budgetStatusClasses } = useMemo(() => {
-    let rowsInMonth = 0;
     const matchingRows: SaleRow[] = [];
 
     rows.forEach((row) => {
       if (row.month !== reportMonth) return;
-      rowsInMonth += 1;
       if (rowMatchesDashboardFilters(row, filters, "month")) matchingRows.push(row);
     });
 
-    const monthCount = Math.max(monthOptions.length, 1);
-    const segmentShare = rowsInMonth ? matchingRows.length / rowsInMonth : 0;
-    const budgetScale = (1 / monthCount) * segmentShare;
-    const reportMetrics = calculateMetrics(matchingRows, feedback, { fullRows: rows, budgetScale });
+    const reportMetrics = calculateMetrics(matchingRows, feedback, { fullRows: rows });
     const hasBudget = Boolean(feedback?.budget && matchingRows.length);
     const deviation = reportMetrics.revenueVsBudget;
-    const tolerance = Math.max(1, reportMetrics.budgetRevenue * 0.01);
-    const budgetStatus = Math.abs(deviation) <= tolerance ? "På budget" : deviation > 0 ? "Over budgettet" : "Under budgettet";
+    const budgetStatus = reportMetrics.budgetStatus ?? "På budget";
     const statusClasses =
       budgetStatus === "På budget"
         ? "bg-brand-50 text-brand-700"
@@ -2258,7 +2252,7 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
         budget: hasBudget ? { deviation, status: budgetStatus } : null,
       }),
     };
-  }, [feedback, filters, monthOptions.length, reportMonth, rows]);
+  }, [feedback, filters, reportMonth, rows]);
   const metricGridClass = report.metrics.length >= 5
     ? "grid-cols-2 sm:grid-cols-3 min-[1200px]:grid-cols-5 min-[1400px]:grid-cols-2"
     : report.metrics.length === 4
@@ -2582,11 +2576,10 @@ export default function UploadDashboard() {
     () => applyDashboardFilters(allRows, deferredFilters),
     [allRows, deferredFilters],
   );
-  const budgetScale = allRows.length && isFiltered ? filteredRows.length / allRows.length : 1;
   const baseMetrics = useMemo(() => calculateMetrics(allRows, data?.feedback), [allRows, data?.feedback]);
   const metrics = useMemo(
-    () => calculateMetrics(filteredRows, data?.feedback, { fullRows: allRows, budgetScale }),
-    [allRows, budgetScale, data?.feedback, filteredRows],
+    () => calculateMetrics(filteredRows, data?.feedback, { fullRows: allRows }),
+    [allRows, data?.feedback, filteredRows],
   );
   const comparisonSourceRows = useMemo(
     () => applyDashboardFilters(allRows, deferredFilters, "month"),
@@ -3752,19 +3745,22 @@ export default function UploadDashboard() {
                         <th scope="col" className="border-b border-[#d8e5ea] px-5 py-4 text-right">Omsætning</th>
                         <th scope="col" className="border-b border-[#d8e5ea] px-5 py-4 text-right">Solgte enheder</th>
                         <th scope="col" className="border-b border-[#d8e5ea] px-5 py-4 text-right">Dækningsbidrag</th>
-                        <th scope="col" className="border-b border-[#d8e5ea] px-5 py-4 text-right sm:px-6">Omkostninger</th>
+                        <th scope="col" className="border-b border-[#d8e5ea] px-5 py-4 text-right sm:px-6">{documentedMonthlyCostLabel(metrics.costBasis)}</th>
                       </tr>
                     </thead>
                     <tbody className="text-[13px]">
-                      {metrics.monthly.map((month) => (
-                        <tr key={month.sortKey} className="bg-white transition-colors hover:bg-cyan-50/55">
-                          <td className="border-b border-slate-100 px-5 py-4 text-sm font-semibold text-ink sm:px-6">{formatDanishMonth(month.name)}</td>
-                          <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700">{currency(month.revenue)}</td>
-                          <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700">{number(month.units)}</td>
-                          <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700">{baseMetrics.hasGrossProfit ? currency(month.grossProfit) : "–"}</td>
-                          <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700 sm:px-6">{metrics.costBasis.source === "row-cost" && metrics.hasCosts ? currency(month.cost) : "–"}</td>
-                        </tr>
-                      ))}
+                      {metrics.monthly.map((month) => {
+                        const documentedCost = documentedMonthlyCost(month, metrics.costBasis);
+                        return (
+                          <tr key={month.sortKey} className="bg-white transition-colors hover:bg-cyan-50/55">
+                            <td className="border-b border-slate-100 px-5 py-4 text-sm font-semibold text-ink sm:px-6">{formatDanishMonth(month.name)}</td>
+                            <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700">{currency(month.revenue)}</td>
+                            <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700">{number(month.units)}</td>
+                            <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700">{baseMetrics.hasGrossProfit ? currency(month.grossProfit) : "–"}</td>
+                            <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700 sm:px-6">{documentedCost === null ? "–" : currency(documentedCost)}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
