@@ -131,8 +131,10 @@ test("rapporten har diskret semantisk hierarki uden kopieret strategisektion", (
   assert.match(globalStyles, /break-inside: avoid/u);
   assert.match(componentSource, /report-summary-metrics/u);
   assert.match(componentSource, /<details className="report-evidence/u);
-  assert.match(componentSource, /Kilde: \$\{analysis\.dataBasis\.sourceName\}/u);
-  assert.match(componentSource, /Ref\.: \$\{fact\.id\}/u);
+  assert.match(componentSource, /\["Datagrundlag", analysis\.dataBasis\.sourceName\]/u);
+  assert.match(componentSource, /\["Sammenligningsperiode", fact\.previousPeriod\]/u);
+  assert.match(componentSource, /\["Datapunkter", formatDanishNumber\(fact\.sampleSize\)\]/u);
+  assert.doesNotMatch(componentSource, /Ref\.: \$\{fact\.id\}/u);
   assert.match(globalStyles, /section\[data-report-tone="focus"\]/u);
   assert.match(globalStyles, /\.report-evidence\s*\{\s*display: none !important/u);
 });
@@ -156,7 +158,7 @@ test("Strategisk overblik adskiller interne data fra eksterne forhold og har til
   assert.doesNotMatch(strategyComponentSource, /line-clamp-2 text-xs leading-5 text-slate-500">\{finding\.description\}/u);
   assert.match(strategyComponentSource, /strategy\.findingsByQuadrant\.weakness\.slice\(0, 2\)/u);
   assert.match(strategyComponentSource, /\.slice\(0, 2\)/u);
-  assert.match(strategyComponentSource, /strategicFocus\.slice\(0, 3\)/u);
+  assert.match(strategyComponentSource, /uniqueDisplayedStrategicFocus\(strategy\.tows, findingById\)\.slice\(0, 3\)/u);
   assert.match(strategyComponentSource, /DEFAULT_FINDING_COUNT = 3/u);
   assert.match(strategyComponentSource, /Vis alle \$\{formatDanishNumber\(findings\.length\)\}/u);
   assert.match(strategyComponentSource, /Vis færre/u);

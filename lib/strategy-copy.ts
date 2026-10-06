@@ -58,6 +58,47 @@ export function briefStrategicFocusSummary(
   return `${proposal.type === "st" || proposal.type === "wt" ? "Følg" : "Undersøg"} ${shortSubject(target)}.`;
 }
 
+// Only identical displayed recommendations are combined. Their source references
+// remain available on the retained item; similar but distinct advice stays separate.
+export function uniqueDisplayedStrategicFocus(
+  proposals: readonly TowsRecommendation[],
+  findingById: ReadonlyMap<string, StrategicFinding>,
+) {
+  const byText = new Map<string, TowsRecommendation>();
+  for (const proposal of proposals) {
+    const text = briefStrategicFocusSummary(proposal, findingById);
+    const targetId = proposal.sourceFindingIds[proposal.type === "wo" ? 0 : 1];
+    const target = findingById.get(targetId);
+    const key = JSON.stringify([text, target?.scopeLabel, target?.scopeFilters]);
+    const existing = byText.get(key);
+    if (existing) {
+      byText.set(key, {
+        ...existing,
+        sourceFindingIds: [...new Set([...existing.sourceFindingIds, ...proposal.sourceFindingIds])],
+        evidenceIds: [...new Set([...existing.evidenceIds, ...proposal.evidenceIds])],
+      });
+    } else {
+      byText.set(key, { ...proposal });
+    }
+  }
+  return [...byText.values()];
+}
+
+export function uniqueScopeLabels(labels: readonly string[]) {
+  const unique = [...new Set(labels.map((label) => label.trim()).filter(Boolean))];
+  // A comparison already names its current month; avoid repeating that month alone.
+  return unique.filter((label) => !unique.some((other) => other !== label && other.includes("→") && other.endsWith(label)));
+}
+
+export function descriptionWithoutRepeatedScope(description: string, scopeLabel: string) {
+  const ending = ` i ${scopeLabel}.`;
+  return description.endsWith(ending) ? `${description.slice(0, -ending.length)}.` : description;
+}
+
+export function visibleScopeFilters(scopeLabel: string, filters: readonly string[]) {
+  return filters.filter((filter) => !/^[a-zæøå]+\s+\d{4}$/iu.test(filter.trim()) || !scopeLabel.includes(filter.trim()));
+}
+
 export function briefStrategicFocus(
   proposal: TowsRecommendation,
   findingById: ReadonlyMap<string, StrategicFinding>,

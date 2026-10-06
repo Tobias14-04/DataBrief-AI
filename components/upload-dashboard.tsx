@@ -3481,6 +3481,15 @@ export default function UploadDashboard() {
                 onChange={commitDashboardFilters}
                 variant={activeView === "overview" ? "overview" : mainDashboardView(activeView) === "analysis" ? "analysis" : "default"}
               />
+              {mainDashboardView(activeView) === "analysis" ? (
+                <p className="mt-1.5 text-[11px] leading-4 text-slate-500" data-testid="analysis-scope-label">
+                  {(activeView === "channels" || activeView === "regions") && insightAnalysis?.comparisonPeriod && insightAnalysis.currentPeriod
+                    ? `Sammenligning: ${insightAnalysis.comparisonPeriod.label} → ${insightAnalysis.currentPeriod.label}. Filtrene gælder begge perioder.`
+                    : activeView === "analysis" && metrics.monthly.length === 1
+                      ? `Tidsvisning: ${formatDanishMonth(metrics.monthly[0].name)} (ét datapunkt, ingen tidsserie).`
+                      : `Aktuelt udsnit: ${deferredFilters.month.length ? deferredFilters.month.map((month) => formatDanishMonth(month)).join(", ") : "Alle perioder"}.`}
+                </p>
+              ) : null}
             </div>
           ) : null}
 
@@ -3638,7 +3647,9 @@ export default function UploadDashboard() {
               <CommandPageIntro
                 eyebrow="Tidsserieanalyse"
                 title="Udvikling på tværs af perioder"
-                description="Sammenlign udviklingen måned for måned. Alle tal følger de aktive dashboardfiltre."
+                description={metrics.monthly.length === 1
+                  ? `Viser ${formatDanishMonth(metrics.monthly[0].name)} som ét datapunkt. Vælg flere perioder for en tidsserie.`
+                  : "Sammenlign udviklingen måned for måned. Alle tal følger de aktive dashboardfiltre."}
                 action={<PremiumSelect
                   value={activeTrendMetric}
                   options={trendMetricOptions}

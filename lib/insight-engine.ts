@@ -8,6 +8,7 @@ import {
 import { resolveGrossMargin } from "./gross-margin.ts";
 import { isFiniteNumber as finite, safeRatio } from "./numeric-foundation.ts";
 import { describeCostBasis, type CostBasis } from "./result-basis.ts";
+import { formatSignedPercentage, formatSignedPercentagePoints } from "./display-change.ts";
 import { growthChange, resolvePeriodComparison } from "./period-comparison.ts";
 import { COST_TO_REVENUE_LABEL, costToRevenue } from "./cost-share.ts";
 import {
@@ -419,14 +420,10 @@ function metricChangeLabel(
   percentagePointChange: number | null,
 ) {
   if (percentagePointChange !== null) {
-    const prefix = percentagePointChange > 0 ? "+" : percentagePointChange < 0 ? "−" : "";
-    const formatted = new Intl.NumberFormat("da-DK", { maximumFractionDigits: 1 })
-      .format(Math.abs(percentagePointChange) * 100);
-    return `${prefix}${formatted} procentpoint`;
+    return formatSignedPercentagePoints(percentagePointChange);
   }
   if (percentage !== null) {
-    const prefix = percentage > 0 ? "+" : percentage < 0 ? "−" : "";
-    return `${prefix}${formatDanishPercent(Math.abs(percentage))}`;
+    return formatSignedPercentage(percentage, formatDanishPercent(Math.abs(percentage)));
   }
   return signedMetric(metric, absoluteChange);
 }

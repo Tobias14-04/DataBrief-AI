@@ -24,7 +24,8 @@ import {
   formatDanishPercent,
 } from "@/lib/dashboard-insights";
 import type { StrategicAnalysis } from "@/lib/strategy-engine";
-import { briefStrategicFocus, briefStrategicFocusSummary, briefStrategicPairTitle } from "@/lib/strategy-copy";
+import { briefStrategicFocus, briefStrategicFocusSummary, briefStrategicPairTitle, descriptionWithoutRepeatedScope, uniqueDisplayedStrategicFocus, uniqueScopeLabels, visibleScopeFilters } from "@/lib/strategy-copy";
+import { formatSignedPercentage, formatSignedPercentagePoints } from "@/lib/display-change";
 
 type QuadrantKey = "strength" | "weakness" | "opportunity" | "threat";
 type TowsType = "so" | "st" | "wo" | "wt";
@@ -213,15 +214,7 @@ function formatSignedMetricValue(metric: string | null | undefined, value: numbe
 }
 
 function formatSignedPercent(value: number) {
-  if (value === 0) return formatDanishPercent(value);
-  return `${value > 0 ? "+" : "−"}${formatDanishPercent(Math.abs(value))}`;
-}
-
-function formatSignedPercentagePoints(value: number) {
-  const prefix = value > 0 ? "+" : value < 0 ? "−" : "";
-  const formatted = new Intl.NumberFormat("da-DK", { maximumFractionDigits: 1 })
-    .format(Math.abs(value) * 100);
-  return `${prefix}${formatted} procentpoint`;
+  return formatSignedPercentage(value, formatDanishPercent(Math.abs(value)));
 }
 
 function MetadataItem({
@@ -279,7 +272,7 @@ const StrategicSnapshot = memo(function StrategicSnapshot({
     () => strategy.findings.filter((finding) => finding.quadrant === "strength" || finding.quadrant === "opportunity"),
     [strategy.findings],
   );
-  const focusAreas = strategy.reportSummary.strategicFocus.slice(0, 3);
+  const focusAreas = uniqueDisplayedStrategicFocus(strategy.tows, findingById).slice(0, 3);
   const hasSnapshot = positiveSignals.length > 0
     || strategy.findingsByQuadrant.weakness.length > 0
     || strategy.findingsByQuadrant.threat.length > 0
@@ -470,14 +463,15 @@ const FindingCard = memo(function FindingCard({ finding }: { finding: StrategicF
   const baseId = useId();
   const buttonId = `${baseId}-documentation-button`;
   const regionId = `${baseId}-documentation`;
+  const shownFilters = visibleScopeFilters(finding.scopeLabel, finding.scopeFilters);
 
   return (
     <li className="px-4 py-3.5 sm:px-5">
       <article>
         <h4 className="text-sm font-semibold leading-5 text-[#0b1c2d]">{finding.title}</h4>
-        <p className="mt-1.5 line-clamp-2 text-[13px] leading-5 text-slate-600">{finding.description}</p>
+        <p className="mt-1.5 line-clamp-2 text-[13px] leading-5 text-slate-600">{descriptionWithoutRepeatedScope(finding.description, finding.scopeLabel)}</p>
         <p className="mt-2 text-[11px] font-medium leading-4 text-slate-500">
-          {finding.scopeLabel}{finding.scopeFilters.length ? ` · ${finding.scopeFilters.join(", ")}` : " · Ingen aktive filtre"}
+          {finding.scopeLabel}{shownFilters.length ? ` · ${shownFilters.join(", ")}` : ""}
         </p>
 
         <div className="mt-2.5">
@@ -630,7 +624,13 @@ const TowsGroup = memo(function TowsGroup({
 
       {proposals.length ? (
         <ol className="divide-y divide-slate-100">
-          {proposals.map((proposal, index) => (
+          {proposals.map((proposal, index) => {
+            const scopeLabel = uniqueScopeLabels(proposal.sourceFindingIds
+              .map((id) => findingById.get(id)?.scopeLabel)
+              .filter((label): label is string => Boolean(label))).join(" · ");
+            const shownFilters = visibleScopeFilters(scopeLabel, Array.from(new Set(proposal.sourceFindingIds
+              .flatMap((id) => findingById.get(id)?.scopeFilters ?? []))));
+            return (
             <li key={proposal.id} className="px-4 py-4 sm:px-5">
               <article>
                 <div className="flex items-start gap-3">
@@ -641,10 +641,7 @@ const TowsGroup = memo(function TowsGroup({
                     <h4 className="text-sm font-semibold leading-5 text-[#0b1c2d]">{briefStrategicPairTitle(proposal, findingById)}</h4>
                     <p className="mt-1.5 text-[13px] leading-5 text-slate-600">{briefStrategicFocus(proposal, findingById)}</p>
                     <p className="mt-2 text-[11px] leading-4 text-slate-500">
-                      Gælder: {Array.from(new Set(proposal.sourceFindingIds.map((id) => findingById.get(id)?.scopeLabel).filter(Boolean))).join(" · ")}
-                      {Array.from(new Set(proposal.sourceFindingIds.flatMap((id) => findingById.get(id)?.scopeFilters ?? []))).length
-                        ? ` · Filtre: ${Array.from(new Set(proposal.sourceFindingIds.flatMap((id) => findingById.get(id)?.scopeFilters ?? []))).join(", ")}`
-                        : " · Ingen aktive filtre"}
+                      Gælder: {scopeLabel}{shownFilters.length ? ` · Filtre: ${shownFilters.join(", ")}` : ""}
                     </p>
                   </div>
                 </div>
@@ -662,7 +659,8 @@ const TowsGroup = memo(function TowsGroup({
                 </div>
               </article>
             </li>
-          ))}
+            );
+          })}
         </ol>
       ) : (
         <TowsEmptyState message={definition.emptyMessage} />
@@ -686,6 +684,7 @@ export const StrategyDashboard = memo(function StrategyDashboard({
     definition.key === "strength" ? positiveSignals.length > 0 : strategy.findingsByQuadrant[definition.key].length > 0
   ));
   const visibleTows = towsDefinitions.filter((definition) => strategy.tows.some((proposal) => proposal.type === definition.type));
+  const shownFilters = visibleScopeFilters(strategy.dataBasis.scopeLabel, strategy.dataBasis.activeFilterLabels);
 
   return (
     <section className="min-w-0 space-y-4 min-[1360px]:col-span-2" data-testid="strategy-dashboard">
@@ -708,9 +707,9 @@ export const StrategyDashboard = memo(function StrategyDashboard({
           <div className="min-w-0">
             <p>{notice}</p>
             <p className="mt-1 text-xs text-cyan-800">
-              Overordnet scope: {strategy.dataBasis.scopeLabel}. Hvert fund viser sin egen periode. {strategy.dataBasis.activeFilterLabels.length
-                ? `Aktive filtre: ${strategy.dataBasis.activeFilterLabels.join(", ")}.`
-                : "Ingen aktive filtre."}
+              Overordnet scope: {strategy.dataBasis.scopeLabel}. Hvert fund viser sin egen periode. {shownFilters.length
+                ? `Aktive filtre: ${shownFilters.join(", ")}.`
+                : "Ingen øvrige filtre."}
             </p>
           </div>
         </aside>

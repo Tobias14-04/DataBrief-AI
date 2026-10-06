@@ -124,7 +124,7 @@ export function buildManagementReport(
     drivers[0] && primaryDrivers
       ? `Største omsætningsbidrag er registreret i ${primaryDrivers.dimensionLabel.toLocaleLowerCase("da-DK")} ${drivers[0].dimensionValue}.`
       : null,
-    recommendations[0] ? `Første analyse: ${recommendations[0].text.split(",")[0].replace(/[.!?]+$/u, "").replace(/\s+nærmere$/u, "")}.` : null,
+    recommendations[0] ? `Prioriteret fokus: ${recommendations[0].text.split(",")[0].replace(/[.!?]+$/u, "").replace(/\s+nærmere$/u, "")}.` : null,
   ].filter((item): item is string => Boolean(item));
   sections.push({ key: "executive-summary", title: "Ledelsesresumé", paragraphs: summary,
     evidenceIds: unique([revenue?.evidenceId, margin?.evidenceId, result?.evidenceId, topChanges[0]?.evidenceId, drivers[0]?.evidenceId, ...(recommendations[0]?.evidenceIds ?? [])].filter((id): id is string => Boolean(id))),

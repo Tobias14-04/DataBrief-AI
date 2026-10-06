@@ -1353,7 +1353,7 @@ export const CostIntelligenceDashboard = memo(function CostIntelligenceDashboard
         <div className="space-y-4 border-t border-slate-100 p-4">
           {analysis.hasCostTimeline ? <CostTrendChart analysis={analysis} /> : (
             <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-              Periodegraf utilgængelig: {analysis.costBasis.reason ?? `${describeCostBasis(analysis.costBasis)} kan ikke fordeles på perioder.`}
+              Periodegrafen er ikke tilgængelig. {analysis.costBasis.reason ?? "Det dokumenterede omkostningsgrundlag kan ikke fordeles på perioder."}
             </p>
           )}
           <CostChangesPanel analysis={analysis} />

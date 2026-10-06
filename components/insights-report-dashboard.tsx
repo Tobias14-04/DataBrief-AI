@@ -57,6 +57,7 @@ import {
   formatDanishPercent,
 } from "@/lib/dashboard-insights";
 import { summarizeDriverTopN } from "@/lib/insight-engine";
+import { formatSignedPercentagePoints } from "@/lib/display-change";
 import { buildManagementReport } from "@/lib/management-report";
 import type {
   InsightAnalysis,
@@ -134,7 +135,7 @@ function formatMetricDelta(metric: InsightMetricKey, value: number) {
   const absolute = Math.abs(value);
   if (metric === "units") return `${prefix}${formatDanishNumber(absolute)}`;
   if (metric === "grossMargin" || metric === "costShare") {
-    return `${prefix}${new Intl.NumberFormat("da-DK", { maximumFractionDigits: 1 }).format(absolute * 100)} procentpoint`;
+    return formatSignedPercentagePoints(value);
   }
   if (metric === "averagePrice") return `${prefix}${formatDanishCurrency(absolute)}`;
   return `${prefix}${formatDanishCurrency(absolute)}`;
@@ -1039,19 +1040,31 @@ function ReportView({
                             if (!fact) return null;
                             return (
                               <div key={id} className="border-l-2 border-cyan-100 pl-3">
-                                <p className="font-semibold text-slate-700">{fact.title}</p>
-                                <p>{[section.scope,
-                                fact.previousPeriod && fact.currentPeriod
-                                  ? `${fact.previousPeriod} → ${fact.currentPeriod}` : null,
-                                fact.dimensionValue ? `Medlem: ${fact.dimensionValue}` : null,
-                                fact.currentValue !== undefined ? `Aktuelt: ${evidenceValue(fact, fact.currentValue)}` : null,
-                                fact.previousValue !== undefined ? `Sammenligning: ${evidenceValue(fact, fact.previousValue)}` : null,
-                                fact.absoluteChange !== undefined && fact.metric ? `Ændring: ${formatMetricDelta(fact.metric, fact.absoluteChange)}` : null,
-                                `${formatDanishNumber(fact.sampleSize)} datapunkter`,
-                                `Kilde: ${analysis.dataBasis.sourceName}`,
-                                reliabilityLabel(fact.reliability),
-                                `Ref.: ${fact.id}`].filter(Boolean).join(" · ")}</p>
-                                {fact.supportingFacts.length > 0 && <p className="mt-1 text-slate-500">{fact.supportingFacts.join(" ")}</p>}
+                                <dl className="mt-2 grid gap-x-4 gap-y-2 sm:grid-cols-2">
+                                  {([
+                                    ["Måling", fact.title],
+                                    ["Periode", fact.currentPeriod ?? analysis.dataBasis.scopeLabel],
+                                    ["Sammenligningsperiode", fact.previousPeriod],
+                                    ["Aktuel værdi", fact.currentValue !== undefined ? evidenceValue(fact, fact.currentValue) : null],
+                                    ["Sammenligningsværdi", fact.previousValue !== undefined ? evidenceValue(fact, fact.previousValue) : null],
+                                    ["Ændring", fact.absoluteChange !== undefined && fact.metric ? formatMetricDelta(fact.metric, fact.absoluteChange) : null],
+                                    ["Dimension / medlem", fact.dimensionValue],
+                                    ["Aktive filtre", analysis.dataBasis.activeFilterLabels.length ? analysis.dataBasis.activeFilterLabels.join(", ") : "Ingen aktive filtre"],
+                                    ["Datagrundlag", analysis.dataBasis.sourceName],
+                                    ["Datapunkter", formatDanishNumber(fact.sampleSize)],
+                                    ["Pålidelighed", reliabilityLabel(fact.reliability)],
+                                  ] as const).filter((entry) => entry[1] !== null && entry[1] !== undefined).map(([label, value]) => (
+                                    <div key={label} className="min-w-0">
+                                      <dt className="font-medium text-slate-500">{label}</dt>
+                                      <dd className="break-words text-slate-700">{value}</dd>
+                                    </div>
+                                  ))}
+                                </dl>
+                                {fact.supportingFacts.length > 0 && (
+                                  <p className="mt-2 leading-5 text-slate-500">
+                                    <span className="font-medium">Supplerende oplysninger: </span>{fact.supportingFacts.join(" ")}
+                                  </p>
+                                )}
                               </div>
                             );
                           })}

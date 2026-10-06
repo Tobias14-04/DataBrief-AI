@@ -47,6 +47,16 @@ test("gyldig månedssammenligning viser få ændringer og positive/negative regi
   assert.equal(sections.some((item) => item.title === "Strategisk opsamling"), false);
 });
 
+test("ledelsesresume bruger prioriteret fokus som præfiks uden at ændre anbefalingen", () => {
+  const analysis = buildInsightAnalysis([row(january, "A", 100), row(february, "A", 120)], { selectedMonth: february });
+  const recommendation = analysis.recommendations.find((item) => item.evidenceIds.length > 0);
+  const summary = section(buildManagementReport(analysis, empty, []), "executive-summary").paragraphs;
+  if (recommendation) {
+    assert.ok(summary.some((paragraph) => paragraph.startsWith("Prioriteret fokus: ")));
+    assert.ok(summary.every((paragraph) => !paragraph.startsWith("Første analyse: ")));
+  }
+});
+
 test("kun positive drivere håndteres uden negativ påstand", () => {
   const sections = report([row(january, "A", 100), row(february, "A", 120)], { selectedMonth: february });
   const drivers = section(sections, "drivers");
