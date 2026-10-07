@@ -37,6 +37,7 @@ export function KpiCustomizer({
   defaults,
   evaluations,
   libraryEvaluations,
+  evaluateKpiOnDemand,
   rows,
   numericColumns,
   onClose,
@@ -47,6 +48,7 @@ export function KpiCustomizer({
   defaults: KpiConfiguration;
   evaluations: Record<string, KpiEvaluation>;
   libraryEvaluations: Record<string, KpiEvaluation>;
+  evaluateKpiOnDemand: (id: string) => KpiEvaluation;
   rows: KpiSourceRow[];
   numericColumns: Array<{ name: string; typeLabel?: string }>;
   onClose: () => void;
@@ -84,12 +86,7 @@ export function KpiCustomizer({
   function evaluationFor(definition: KpiDefinition): KpiEvaluation {
     if (!definition.isCustom || !definition.formula) {
       return (
-        evaluations[definition.id] ?? {
-          available: false,
-          value: null,
-          detail: "Kan ikke beregnes",
-          reason: "Kan ikke beregnes med de aktuelle data.",
-        }
+        evaluations[definition.id] ?? evaluateKpiOnDemand(definition.id)
       );
     }
     if (!rows.length) {

@@ -97,6 +97,7 @@ import {
   buildKpiDataProfile,
   defaultKpiConfiguration,
   evaluateFormula,
+  evaluateStandardKpi,
   evaluateStandardKpis,
   formatNumber,
   getNumericColumns,
@@ -185,7 +186,6 @@ function writeDashboardLocation(view: DashboardView, tab: InsightsReportTab = "i
   if (replace) window.history.replaceState(window.history.state, "", url);
   else window.history.pushState(window.history.state, "", url);
 }
-
 type SaleRow = {
   date: Date | null;
   month: string;
@@ -571,8 +571,8 @@ function rowsToRecords(rows: unknown[][], headerIndex: number, headers: string[]
   );
 }
 
-function collectWorkbookKpiRows(workbook: ParsedWorkbookRows): KpiSourceRow[] {
-  return workbook.sheetNames.flatMap((sheetName) => {
+function collectWorkbookKpiRows(workbook: ParsedWorkbookRows, skippedSheetName?: string): KpiSourceRow[] {
+  return workbook.sheetNames.filter((sheetName) => sheetName !== skippedSheetName).flatMap((sheetName) => {
     const rows = workbook.sheets[sheetName] ?? [];
     const headerCandidate = rows
       .slice(0, 40)
@@ -1171,7 +1171,7 @@ async function analyzeWorkbook(
     fileName,
     detectedSheets: workbook.sheetNames,
     candidates,
-    kpiSourceRows: collectWorkbookKpiRows(workbook),
+    kpiSourceRows: collectWorkbookKpiRows(workbook, best.name),
     costs: parseCostSheet(workbook),
     budget: parseBudgetSheet(workbook),
   };
@@ -2578,8 +2578,10 @@ export default function UploadDashboard() {
   );
   const baseMetrics = useMemo(() => calculateMetrics(allRows, data?.feedback), [allRows, data?.feedback]);
   const metrics = useMemo(
-    () => calculateMetrics(filteredRows, data?.feedback, { fullRows: allRows }),
-    [allRows, data?.feedback, filteredRows],
+    () => filteredRows === allRows
+      ? baseMetrics
+      : calculateMetrics(filteredRows, data?.feedback, { fullRows: allRows }),
+    [allRows, baseMetrics, data?.feedback, filteredRows],
   );
   const comparisonSourceRows = useMemo(
     () => applyDashboardFilters(allRows, deferredFilters, "month"),
@@ -2598,17 +2600,17 @@ export default function UploadDashboard() {
     () => summarizeComparisonMetric(comparisonSourceRows, periodComparison, (row) => row.revenue),
     [comparisonSourceRows, periodComparison],
   );
-  const comparisonKpiDataProfile = useMemo(
-    () => buildKpiDataProfile(comparisonSourceRows),
-    [comparisonSourceRows],
-  );
-  const currentSalesKpiDataProfile = useMemo(
-    () => buildKpiDataProfile(filteredRows),
-    [filteredRows],
-  );
   const baseSalesKpiDataProfile = useMemo(
     () => buildKpiDataProfile(allRows),
     [allRows],
+  );
+  const comparisonKpiDataProfile = useMemo(
+    () => comparisonSourceRows === allRows ? baseSalesKpiDataProfile : buildKpiDataProfile(comparisonSourceRows),
+    [allRows, baseSalesKpiDataProfile, comparisonSourceRows],
+  );
+  const currentSalesKpiDataProfile = useMemo(
+    () => filteredRows === comparisonSourceRows ? comparisonKpiDataProfile : buildKpiDataProfile(filteredRows),
+    [comparisonKpiDataProfile, comparisonSourceRows, filteredRows],
   );
   const executiveSummary = useMemo(
     () => buildExecutiveSummary(
@@ -2688,14 +2690,15 @@ export default function UploadDashboard() {
       partialMonths,
     ],
   );
+  const needsInsightAnalysis = activeView === "insights" || activeView === "channels" || activeView === "regions";
   const insightSourceRows = useMemo(
-    () => activeView === "insights" || activeView === "channels" || activeView === "regions"
+    () => needsInsightAnalysis
       ? comparisonSourceRows
       : [],
-    [activeView, comparisonSourceRows],
+    [comparisonSourceRows, needsInsightAnalysis],
   );
   const insightAnalysis = useMemo(
-    () => activeView === "insights" || activeView === "channels" || activeView === "regions"
+    () => needsInsightAnalysis
       ? buildInsightAnalysis(insightSourceRows, {
           selectedMonths: deferredFilters.month,
           partialMonths,
@@ -2722,7 +2725,7 @@ export default function UploadDashboard() {
     [
       activeFilterLabels,
       allRows.length,
-      activeView,
+      needsInsightAnalysis,
       costsByCategory,
       data?.feedback.salesSheetName,
       deferredFilters.month,
@@ -2777,20 +2780,19 @@ export default function UploadDashboard() {
     customerHistoryProfile: baseSalesKpiDataProfile,
   }), [allRows, baseMetrics, baseSalesKpiDataProfile, partialMonths, showBudget]);
   const supplementalKpiRows = useMemo(
-    () => (analysis?.kpiSourceRows ?? []).filter(
-      (row) => row.sourceValues.__sheet !== data?.feedback.salesSheetName,
-    ),
-    [analysis?.kpiSourceRows, data?.feedback.salesSheetName],
-  );
-  const currentKpiDataProfile = useMemo(
-    () => buildKpiDataProfile(
-      [...filteredRows, ...supplementalKpiRows],
-      {
-        budgetRevenue: showBudget ? [metrics.budgetRevenue] : [],
-        budgetCosts: showBudget ? [metrics.budgetCosts] : [],
-      },
-    ),
-    [filteredRows, metrics.budgetCosts, metrics.budgetRevenue, showBudget, supplementalKpiRows],
+    () => {
+      const selectedSalesSheet = data?.feedback.salesSheetName;
+      const supplemental = (analysis?.kpiSourceRows ?? []).filter(
+        (row) => row.sourceValues.__sheet !== selectedSalesSheet,
+      );
+      const defaultSalesSheet = analysis?.candidates[0];
+      if (!defaultSalesSheet || !selectedSalesSheet || selectedSalesSheet === defaultSalesSheet.name) return supplemental;
+      return [...supplemental, ...collectWorkbookKpiRows({
+        sheetNames: [defaultSalesSheet.name],
+        sheets: { [defaultSalesSheet.name]: defaultSalesSheet.rows },
+      })];
+    },
+    [analysis, data?.feedback.salesSheetName],
   );
   const baseKpiDataProfile = useMemo(
     () => buildKpiDataProfile(
@@ -2801,6 +2803,16 @@ export default function UploadDashboard() {
       },
     ),
     [allRows, baseMetrics.budgetCosts, baseMetrics.budgetRevenue, showBudget, supplementalKpiRows],
+  );
+  const currentKpiDataProfile = useMemo(
+    () => filteredRows === allRows ? baseKpiDataProfile : buildKpiDataProfile(
+      [...filteredRows, ...supplementalKpiRows],
+      {
+        budgetRevenue: showBudget ? [metrics.budgetRevenue] : [],
+        budgetCosts: showBudget ? [metrics.budgetCosts] : [],
+      },
+    ),
+    [allRows, baseKpiDataProfile, filteredRows, metrics.budgetCosts, metrics.budgetRevenue, showBudget, supplementalKpiRows],
   );
   const defaultKpis = useMemo(
     () => defaultKpiConfiguration(baseKpiContext),
@@ -2830,9 +2842,7 @@ export default function UploadDashboard() {
     return getNumericColumns(allRows).map((name) => ({ name, typeLabel: mappedTypes.get(name) }));
   }, [allRows, data?.feedback.mappedColumns, data?.feedback.optionalColumns]);
   const standardKpiEvaluationIds = useMemo(
-    () => isKpiCustomizerOpen
-      ? standardKpiDefinitions.map((definition) => definition.id)
-      : [
+    () => [
           ...kpiConfiguration.primaryKpis,
           ...kpiConfiguration.secondaryKpis,
           ...defaultKpis.primaryKpis,
@@ -2842,7 +2852,6 @@ export default function UploadDashboard() {
     [
       defaultKpis.primaryKpis,
       defaultKpis.secondaryKpis,
-      isKpiCustomizerOpen,
       kpiConfiguration.primaryKpis,
       kpiConfiguration.secondaryKpis,
       preferenceKpiIds,
@@ -2855,6 +2864,10 @@ export default function UploadDashboard() {
       currentKpiDataProfile,
     ),
     [currentKpiContext, currentKpiDataProfile, standardKpiEvaluationIds],
+  );
+  const evaluateKpiOnDemand = useCallback(
+    (id: string) => evaluateStandardKpi(id, currentKpiContext, currentKpiDataProfile),
+    [currentKpiContext, currentKpiDataProfile],
   );
   const allKpiDefinitions = useMemo(
     () => [...standardKpiDefinitions, ...kpiConfiguration.customKpis],
@@ -3466,6 +3479,7 @@ export default function UploadDashboard() {
             <div className={`min-w-0 ${activeView === "overview" ? "min-[1200px]:col-span-2" : "min-[1360px]:col-span-2"}`}>
               <DashboardControlBar
                 filters={filters}
+                displayFilters={deferredFilters}
                 options={filterOptions}
                 filteredRows={metrics.rowCount}
                 totalRows={allRows.length}
@@ -3721,7 +3735,7 @@ export default function UploadDashboard() {
                 </CommandPanel>
                 <MonthlyReportCard
                   rows={allRows}
-                  filters={filters}
+                  filters={deferredFilters}
                   feedback={data?.feedback}
                   preferredMonth={baseMetrics.bestMonth?.name}
                   selectedMonth={reportMonth}
@@ -3893,6 +3907,7 @@ export default function UploadDashboard() {
         defaults={defaultKpis}
         evaluations={kpiEvaluations}
         libraryEvaluations={baseStandardKpiEvaluations}
+        evaluateKpiOnDemand={evaluateKpiOnDemand}
         rows={filteredRows}
         numericColumns={numericColumns}
         onClose={() => setIsKpiCustomizerOpen(false)}

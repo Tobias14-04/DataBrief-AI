@@ -45,6 +45,7 @@ const largeDatasetCommitDelayMs = 120;
 const FilterMenu = memo(function FilterMenu({
   field,
   values,
+  displayValues,
   options,
   open,
   onOpen,
@@ -53,6 +54,7 @@ const FilterMenu = memo(function FilterMenu({
 }: {
   field: DashboardControlKey;
   values: string[];
+  displayValues: string[];
   options: string[];
   open: boolean;
   onOpen: (field: DashboardControlKey) => void;
@@ -78,11 +80,11 @@ const FilterMenu = memo(function FilterMenu({
     ),
     [menuOptions, normalizedSearch],
   );
-  const summary = values.length === 0
+  const summary = displayValues.length === 0
     ? allLabels[field]
-    : values.length === 1
-      ? values[0]
-      : `${values.length} valgt`;
+    : displayValues.length === 1
+      ? displayValues[0]
+      : `${displayValues.length} valgt`;
 
   return (
     <div className={`relative min-w-0 w-full sm:w-auto ${field === "month" ? "col-span-2" : ""}`}>
@@ -92,7 +94,7 @@ const FilterMenu = memo(function FilterMenu({
         onClick={() => onOpen(field)}
         aria-expanded={open}
         className={`flex h-10 w-full max-w-full items-center justify-between gap-3 rounded-lg border px-3 text-left transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 sm:min-w-[150px] sm:w-auto ${
-          values.length
+          displayValues.length
             ? "border-cyan-300 bg-cyan-50 text-cyan-900"
             : "border-[#d8e3e8] bg-white text-slate-700 hover:border-cyan-300"
         }`}
@@ -183,6 +185,7 @@ const FilterMenu = memo(function FilterMenu({
 
 export const DashboardControlBar = memo(function DashboardControlBar({
   filters,
+  displayFilters,
   options,
   filteredRows,
   totalRows,
@@ -192,6 +195,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
   variant = "default",
 }: {
   filters: DashboardControlValues;
+  displayFilters: DashboardControlValues;
   options: DashboardControlOptions;
   filteredRows: number;
   totalRows: number;
@@ -216,9 +220,10 @@ export const DashboardControlBar = memo(function DashboardControlBar({
   const previousDatasetRef = useRef(datasetIdentity);
   const primaryFields = (["month", "category", "product"] as DashboardControlKey[]).filter((field) => options[field].length);
   const moreFields = (["channel", "region"] as DashboardControlKey[]).filter((field) => options[field].length);
-  const activeEntries = (Object.entries(draftFilters) as Array<[DashboardControlKey, string[]]>).flatMap(([field, values]) =>
+  const activeEntries = (Object.entries(displayFilters) as Array<[DashboardControlKey, string[]]>).flatMap(([field, values]) =>
     values.map((value) => ({ field, value })),
   );
+  const hasDraftFilters = Object.values(draftFilters).some((values) => values.length > 0);
   const isUpdating = isPending || isUpdateQueued || isDashboardUpdatePending;
   const openFilterMenu = useCallback((field: DashboardControlKey) => {
     setMoreOpen(false);
@@ -371,6 +376,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
             key={field}
             field={field}
             values={draftFilters[field]}
+            displayValues={displayFilters[field]}
             options={options[field]}
             open={openField === field}
             onOpen={openFilterMenu}
@@ -390,7 +396,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
               }}
               aria-expanded={moreOpen}
               className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border px-3 text-[13px] font-semibold transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 sm:w-auto ${
-                moreFields.some((field) => draftFilters[field].length)
+                moreFields.some((field) => displayFilters[field].length)
                   ? "border-cyan-300 bg-cyan-50 text-cyan-900"
                   : "border-[#d8e3e8] bg-white text-slate-600 hover:border-cyan-300"
               }`}
@@ -441,7 +447,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
 
         <div className="ml-auto flex min-h-10 items-center gap-2">
           <span className="hidden min-h-5 items-center justify-end sm:inline-flex min-[1360px]:w-[142px]">
-            {showUpdateStatus ? (
+            {isUpdateQueued || isPending || showUpdateStatus ? (
               <span
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700"
                 role="status"
@@ -455,9 +461,9 @@ export const DashboardControlBar = memo(function DashboardControlBar({
           <button
             type="button"
             onClick={resetDraftFilters}
-            disabled={!activeEntries.length}
+            disabled={!hasDraftFilters}
             className={`inline-flex h-10 items-center gap-2 rounded-lg px-3 text-[13px] font-semibold transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 ${
-              activeEntries.length
+              hasDraftFilters
                 ? "border border-cyan-200 bg-cyan-50 text-cyan-800 hover:border-cyan-300 hover:bg-cyan-100"
                 : "cursor-not-allowed text-slate-400"
             }`}

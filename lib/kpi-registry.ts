@@ -1142,7 +1142,19 @@ function growthScope(context: StandardKpiContext, profile: KpiDataProfile) {
   return { rows, months, partialMonths };
 }
 
+const monthlyGrowthRateCache = new WeakMap<StandardKpiContext, WeakMap<KpiDataProfile, ReturnType<typeof computeMonthlyGrowthRates>>>();
+
 function monthlyGrowthRates(context: StandardKpiContext, profile: KpiDataProfile) {
+  const cached = monthlyGrowthRateCache.get(context)?.get(profile);
+  if (cached) return cached;
+  const rates = computeMonthlyGrowthRates(context, profile);
+  const byProfile = monthlyGrowthRateCache.get(context) ?? new WeakMap<KpiDataProfile, typeof rates>();
+  byProfile.set(profile, rates);
+  monthlyGrowthRateCache.set(context, byProfile);
+  return rates;
+}
+
+function computeMonthlyGrowthRates(context: StandardKpiContext, profile: KpiDataProfile) {
   const { rows, months, partialMonths } = growthScope(context, profile);
   const selected = context.selectedMonths?.length ? context.selectedMonths : null;
   if (selected) {
