@@ -37,6 +37,7 @@ export function KpiCustomizer({
   defaults,
   evaluations,
   libraryEvaluations,
+  libraryReady,
   evaluateKpiOnDemand,
   rows,
   numericColumns,
@@ -48,6 +49,7 @@ export function KpiCustomizer({
   defaults: KpiConfiguration;
   evaluations: Record<string, KpiEvaluation>;
   libraryEvaluations: Record<string, KpiEvaluation>;
+  libraryReady: boolean;
   evaluateKpiOnDemand: (id: string) => KpiEvaluation;
   rows: KpiSourceRow[];
   numericColumns: Array<{ name: string; typeLabel?: string }>;
@@ -380,7 +382,7 @@ export function KpiCustomizer({
 
               {activeTab === "library" ? (
                 <div id="kpi-panel-library" role="tabpanel">
-                  <KpiLibrary
+                  {libraryReady ? <KpiLibrary
                     definitions={definitions}
                     selectedPlacements={selectedPlacements}
                     evaluations={libraryEvaluations}
@@ -389,7 +391,9 @@ export function KpiCustomizer({
                     evaluationFor={evaluationFor}
                     onAdd={updatePlacement}
                     onCreateCustom={() => setShowBuilder(true)}
-                  />
+                  /> : <p role="status" className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-600">
+                    Beregner tilgængelige nøgletal. Du kan fortsat arbejde med de valgte nøgletal imens.
+                  </p>}
                 </div>
               ) : null}
 

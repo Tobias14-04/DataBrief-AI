@@ -49,4 +49,9 @@ test("uændret scope genbruger aggregeringer og KPI-dialogen evaluerer kun valgt
   assert.match(dashboard, /evaluateKpiOnDemand=\{evaluateKpiOnDemand\}/u);
   assert.match(customizer, /evaluations\[definition\.id\] \?\? evaluateKpiOnDemand\(definition\.id\)/u);
   assert.doesNotMatch(dashboard, /isKpiCustomizerOpen\s*\?\s*standardKpiDefinitions/u);
+  assert.match(dashboard, /remainingIds = standardKpiDefinitions/u);
+  assert.match(dashboard, /performance\.now\(\) - started < 16/u);
+  assert.match(dashboard, /cancelled = true/u);
+  assert.match(dashboard, /completeStandardKpiEvaluations\?\.context === baseKpiContext/u);
+  assert.match(customizer, /libraryReady \? <KpiLibrary/u);
 });

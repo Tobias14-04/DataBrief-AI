@@ -166,6 +166,7 @@ import {
 import { demoOperatingCostDefinitions } from "@/lib/demo-dataset";
 import { buildInsightAnalysis } from "@/lib/insight-engine";
 import {
+  analysisTargetMetrics,
   availableAnalysisTargetMetrics,
   buildAnalysisTargetStatuses,
   createEmptyAnalysisPreferences,
@@ -2818,21 +2819,69 @@ export default function UploadDashboard() {
     () => defaultKpiConfiguration(baseKpiContext),
     [baseKpiContext],
   );
-  const baseStandardKpiEvaluations = useMemo(
-    () => evaluateStandardKpis(
-      standardKpiDefinitions.map((definition) => definition.id),
-      baseKpiContext,
-      baseKpiDataProfile,
-    ),
-    [baseKpiContext, baseKpiDataProfile],
-  );
-  const availableTargetMetrics = useMemo(
-    () => availableAnalysisTargetMetrics(baseStandardKpiEvaluations),
-    [baseStandardKpiEvaluations],
-  );
   const preferenceKpiIds = useMemo(
     () => preferredAnalysisKpiIds(analysisPreferences),
     [analysisPreferences],
+  );
+  const initialStandardKpiIds = useMemo(
+    () => [...new Set([
+      ...kpiConfiguration.primaryKpis,
+      ...kpiConfiguration.secondaryKpis,
+      ...defaultKpis.primaryKpis,
+      ...defaultKpis.secondaryKpis,
+      ...preferenceKpiIds,
+      ...analysisTargetMetrics.map((metric) => metric.id),
+    ])].filter((id) => !id.startsWith("custom-")),
+    [defaultKpis, kpiConfiguration.primaryKpis, kpiConfiguration.secondaryKpis, preferenceKpiIds],
+  );
+  const initialStandardKpiEvaluations = useMemo(
+    () => evaluateStandardKpis(
+      initialStandardKpiIds,
+      baseKpiContext,
+      baseKpiDataProfile,
+    ),
+    [baseKpiContext, baseKpiDataProfile, initialStandardKpiIds],
+  );
+  const [completeStandardKpiEvaluations, setCompleteStandardKpiEvaluations] = useState<{
+    context: typeof baseKpiContext;
+    profile: typeof baseKpiDataProfile;
+    evaluations: Record<string, KpiEvaluation>;
+  } | null>(null);
+  useEffect(() => {
+    if (!allRows.length || (
+      completeStandardKpiEvaluations?.context === baseKpiContext
+      && completeStandardKpiEvaluations.profile === baseKpiDataProfile
+    )) return;
+    const remainingIds = standardKpiDefinitions.map((definition) => definition.id)
+      .filter((id) => !(id in initialStandardKpiEvaluations));
+    const evaluations = { ...initialStandardKpiEvaluations };
+    let cancelled = false;
+    let timer: number | undefined;
+    let index = 0;
+    const evaluateNextBatch = () => {
+      if (cancelled) return;
+      const started = performance.now();
+      while (index < remainingIds.length && performance.now() - started < 16) {
+        const id = remainingIds[index++];
+        evaluations[id] = evaluateStandardKpi(id, baseKpiContext, baseKpiDataProfile);
+      }
+      if (index < remainingIds.length) timer = window.setTimeout(evaluateNextBatch, 0);
+      else setCompleteStandardKpiEvaluations({ context: baseKpiContext, profile: baseKpiDataProfile, evaluations });
+    };
+    timer = window.setTimeout(evaluateNextBatch, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [allRows.length, baseKpiContext, baseKpiDataProfile, completeStandardKpiEvaluations, initialStandardKpiEvaluations]);
+  const completeLibraryEvaluations = completeStandardKpiEvaluations?.context === baseKpiContext
+    && completeStandardKpiEvaluations.profile === baseKpiDataProfile
+      ? completeStandardKpiEvaluations.evaluations
+      : null;
+  const baseStandardKpiEvaluations = completeLibraryEvaluations ?? initialStandardKpiEvaluations;
+  const availableTargetMetrics = useMemo(
+    () => availableAnalysisTargetMetrics(baseStandardKpiEvaluations),
+    [baseStandardKpiEvaluations],
   );
   const numericColumns = useMemo(() => {
     const mappedTypes = new Map(
@@ -3907,6 +3956,7 @@ export default function UploadDashboard() {
         defaults={defaultKpis}
         evaluations={kpiEvaluations}
         libraryEvaluations={baseStandardKpiEvaluations}
+        libraryReady={!allRows.length || completeLibraryEvaluations !== null}
         evaluateKpiOnDemand={evaluateKpiOnDemand}
         rows={filteredRows}
         numericColumns={numericColumns}
