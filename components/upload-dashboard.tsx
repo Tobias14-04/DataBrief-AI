@@ -2292,7 +2292,7 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
         {report.metrics.map((metric, index) => (
           <div
             key={metric.key}
-            className={`flex min-h-[92px] min-w-0 flex-col justify-center bg-white px-4 py-3.5 ${report.metrics.length === 5 && index === 4 ? "col-span-2 sm:col-span-2 min-[1200px]:col-span-1 min-[1400px]:col-span-2" : ""}`}
+            className={`flex min-h-[92px] min-w-0 flex-col justify-center bg-white px-3 py-3.5 ${report.metrics.length === 5 && index === 4 ? "col-span-2 sm:col-span-2 min-[1200px]:col-span-1 min-[1400px]:col-span-2" : ""}`}
           >
             <p className="text-[11px] font-medium leading-4 text-slate-500">
               {metric.label}
@@ -2301,7 +2301,7 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
               value={metric.value}
               className={metric.key === "budgetStatus"
                 ? `mt-2 inline-flex w-fit min-w-0 whitespace-nowrap rounded-md px-1.5 py-1 text-[12px] font-semibold leading-4 text-ink ${budgetStatusClasses}`
-                : "mt-2 min-w-0 text-[clamp(1.2rem,1.45vw,1.4rem)] font-semibold leading-tight tabular-nums text-ink"}
+                : "mt-2 min-w-0 whitespace-nowrap text-[clamp(0.8125rem,3.8vw,1rem)] font-semibold leading-tight tracking-tight tabular-nums text-ink"}
             />
           </div>
         ))}
