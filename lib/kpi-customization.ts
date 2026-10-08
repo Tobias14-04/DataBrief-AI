@@ -70,7 +70,8 @@ export type KpiSourceRow = {
 export type StandardKpiContext = {
   totalRevenue: number;
   totalUnits: number;
-  totalGrossProfit: number;
+  totalGrossProfit: number | null;
+  grossProfitReason?: string | null;
   grossMargin: number | null;
   grossMarginReason?: string | null;
   totalCosts: number | null;

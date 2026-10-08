@@ -39,7 +39,7 @@ export type OverviewTrendMetric = "revenue" | "grossProfit" | "units" | "cost";
 export type OverviewTrendPoint = {
   name: string;
   revenue: number;
-  grossProfit: number;
+  grossProfit: number | null;
   units: number;
   cost: number;
 };

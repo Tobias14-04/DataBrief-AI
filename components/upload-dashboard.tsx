@@ -133,7 +133,11 @@ import {
   type SalesFieldKey,
   type SalesFieldMappings,
 } from "@/lib/spreadsheet-fields";
-import { deriveSaleRowCosts, type SalesCostScope } from "@/lib/sales-cost";
+import type { SalesCostScope } from "@/lib/sales-cost";
+import { parseBusinessDate } from "@/lib/business-date";
+import { parseSalesRows, rowsToRecords } from "@/lib/sales-import";
+import type { ImportRejections } from "@/lib/import-rejections";
+import { ImportRejectionNotice } from "@/components/import-rejection-notice";
 import type {
   ExcelWorkerRequest,
   ExcelWorkerResponse,
@@ -153,7 +157,7 @@ import {
   type DashboardFilters,
 } from "@/lib/dashboard-filtering";
 import { calculateDashboardMetrics, documentedMonthlyCost, documentedMonthlyCostLabel } from "@/lib/dashboard-metrics";
-import { isFiniteNumber, parseNumericValue, parsePercentageValue } from "@/lib/numeric-foundation";
+import { isFiniteNumber, parseNumericValue } from "@/lib/numeric-foundation";
 import { buildCostIntelligence } from "@/lib/cost-intelligence";
 import { describeCostBasis } from "@/lib/result-basis";
 import { inferBoundaryPartialMonths, latestAvailablePeriodComparison, resolvePeriodComparison, summarizeComparisonMetric } from "@/lib/period-comparison";
@@ -252,6 +256,7 @@ type MappingFeedback = {
   revenueSource: string;
   status: MappingStatus;
   warnings: string[];
+  rejections: ImportRejections;
   costs?: OptionalSheetSummary;
   budget?: BudgetSummary;
 };
@@ -459,55 +464,13 @@ function toNumber(value: unknown) {
 }
 
 function toDate(value: unknown) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value;
-  }
-
-  if (typeof value === "number") {
-    if (value < 20000 || value > 80000) {
-      return null;
-    }
-
-    const parsed = XLSX.SSF.parse_date_code(value);
-    if (parsed) {
-      return new Date(parsed.y, parsed.m - 1, parsed.d);
-    }
-  }
-
-  const text = String(value ?? "").trim();
-  if (!text) {
-    return null;
-  }
-
-  const isoDate = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
-  if (isoDate) {
-    const [, year, month, day] = isoDate;
-    return new Date(Number(year), Number(month) - 1, Number(day));
-  }
-
-  if (/^\d+(\.\d+)?$/.test(text)) {
-    return null;
-  }
-
-  const localDate = /^(\d{1,2})[.-/](\d{1,2})[.-/](\d{2,4})$/.exec(text);
-  if (localDate) {
-    const [, day, month, rawYear] = localDate;
-    const year = rawYear.length === 2 ? Number(`20${rawYear}`) : Number(rawYear);
-    return new Date(year, Number(month) - 1, Number(day));
-  }
-
-  const date = new Date(text);
-  return Number.isNaN(date.getTime()) ? null : date;
+  return parseBusinessDate(value);
 }
 
 function monthLabel(date: Date) {
   return formatDanishMonth(date);
 }
 
-function cleanMonth(value: unknown) {
-  const text = String(value ?? "").trim();
-  return text ? formatDanishMonth(text) : "Ukendt måned";
-}
 
 function paddedChartDomain(values: number[]): [number, number] {
   if (!values.length) {
@@ -561,16 +524,6 @@ function detectHeaderRow(rows: unknown[][]) {
   return detectSalesHeaderRow(rows);
 }
 
-function rowsToRecords(rows: unknown[][], headerIndex: number, headers: string[]) {
-  return rows.slice(headerIndex + 1).map((row) =>
-    headers.reduce<Record<string, unknown>>((record, header, index) => {
-      if (header) {
-        record[header] = row[index];
-      }
-      return record;
-    }, {}),
-  );
-}
 
 function collectWorkbookKpiRows(workbook: ParsedWorkbookRows, skippedSheetName?: string): KpiSourceRow[] {
   return workbook.sheetNames.filter((sheetName) => sheetName !== skippedSheetName).flatMap((sheetName) => {
@@ -672,33 +625,6 @@ function getCompetingSalesSheets(candidates: SheetCandidate[], best: SheetCandid
   return competing.length ? [best.name, ...competing.map((candidate) => candidate.name)] : [];
 }
 
-function getRevenue(row: Record<string, unknown>, mappings: FieldMappings) {
-  const netRevenue = toNumber(getCell(row, mappings, "netRevenue"));
-  if (netRevenue !== null) {
-    return { value: netRevenue, source: mappings.netRevenue ?? "Nettoomsætning" };
-  }
-
-  const grossRevenue = toNumber(getCell(row, mappings, "grossRevenue"));
-  if (grossRevenue !== null) {
-    return { value: grossRevenue, source: mappings.grossRevenue ?? "Bruttoomsætning" };
-  }
-
-  const revenue = toNumber(getCell(row, mappings, "revenue"));
-  if (revenue !== null) {
-    return { value: revenue, source: mappings.revenue ?? "Omsætning" };
-  }
-
-  const units = toNumber(getCell(row, mappings, "units"));
-  const unitPrice = toNumber(getCell(row, mappings, "unitPrice"));
-  if (units !== null && unitPrice !== null) {
-    const calculatedRevenue = units * unitPrice;
-    if (isFiniteNumber(calculatedRevenue)) {
-      return { value: calculatedRevenue, source: `${mappings.units ?? "Antal"} × ${mappings.unitPrice ?? "Pris"}` };
-    }
-  }
-
-  return { value: null, source: "" };
-}
 
 function manualToFieldMappings(manual: ManualMappings): FieldMappings {
   return {
@@ -762,67 +688,6 @@ function getStatus(candidate: SheetCandidate, rows: SaleRow[]): MappingStatus {
   return "success";
 }
 
-function parseSalesRows(candidate: SheetCandidate, mappings = candidate.mappings) {
-  const records = rowsToRecords(candidate.rows, candidate.headerIndex, candidate.headers);
-  const skippedRows: number[] = [];
-  let revenueSource = "";
-
-  const rows = records
-    .map((row, index) => {
-      const rawDate = getCell(row, mappings, "date");
-      const date = toDate(rawDate);
-      const mappedMonth = cleanMonth(getCell(row, mappings, "month"));
-      const month = mappedMonth !== "Ukendt måned" ? mappedMonth : date ? monthLabel(date) : mappedMonth;
-      const product = displayLabel(getCell(row, mappings, "product"), "");
-      const category = displayLabel(getCell(row, mappings, "category"), "");
-      const channel = displayLabel(getCell(row, mappings, "channel"), "");
-      const region = displayLabel(getCell(row, mappings, "region"), "");
-      const units = toNumber(getCell(row, mappings, "units"));
-      const revenue = getRevenue(row, mappings);
-      const grossProfit = toNumber(getCell(row, mappings, "grossProfit"));
-      const grossMargin = parsePercentageValue(getCell(row, mappings, "grossMargin"));
-      const rowCost = toNumber(getCell(row, mappings, "cost"));
-      const unitCost = toNumber(getCell(row, mappings, "unitCost"));
-
-      const isBlankRow = !rawDate && !product && !category && units === null && revenue.value === null;
-      const looksLikeSummaryRow = product && /total|sum|i alt|subtotal|grand total/i.test(product);
-      if (isBlankRow || looksLikeSummaryRow) {
-        return null;
-      }
-
-      if (!product || !category || units === null || revenue.value === null || (!date && !month)) {
-        skippedRows.push(candidate.headerIndex + index + 2);
-        return null;
-      }
-
-      revenueSource ||= revenue.source;
-      const economics = deriveSaleRowCosts({
-        revenue: revenue.value, units, unitCost, rowCost,
-        rowCostHeader: mappings.cost, grossProfit,
-      });
-
-      return {
-        date,
-        month,
-        product,
-        category,
-        channel,
-        region,
-        revenue: revenue.value,
-        units,
-        grossProfit: economics.grossProfit,
-        grossMargin,
-        cost: economics.cost,
-        costScope: economics.costScope,
-        unitCost,
-        variableCost: economics.variableCost,
-        sourceValues: row,
-      };
-    })
-    .filter((row): row is SaleRow => Boolean(row));
-
-  return { rows, revenueSource, skippedRows };
-}
 
 function buildMappedColumns(mappings: FieldMappings) {
   const required: FieldKey[] = ["date", "month", "product", "category", "units", "netRevenue", "grossRevenue", "revenue", "unitPrice"];
@@ -876,7 +741,7 @@ function buildParseResult({
   const status = manual ? mappingStatusForSource(true) : getStatus(candidate, parsed.rows);
   const warnings = [
     ...(status === "warning" && !manual ? ["Den automatiske kolonnetilknytning kan bruges, men sikkerheden er lavere end normalt."] : []),
-    ...(parsed.skippedRows.length ? [`${parsed.skippedRows.length} ufuldstændige rækker eller opsummeringsrækker blev ignoreret.`] : []),
+    ...(parsed.skippedRows.length ? [`${parsed.skippedRows.length} salgsrækker er udeladt. Se importadvarslen i Data / opsætning.`] : []),
   ];
 
   return {
@@ -891,6 +756,7 @@ function buildParseResult({
       revenueSource: parsed.revenueSource || "Valgt omsætningskolonne",
       status,
       warnings,
+      rejections: parsed.rejections,
       costs: analysis.costs,
       budget: analysis.budget,
     },
@@ -1239,7 +1105,7 @@ function buildExecutiveSummary(
   }
 
   const isFiltered = Boolean(context.activeFilters?.length);
-  const profitabilityInsight = metrics.grossMarginSource === "gross-profit" && metrics.grossMargin !== null
+  const profitabilityInsight = metrics.grossMarginSource === "gross-profit" && metrics.grossMargin !== null && metrics.totalGrossProfit !== null
     ? `Dækningsbidraget er ${currency(metrics.totalGrossProfit)} med en dækningsgrad på ${percent(metrics.grossMargin)}.`
     : metrics.grossMarginSource === "weighted-margin" && metrics.grossMargin !== null
       ? `Dækningsgraden er ${percent(metrics.grossMargin)} beregnet som et omsætningsvægtet gennemsnit.`
@@ -1579,9 +1445,10 @@ function ManualMappingPanel({
     return !mappings[field.key];
   });
   const requiredMappingsValid = missingRequiredFields.length === 0 && duplicateAssignments.length === 0;
-  const previewRows = requiredMappingsValid
-    ? parseSalesRows(candidate, manualToFieldMappingsForCandidate(mappings, candidate)).rows
-    : [];
+  const previewImport = requiredMappingsValid
+    ? parseSalesRows(candidate, manualToFieldMappingsForCandidate(mappings, candidate))
+    : null;
+  const previewRows = previewImport?.rows ?? [];
   const validRowCount = previewRows.length;
   const canApply = requiredMappingsValid && validRowCount > 0;
   const optionalMatchedCount = optionalMappingFields.filter((field) => Boolean(mappings[field.key])).length;
@@ -1723,6 +1590,7 @@ function ManualMappingPanel({
         </details>
 
         <section className="rounded-xl border border-brand-100 bg-[#edf7f7] p-4 sm:p-5" aria-labelledby="mapping-step-review">
+          <div className="mb-3"><ImportRejectionNotice summary={previewImport?.rejections} /></div>
           <div className="flex items-center gap-3 border-b border-brand-100/80 pb-2.5">
             <span className="grid h-7 w-7 place-items-center rounded-md border border-brand-200 bg-white text-xs font-semibold text-brand-700">4</span>
             <div>
@@ -2656,10 +2524,15 @@ export default function UploadDashboard() {
     [availableTrendMetrics],
   );
   const trendChartDomain = useMemo(
-    () => paddedChartDomain(metrics.monthly.map((month) => month[activeTrendMetric])),
+    () => paddedChartDomain(metrics.monthly.map((month) => month[activeTrendMetric]).filter(isFiniteNumber)),
     [activeTrendMetric, metrics.monthly],
   );
-  const trendTotal = metrics.monthly.reduce((sum, month) => sum + month[activeTrendMetric], 0);
+  const trendTotal = metrics.monthly.reduce<number | null>((sum, month) => {
+    const value = month[activeTrendMetric];
+    if (sum === null || !isFiniteNumber(value)) return null;
+    const total = sum + value;
+    return isFiniteNumber(total) ? total : null;
+  }, 0);
   const costIntelligence = useMemo(
     () => activeView === "costs"
       ? buildCostIntelligence(filteredRows, {
@@ -3501,6 +3374,7 @@ export default function UploadDashboard() {
                 }}
                 onDismiss={() => setAnalysisReadyNotice(null)}
               />
+              {data?.feedback.rejections.count ? <div className="mt-2"><ImportRejectionNotice summary={data.feedback.rejections} /></div> : null}
             </div>
           ) : null}
           {mainDashboardView(activeView) === "analysis" ? (
@@ -3655,7 +3529,7 @@ export default function UploadDashboard() {
               data={hasFilteredData ? metrics.monthly : []}
               metric={activeTrendMetric}
               metricLabel={activeTrendDefinition.label}
-              metricTotal={formatTrendValue(activeTrendMetric, trendTotal)}
+              metricTotal={trendTotal === null ? "Utilgængeligt" : formatTrendValue(activeTrendMetric, trendTotal)}
               metricColor={activeTrendDefinition.color}
               metricOptions={trendMetricOptions}
               domain={trendChartDomain}
@@ -3721,7 +3595,7 @@ export default function UploadDashboard() {
                 <CommandPanel
                   eyebrow="Primær analyse"
                   title={activeTrendDefinition.label}
-                  description={`${formatTrendValue(activeTrendMetric, trendTotal)} i den aktuelle visning`}
+                  description={`${trendTotal === null ? "Utilgængeligt" : formatTrendValue(activeTrendMetric, trendTotal)} i den aktuelle visning`}
                   icon={ChartNoAxesCombined}
                   tone={activeTrendDefinition.tone}
                   testId="analysis-primary-chart"
@@ -3819,7 +3693,7 @@ export default function UploadDashboard() {
                             <td className="border-b border-slate-100 px-5 py-4 text-sm font-semibold text-ink sm:px-6">{formatDanishMonth(month.name)}</td>
                             <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700">{currency(month.revenue)}</td>
                             <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700">{number(month.units)}</td>
-                            <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700">{baseMetrics.hasGrossProfit ? currency(month.grossProfit) : "–"}</td>
+                            <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700">{month.grossProfit !== null ? currency(month.grossProfit) : "Utilgængeligt"}</td>
                             <td className="border-b border-slate-100 px-5 py-4 text-right font-medium text-slate-700 sm:px-6">{documentedCost === null ? "–" : currency(documentedCost)}</td>
                           </tr>
                         );
@@ -3907,6 +3781,7 @@ export default function UploadDashboard() {
                 description="Kontrollér ark, overskriftsrække og de kolonner, der driver dashboardet."
               />
               <FeedbackPanel feedback={data?.feedback} rowCount={allRows.length} />
+              <ImportRejectionNotice summary={data?.feedback.rejections} />
               <CommandPanel title="Arbejd med datasættet" description="Skift fil eller brug et kontrolleret eksempel" icon={FileSpreadsheet}>
                 <div className="flex flex-wrap gap-2 p-4">
                   <button

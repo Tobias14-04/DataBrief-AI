@@ -1,3 +1,5 @@
+import { parseBusinessDate } from "./business-date.ts";
+
 export type DashboardMetricKey = "revenue" | "units" | "grossProfit" | "grossMargin" | "cost" | "rows";
 
 export const dashboardMetricLabels: Record<DashboardMetricKey, string> = {
@@ -45,6 +47,10 @@ function parseMonth(value: string | Date) {
   }
 
   const text = value.trim();
+  const date = parseBusinessDate(text);
+  if (date) return { month: date.getMonth(), year: date.getFullYear() };
+  // Month labels have no day; a malformed full date must not become a month.
+  if (/^\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}$/.test(text)) return null;
   const yearFirst = /^(\d{4})[-/.](\d{1,2})(?:[-/.]\d{1,2})?$/.exec(text);
   if (yearFirst) {
     const month = Number(yearFirst[2]) - 1;

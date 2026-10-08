@@ -1,5 +1,5 @@
 import { buildExcelCompatibleCsv, displayLabel, normalizeForComparison } from "./data-labels.ts";
-import { resolveGrossMargin, type GrossMarginBasis } from "./gross-margin.ts";
+import { resolveGrossMargin, resolveGrossProfit, type GrossMarginBasis } from "./gross-margin.ts";
 import { isFiniteNumber, safeRatio } from "./numeric-foundation.ts";
 import { COST_DISTRIBUTION_SHARE_LABEL, costDistributionShare } from "./cost-share.ts";
 
@@ -17,7 +17,7 @@ export type CategorySortDirection = "asc" | "desc";
 export type CategoryMetricInput = {
   name: string;
   revenue: number;
-  grossProfit: number;
+  grossProfit: number | null;
   cost: number;
   rowCount?: number;
   grossProfitCount?: number;
@@ -221,10 +221,6 @@ export function buildCategoryAnalysis(
     .filter((category) => category.name);
   const totalRevenue = normalized.reduce((sum, category) => sum + category.revenue, 0);
   const totalCosts = normalized.reduce((sum, category) => sum + (category.cost ?? 0), 0);
-  const totalGrossProfit = normalized.reduce(
-    (sum, category) => sum + (category.grossProfit ?? 0),
-    0,
-  );
   const hasCompleteCostCoverage = normalized.length > 0
     && normalized.every((category) => category.cost !== null);
   const rows: CategoryAnalysisRow[] = normalized.map((category) => ({
@@ -265,7 +261,7 @@ export function buildCategoryAnalysis(
     rows,
     totalRevenue,
     totalCosts,
-    totalGrossProfit,
+    totalGrossProfit: resolveGrossProfit(aggregateBasis).value,
     hasCategories: rows.length > 0,
     hasGrossProfit,
     hasGrossMargin: grossMarginRows.length > 0,

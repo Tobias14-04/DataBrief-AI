@@ -47,6 +47,14 @@ export function addGrossMarginRow(
   }
 }
 
+export function resolveGrossProfit(basis: Pick<GrossMarginBasis, "rowCount" | "grossProfitCount" | "grossProfit">) {
+  const complete = basis.rowCount > 0 && basis.grossProfitCount === basis.rowCount && isFiniteNumber(basis.grossProfit);
+  return {
+    value: complete ? basis.grossProfit : null,
+    reason: complete ? null : "Dækningsbidrag kræver dokumenteret DB eller variabelt kostgrundlag for alle rækker i den aktuelle visning.",
+  };
+}
+
 export function resolveGrossMargin(basis: GrossMarginBasis): GrossMarginResult {
   if (basis.rowCount === 0 || basis.revenueCount !== basis.rowCount || !isFiniteNumber(basis.revenue)) {
     return { value: null, source: null, reason: "Dækningsgrad kræver komplet omsætning i den aktuelle visning." };

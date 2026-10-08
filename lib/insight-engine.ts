@@ -5,7 +5,7 @@ import {
   formatDanishMonth,
   monthSortKey,
 } from "./dashboard-insights.ts";
-import { resolveGrossMargin } from "./gross-margin.ts";
+import { resolveGrossMargin, resolveGrossProfit } from "./gross-margin.ts";
 import { isFiniteNumber as finite, safeRatio } from "./numeric-foundation.ts";
 import { describeCostBasis, type CostBasis } from "./result-basis.ts";
 import { formatSignedPercentage, formatSignedPercentagePoints } from "./display-change.ts";
@@ -346,7 +346,7 @@ function adequate(count: number, total: number) {
 function metricValue(accumulator: Accumulator, metric: InsightMetricKey): number | null {
   const revenueAvailable = adequate(accumulator.revenueCount, accumulator.rowCount);
   const unitsAvailable = adequate(accumulator.unitsCount, accumulator.rowCount);
-  const grossProfitAvailable = adequate(accumulator.grossProfitCount, accumulator.rowCount);
+  const grossProfitAvailable = resolveGrossProfit(accumulator).value !== null;
   const costAvailable = adequate(accumulator.costCount, accumulator.rowCount);
   let value: number | null = null;
   if (metric === "revenue") value = revenueAvailable ? accumulator.revenue : null;

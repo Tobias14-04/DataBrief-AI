@@ -13,6 +13,7 @@ import {
 import { resolveCostBasis, type CostBasis } from "./result-basis.ts";
 import { growthChange, resolvePeriodComparison } from "./period-comparison.ts";
 import { COST_TO_REVENUE_LABEL, costDistributionShare, costToRevenue } from "./cost-share.ts";
+import { resolveGrossProfit } from "./gross-margin.ts";
 
 export const COST_BUDGET_THRESHOLDS = {
   materialOverrun: 0.08,
@@ -48,7 +49,7 @@ export type CostPeriod = {
   revenue: number;
   cost: number | null;
   result: number | null;
-  grossProfit: number;
+  grossProfit: number | null;
   units: number;
   rowCount: number;
   costShare: number | null;
@@ -113,6 +114,8 @@ type DimensionAccumulator = {
 
 type PeriodAccumulator = Omit<CostPeriod, "cost" | "result" | "costShare" | "previousCost"> & {
   cost: number;
+  grossProfit: number;
+  grossProfitCount: number;
   categories: Map<string, DimensionAccumulator>;
   products: Map<string, DimensionAccumulator>;
 };
@@ -290,7 +293,7 @@ export function buildCostIntelligence(
   let hasRowCosts = false;
   let hasRevenue = false;
   let hasUnits = false;
-  let hasGrossProfit = false;
+  let grossProfitCount = 0;
   let completeRowCosts = rows.length > 0;
 
   rows.forEach((row, index) => {
@@ -306,6 +309,7 @@ export function buildCostIntelligence(
       revenue: 0,
       cost: 0,
       grossProfit: 0,
+      grossProfitCount: 0,
       units: 0,
       rowCount: 0,
       categories: new Map<string, DimensionAccumulator>(),
@@ -314,7 +318,7 @@ export function buildCostIntelligence(
 
     hasRevenue ||= Number.isFinite(row.revenue);
     hasUnits ||= Number.isFinite(row.units);
-    hasGrossProfit ||= typeof row.grossProfit === "number" && Number.isFinite(row.grossProfit);
+    if (typeof row.grossProfit === "number" && Number.isFinite(row.grossProfit)) grossProfitCount += 1;
     hasRowCosts ||= resolvedCost !== null;
     completeRowCosts &&= typeof row.cost === "number" && Number.isFinite(row.cost);
     trackedCosts += cost;
@@ -325,6 +329,7 @@ export function buildCostIntelligence(
     period.revenue += revenue;
     period.cost += cost;
     period.grossProfit += grossProfit;
+    if (typeof row.grossProfit === "number" && Number.isFinite(row.grossProfit)) period.grossProfitCount += 1;
     period.units += units;
     period.rowCount += 1;
 
@@ -342,7 +347,7 @@ export function buildCostIntelligence(
       const identity = periodIdentity(row, index);
       const period = periods.get(identity.key) ?? {
         name: identity.name, sortKey: identity.sortKey, revenue: 0, cost: 0,
-        grossProfit: 0, units: 0, rowCount: 0,
+        grossProfit: 0, grossProfitCount: 0, units: 0, rowCount: 0,
         categories: new Map<string, DimensionAccumulator>(),
         products: new Map<string, DimensionAccumulator>(),
       };
@@ -355,6 +360,7 @@ export function buildCostIntelligence(
       period.revenue += values.revenue;
       period.cost += values.cost;
       period.grossProfit += values.grossProfit;
+      if (typeof row.grossProfit === "number" && Number.isFinite(row.grossProfit)) period.grossProfitCount += 1;
       period.units += values.units;
       period.rowCount += 1;
       addDimension(period.categories, row.category, values);
@@ -381,7 +387,7 @@ export function buildCostIntelligence(
     revenue: period.revenue,
     cost: canPeriodizeCosts ? period.cost : null,
     result: canPeriodizeCosts ? period.revenue - period.cost : null,
-    grossProfit: period.grossProfit,
+    grossProfit: resolveGrossProfit(period).value,
     units: period.units,
     rowCount: period.rowCount,
     costShare: canPeriodizeCosts && hasRevenue ? costToRevenue(period.cost, period.revenue) : null,
@@ -426,13 +432,14 @@ export function buildCostIntelligence(
     const members = months.map((month) => periods.get(String(monthSortKey(month)))).filter((period): period is PeriodAccumulator => Boolean(period));
     if (members.length !== months.length || !members.length) return null;
     const combined: PeriodAccumulator = {
-      name, sortKey: members.at(-1)!.sortKey, revenue: 0, cost: 0, grossProfit: 0,
+      name, sortKey: members.at(-1)!.sortKey, revenue: 0, cost: 0, grossProfit: 0, grossProfitCount: 0,
       units: 0, rowCount: 0, categories: new Map(), products: new Map(),
     };
     for (const member of members) {
       combined.revenue += member.revenue;
       combined.cost += member.cost;
       combined.grossProfit += member.grossProfit;
+      combined.grossProfitCount += member.grossProfitCount;
       combined.units += member.units;
       combined.rowCount += member.rowCount;
       for (const dimension of ["categories", "products"] as const) {
@@ -576,10 +583,10 @@ export function buildCostIntelligence(
     hasRowCosts,
     hasRevenue,
     hasUnits,
-    hasGrossProfit,
+    hasGrossProfit: resolveGrossProfit({ rowCount: rows.length, grossProfitCount, grossProfit: totalGrossProfit }).value !== null,
     totalRevenue,
     totalUnits,
-    totalGrossProfit,
+    totalGrossProfit: resolveGrossProfit({ rowCount: rows.length, grossProfitCount, grossProfit: totalGrossProfit }).value,
     trackedCosts,
     totalCosts,
     reportedCosts,

@@ -17,6 +17,8 @@ import { inferBoundaryPartialMonths, resolvePeriodComparison, resolveYearOverYea
 import { formatDanishMonth, monthSortKey } from "./dashboard-insights.ts";
 import { isVariableRowCostHeader, normalizeColumnHeader, salesColumnAliases } from "./spreadsheet-fields.ts";
 import { isFiniteNumber, parseNumericValue, parsePercentageValue, safeRatio } from "./numeric-foundation.ts";
+import { businessDayKey, parseBusinessDate } from "./business-date.ts";
+import { addGrossMarginRow, createGrossMarginBasis, resolveGrossProfit } from "./gross-margin.ts";
 
 export type KpiCategory =
   | "Salg"
@@ -641,21 +643,8 @@ function rankedGroup<T extends { name: string; value: number }>(
 }
 
 function parseProfileDate(value: unknown) {
-  if (value instanceof Date && Number.isFinite(value.getTime())) return value;
-  if (typeof value === "number" && value > 1 && value < 100000) {
-    const date = new Date(Date.UTC(1899, 11, 30) + Math.round(value) * 86400000);
-    return Number.isFinite(date.getTime()) ? date : null;
-  }
-  if (typeof value !== "string" || !value.trim()) return null;
-  const text = value.trim();
-  const danishDate = text.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
-  if (danishDate) {
-    const [, day, month, year] = danishDate;
-    const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
-    return Number.isFinite(date.getTime()) ? date : null;
-  }
-  const date = new Date(text);
-  return Number.isFinite(date.getTime()) ? date : null;
+  const date = parseBusinessDate(value);
+  return date ? new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())) : null;
 }
 
 function isoWeek(date: Date) {
@@ -706,17 +695,7 @@ const inventoryDimensions = ["product", "category", "channel", "region"] as cons
 const dayMillis = 86_400_000;
 
 function dayKey(value: unknown): string | null {
-  if (typeof value === "string" && !/^\d{4}-\d{2}-\d{2}$/.test(value.trim()) &&
-      !/^\d{1,2}[./-]\d{1,2}[./-]\d{4}$/.test(value.trim())) return null;
-  const date = parseProfileDate(value);
-  if (!date) return null;
-  const key = date.toISOString().slice(0, 10);
-  if (typeof value !== "string") return key;
-  const text = value.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text === key ? key : null;
-  const danish = text.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
-  return danish && Number(danish[1]) === date.getUTCDate() && Number(danish[2]) === date.getUTCMonth() + 1 &&
-    Number(danish[3]) === date.getUTCFullYear() ? key : null;
+  return businessDayKey(value);
 }
 
 function monthOfDay(day: string) { return day.slice(0, 7); }
@@ -1208,6 +1187,20 @@ function fastestGrowingProduct(context: StandardKpiContext, profile: KpiDataProf
   return { value: best.name, detail: `${(best.value * 100).toLocaleString("da-DK", { maximumFractionDigits: 1 })} % omsætningsvækst · ${best.label}` };
 }
 
+function documentedGrossProfit(context: StandardKpiContext, profile: KpiDataProfile): number {
+  const sales = (context.salesProfile ?? profile).rows.filter((row) =>
+    row.fields.includes("revenue") || row.fields.includes("units") || row.fields.includes("grossProfit"));
+  const basis = createGrossMarginBasis();
+  sales.forEach((row) => addGrossMarginRow(basis, {
+    revenue: rowNumber(row, "revenue"), grossProfit: rowNumber(row, "grossProfit"),
+  }));
+  const result = resolveGrossProfit(basis);
+  if (result.value === null || !isFiniteNumber(context.totalGrossProfit)) {
+    throw new Error(context.grossProfitReason ?? result.reason ?? "Dækningsbidrag er ikke dokumenteret i det aktuelle scope.");
+  }
+  return context.totalGrossProfit;
+}
+
 function customerPurchaseRows(profile: KpiDataProfile) {
   return profile.rows.filter((row) => row.fields.includes("revenue") || row.fields.includes("orderId")
     || row.fields.includes("customerId") || row.fields.includes("customerName"));
@@ -1389,7 +1382,7 @@ function defineKpi(definition: {
 export const standardKpiDefinitions: RegisteredKpiDefinition[] = [
   defineKpi({ id: "total-revenue", name: "Samlet omsætning", description: "Summen af den registrerede omsætning", category: "Salg", level: "recommended", placement: "primary", format: "currency", icon: "revenue", color: "cyan", requirements: requirements(["revenue"]), calculate: ({ context }) => ({ value: context.totalRevenue, detail: "Beregnet ud fra omsætningskolonnen" }) }),
   defineKpi({ id: "total-units", name: "Samlet antal solgte enheder", description: "Summen af den registrerede antalskolonne", category: "Salg", level: "recommended", placement: "primary", format: "integer", icon: "units", color: "navy", requirements: requirements(["units"]), calculate: ({ context }) => ({ value: context.totalUnits, detail: "Beregnet ud fra antalskolonnen" }) }),
-  defineKpi({ id: "gross-profit", name: "Dækningsbidrag", description: "Omsætning efter variable omkostninger", category: "Indtjening", level: "recommended", placement: "primary", format: "currency", icon: "profit", color: "green", requirements: requirements(["grossProfit"]), calculate: ({ context }) => ({ value: context.totalGrossProfit, detail: "Beregnet ud fra dækningsbidraget" }) }),
+  defineKpi({ id: "gross-profit", name: "Dækningsbidrag", description: "Omsætning efter variable omkostninger", category: "Indtjening", level: "recommended", placement: "primary", format: "currency", icon: "profit", color: "green", requirements: requirements(["grossProfit"]), calculate: ({ context, profile }) => ({ value: documentedGrossProfit(context, profile), detail: "Komplet dokumenteret dækningsbidrag i samme scope" }) }),
   defineKpi({ id: "gross-margin", name: "Dækningsgrad", description: "Dækningsbidrag / nettoomsætning for samme komplette scope", category: "Indtjening", format: "percent", decimals: 1, icon: "profit", color: "green", requirements: requirements(["revenue"], [{ fields: ["grossProfit", "grossMargin"], label: "Dækningsbidrag eller dækningsgrad" }]), calculate: ({ context }) => { if (context.grossMargin === null) throw new Error(context.grossMarginReason ?? "Dækningsgrad er ikke tilgængelig i den aktuelle visning."); return { value: context.grossMargin, detail: "Dækningsbidrag / nettoomsætning for samme komplette scope" }; } }),
   defineKpi({ id: "total-costs", name: "Samlede omkostninger", description: "Registrerede omkostninger i den aktuelle visning", category: "Indtjening", format: "currency", icon: "target", color: "orange", requirements: requirements([], [{ fields: ["cost", "grossProfit"], label: "Omkostninger eller dækningsbidrag" }]), calculate: ({ context }) => ({ value: documentedCosts(context), detail: "Beregnet ud fra dokumenteret omkostningsgrundlag" }) }),
   defineKpi({ id: "result", name: "Resultat", description: "Omsætning minus registrerede omkostninger", category: "Indtjening", format: "currency", icon: "profit", color: "green", requirements: requirements(["revenue"], [{ fields: ["cost", "grossProfit"], label: "Omkostninger eller dækningsbidrag" }]), calculate: ({ context }) => ({ value: documentedResult(context), detail: "Omsætning minus dokumenterede omkostninger" }) }),
@@ -1398,7 +1391,7 @@ export const standardKpiDefinitions: RegisteredKpiDefinition[] = [
   defineKpi({ id: "best-category", name: "Bedste kategori", description: "Kategorien med den højeste omsætning", category: "Produkter", format: "text", icon: "target", color: "cyan", requirements: requirements(["category", "revenue"]), calculate: ({ context }) => { if (!context.bestCategory) throw new Error("Ingen kategorier i den aktuelle visning."); return { value: context.bestCategory.name, detail: "Kategorien med den højeste omsætning" }; } }),
   defineKpi({ id: "best-month", name: "Bedste måned", description: "Måneden med den højeste omsætning", category: "Tid og perioder", level: "recommended", format: "text", icon: "target", color: "cyan", requirements: requirements(["revenue"], [{ fields: ["date", "month"], label: "Dato eller måned" }]), calculate: ({ context }) => { if (!context.bestMonth) throw new Error("Ingen måneder i den aktuelle visning."); return { value: context.bestMonth.name, detail: "Måneden med den højeste omsætning" }; } }),
   defineKpi({ id: "avg-revenue-row", name: "Gennemsnitlig omsætning pr. række", description: "Omsætning divideret med registrerede salgsrækker", category: "Salg", format: "currency", decimals: 2, icon: "calculator", color: "cyan", requirements: requirements(["revenue"]), calculate: ({ context }) => ({ value: ratio(context.totalRevenue, context.rowCount, "Gennemsnitlig omsætning pr. række"), detail: `Beregnet ud fra ${context.rowCount} rækker` }) }),
-  defineKpi({ id: "gross-profit-unit", name: "Dækningsbidrag pr. solgt enhed", description: "Dækningsbidrag divideret med solgte enheder", category: "Indtjening", format: "currency", decimals: 2, icon: "calculator", color: "green", requirements: requirements(["grossProfit", "units"]), calculate: ({ context }) => ({ value: ratio(context.totalGrossProfit, context.totalUnits, "Dækningsbidrag pr. enhed"), detail: "Dækningsbidrag pr. solgt enhed" }) }),
+  defineKpi({ id: "gross-profit-unit", name: "Dækningsbidrag pr. solgt enhed", description: "Dækningsbidrag divideret med solgte enheder", category: "Indtjening", format: "currency", decimals: 2, icon: "calculator", color: "green", requirements: requirements(["grossProfit", "units"]), calculate: ({ context, profile }) => ({ value: ratio(documentedGrossProfit(context, profile), context.totalUnits, "Dækningsbidrag pr. enhed"), detail: "Dækningsbidrag pr. solgt enhed" }) }),
   defineKpi({ id: "row-count", name: "Antal registrerede salgsrækker", description: "Antallet af rækker i den aktuelle visning", category: "Salg", format: "count", icon: "units", color: "navy", requirements: requirements(["revenue"]), calculate: ({ context }) => ({ value: context.rowCount, detail: "Filtrerede salgsrækker" }) }),
   defineKpi({ id: "average-order-value", name: "Gennemsnitlig ordreværdi", description: "Omsætning divideret med unikke ordrer", category: "Kunder", format: "currency", decimals: 2, icon: "calculator", color: "purple", requirements: requirements(["revenue", "orderId"]), calculate: ({ context, profile }) => ({ value: ratio(context.totalRevenue, context.orderCount ?? uniqueCount(profile, "orderId"), "Gennemsnitlig ordreværdi"), detail: "Omsætning pr. unik ordre" }) }),
   defineKpi({ id: "budget-revenue", name: "Budgetteret omsætning", description: "Budgetteret omsætning for den aktuelle visning", category: "Budget", format: "currency", icon: "target", color: "orange", requirements: requirements(["budgetRevenue"]), calculate: ({ context }) => ({ value: context.budgetRevenue, detail: "Budgetteret omsætning" }) }),
@@ -1417,7 +1410,7 @@ export const standardKpiDefinitions: RegisteredKpiDefinition[] = [
   defineKpi({ id: "revenue-growth", name: "Omsætningsvækst", description: "Udviklingen i den fælles sammenligningsperiode", category: "Salg", format: "percent", decimals: 1, icon: "revenue", color: "cyan", requirements: requirements(["revenue"], [{ fields: ["date", "month"], label: "Dato eller måned" }]), calculate: ({ context }) => documentedRevenueGrowth(context) }),
   defineKpi({ id: "inventory-value", name: "Lagerværdi", description: "Samlet lagerværdi på seneste komplette snapshotdato i scope", category: "Lager", format: "currency", icon: "units", color: "orange", requirements: requirements(["inventoryValue"]), calculate: ({ context, profile }) => { const snapshot = latestSnapshot(context, profile, "inventoryValue"); return { value: snapshot.total, detail: `Seneste komplette lagersnapshot · ${snapshot.date}` }; } }),
   defineKpi({ id: "inventory-turnover", name: "Lageromsætningshastighed", description: "Dokumenteret vareforbrug / gennemsnitlig lagerværdi i samme periode", category: "Lager", format: "decimal", decimals: 2, icon: "units", color: "orange", requirements: requirements(["cogs", "inventoryValue"]), calculate: ({ context, profile }) => { const basis = inventoryTurnoverBasis(context, profile); return { value: basis.value, detail: basis.detail }; } }),
-  defineKpi({ id: "customer-count", name: "Antal kunder", description: "Antallet af unikke kunder i datagrundlaget", category: "Kunder", format: "count", icon: "units", color: "navy", requirements: requirements(["customerId"]), calculate: ({ profile }) => ({ value: uniqueCount(profile, "customerId"), detail: "Unikke registrerede kunder" }) }),
+  defineKpi({ id: "customer-count", name: "Antal kunder", description: "Antallet af unikke kunder i datagrundlaget", category: "Kunder", format: "count", icon: "units", color: "navy", requirements: requirements(["customerId"]), calculate: ({ profile }) => { const rows = customerPurchaseRows(profile); if (!rows.length) throw new Error("Antal kunder kræver dokumenterede køb i det aktuelle scope."); return { value: new Set(rows.map(customerIdentity)).size, detail: "Unikke kunde-id’er på alle købsrækker i samme scope" }; } }),
   defineKpi({ id: "revenue-per-day", name: "Omsætning pr. dag", description: "Gennemsnitlig omsætning pr. aktiv salgsdag", category: "Salg", format: "currency", decimals: 2, icon: "revenue", color: "cyan", requirements: requirements(["revenue", "date"]), calculate: ({ profile }) => { const periods = periodRevenue(profile, "day"); return { value: average(periods.map((period) => period.value), "Omsætning pr. dag"), detail: `Gennemsnit på tværs af ${periods.length} salgsdage` }; } }),
   defineKpi({ id: "revenue-per-week", name: "Omsætning pr. uge", description: "Gennemsnitlig omsætning pr. aktiv salgsuge", category: "Salg", format: "currency", decimals: 2, icon: "revenue", color: "cyan", requirements: requirements(["revenue"], [{ fields: ["date", "week"], label: "Dato eller uge" }]), calculate: ({ profile }) => { const periods = periodRevenue(profile, "week"); return { value: average(periods.map((period) => period.value), "Omsætning pr. uge"), detail: `Gennemsnit på tværs af ${periods.length} salgsuger` }; } }),
   defineKpi({ id: "revenue-per-month", name: "Omsætning pr. måned", description: "Gennemsnitlig omsætning pr. aktiv måned", category: "Salg", level: "recommended", format: "currency", decimals: 2, icon: "revenue", color: "cyan", requirements: requirements(["revenue"], [{ fields: ["date", "month"], label: "Dato eller måned" }]), calculate: ({ profile }) => { const periods = periodRevenue(profile, "month"); return { value: average(periods.map((period) => period.value), "Omsætning pr. måned"), detail: `Gennemsnit på tværs af ${periods.length} måneder` }; } }),

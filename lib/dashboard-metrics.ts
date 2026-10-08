@@ -3,7 +3,7 @@ import {
   chooseRepresentativeLabel,
   comparableLabel,
 } from "./data-labels.ts";
-import { addGrossMarginRow, createGrossMarginBasis, resolveGrossMargin, type GrossMarginBasis } from "./gross-margin.ts";
+import { addGrossMarginRow, createGrossMarginBasis, resolveGrossMargin, resolveGrossProfit, type GrossMarginBasis } from "./gross-margin.ts";
 import { isFiniteNumber } from "./numeric-foundation.ts";
 import { documentedVariableRowCost, resolveCostBasis, type CostBasis, type WorkbookCostSource } from "./result-basis.ts";
 
@@ -41,6 +41,7 @@ type MonthValue = GroupedValue & {
   rowCount: number;
   variableCost: number;
   variableCostCount: number;
+  grossProfitCount: number;
 };
 
 type DashboardMetricFeedback = {
@@ -48,7 +49,7 @@ type DashboardMetricFeedback = {
   budget?: { revenue: number; costs: number };
 };
 
-export function documentedMonthlyCost(month: MonthValue, basis: CostBasis): number | null {
+export function documentedMonthlyCost(month: Pick<MonthValue, "cost" | "variableCost" | "variableCostCount" | "rowCount">, basis: CostBasis): number | null {
   if (basis.source === "row-cost" && basis.status === "available") {
     return isFiniteNumber(month.cost) ? month.cost : null;
   }
@@ -78,9 +79,7 @@ export function calculateDashboardMetrics(
   const months = new Map<string, MonthValue>();
   let totalRevenue = 0;
   let totalUnits = 0;
-  let totalGrossProfit = 0;
   const marginBasis = createGrossMarginBasis();
-  let hasGrossProfit = false;
   let hasGrossMargin = false;
   let hasProductData = false;
   let hasRevenueData = false;
@@ -118,8 +117,6 @@ export function calculateDashboardMetrics(
   rows.forEach((row, index) => {
     totalRevenue += isFiniteNumber(row.revenue) ? row.revenue : 0;
     totalUnits += row.units;
-    totalGrossProfit += isFiniteNumber(row.grossProfit) ? row.grossProfit : 0;
-    if (isFiniteNumber(row.grossProfit)) hasGrossProfit = true;
     addGrossMarginRow(marginBasis, row);
     if (isFiniteNumber(row.grossMargin)) {
       hasGrossMargin = true;
@@ -147,10 +144,12 @@ export function calculateDashboardMetrics(
       rowCount: 0,
       variableCost: 0,
       variableCostCount: 0,
+      grossProfitCount: 0,
     };
     currentMonth.revenue += row.revenue;
     currentMonth.units += row.units;
     currentMonth.grossProfit += row.grossProfit ?? 0;
+    if (isFiniteNumber(row.grossProfit)) currentMonth.grossProfitCount += 1;
     currentMonth.cost += row.cost ?? 0;
     currentMonth.rowCount += 1;
     const variableRowCost = documentedVariableRowCost(row);
@@ -164,6 +163,7 @@ export function calculateDashboardMetrics(
   const finalizeGroups = (groups: Map<string, GroupAccumulator>) =>
     Array.from(groups.values()).map(({ marginBasis: groupBasis, ...group }) => ({
       ...group,
+      grossProfit: resolveGrossProfit(groupBasis).value,
       grossMargin: resolveGrossMargin(groupBasis).value ?? undefined,
       grossMarginCount: groupBasis.marginCount,
       weightedGrossMargin: groupBasis.weightedMargin,
@@ -171,6 +171,8 @@ export function calculateDashboardMetrics(
     }));
 
   const grossMarginResult = resolveGrossMargin(marginBasis);
+  const grossProfitResult = resolveGrossProfit(marginBasis);
+  const hasGrossProfit = grossProfitResult.value !== null;
   const costBasis = resolveCostBasis(rows, { fullRows: options.fullRows, workbook: feedback?.costs });
   const totalCosts = costBasis.totalCosts;
   const actualResult = costBasis.result;
@@ -179,15 +181,17 @@ export function calculateDashboardMetrics(
   const productsByRevenue = [...productValues].sort((a, b) => b.revenue - a.revenue);
   const productsByUnits = [...productValues].sort((a, b) => b.units - a.units);
   const grossProfitByCategory = categoryValues
-    .filter((category) => category.grossProfit !== 0)
-    .sort((a, b) => b.grossProfit - a.grossProfit);
+    .filter((category) => category.grossProfit !== null && category.grossProfit !== 0)
+    .sort((a, b) => (b.grossProfit ?? 0) - (a.grossProfit ?? 0));
   const grossMarginByCategory = categoryValues
     .filter((category) => category.grossMargin !== undefined)
     .sort((a, b) => (b.grossMargin ?? 0) - (a.grossMargin ?? 0));
   const costsByCategory = categoryValues
     .filter((category) => category.cost !== 0)
     .sort((a, b) => b.cost - a.cost);
-  const monthly = Array.from(months.values()).sort((a, b) => a.sortKey - b.sortKey);
+  const monthly = Array.from(months.values()).map((month) => ({
+    ...month, grossProfit: resolveGrossProfit(month).value,
+  })).sort((a, b) => a.sortKey - b.sortKey);
   const monthsByRevenue = [...monthly].sort((a, b) => b.revenue - a.revenue);
   const budgetScale = options.fullRows?.length ? rows.length / options.fullRows.length : 1;
   const budgetRevenue = (feedback?.budget?.revenue ?? 0) * budgetScale;
@@ -200,7 +204,8 @@ export function calculateDashboardMetrics(
   return {
     totalRevenue,
     totalUnits,
-    totalGrossProfit,
+    totalGrossProfit: grossProfitResult.value,
+    grossProfitReason: grossProfitResult.reason,
     grossMargin: grossMarginResult.value,
     grossMarginReason: grossMarginResult.reason,
     grossMarginSource: grossMarginResult.source,
