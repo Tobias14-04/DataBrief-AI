@@ -2791,6 +2791,48 @@ export default function UploadDashboard() {
     (id: string) => evaluateStandardKpi(id, currentKpiContext, currentKpiDataProfile),
     [currentKpiContext, currentKpiDataProfile],
   );
+  const [completeCurrentLibraryEvaluations, setCompleteCurrentLibraryEvaluations] = useState<{
+    context: typeof currentKpiContext;
+    profile: typeof currentKpiDataProfile;
+    evaluations: Record<string, KpiEvaluation>;
+  } | null>(null);
+  useEffect(() => {
+    // Reuse the base cache for an unchanged scope. Evaluate a filtered library
+    // only when opened, using the already memoized current profiles and metrics.
+    if (!isKpiCustomizerOpen || filteredRows === allRows || (
+      completeCurrentLibraryEvaluations?.context === currentKpiContext
+      && completeCurrentLibraryEvaluations.profile === currentKpiDataProfile
+    )) return;
+    const remainingIds = standardKpiDefinitions.map((definition) => definition.id)
+      .filter((id) => !(id in standardKpiEvaluations));
+    const evaluations = { ...standardKpiEvaluations };
+    let cancelled = false;
+    let timer: number | undefined;
+    let index = 0;
+    const evaluateNextBatch = () => {
+      if (cancelled) return;
+      const started = performance.now();
+      while (index < remainingIds.length && performance.now() - started < 16) {
+        const id = remainingIds[index++];
+        evaluations[id] = evaluateStandardKpi(id, currentKpiContext, currentKpiDataProfile);
+      }
+      if (index < remainingIds.length) timer = window.setTimeout(evaluateNextBatch, 0);
+      else setCompleteCurrentLibraryEvaluations({ context: currentKpiContext, profile: currentKpiDataProfile, evaluations });
+    };
+    timer = window.setTimeout(evaluateNextBatch, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [allRows, completeCurrentLibraryEvaluations, currentKpiContext, currentKpiDataProfile, filteredRows, isKpiCustomizerOpen, standardKpiEvaluations]);
+  // Never expose a completed batch from a previous filter scope.
+  const currentCompleteLibraryEvaluations = completeCurrentLibraryEvaluations?.context === currentKpiContext
+    && completeCurrentLibraryEvaluations.profile === currentKpiDataProfile
+      ? completeCurrentLibraryEvaluations.evaluations
+      : null;
+  const scopedLibraryEvaluations = filteredRows === allRows
+    ? completeLibraryEvaluations
+    : currentCompleteLibraryEvaluations;
   const allKpiDefinitions = useMemo(
     () => [...standardKpiDefinitions, ...kpiConfiguration.customKpis],
     [kpiConfiguration.customKpis],
@@ -3830,8 +3872,8 @@ export default function UploadDashboard() {
         configuration={kpiConfiguration}
         defaults={defaultKpis}
         evaluations={kpiEvaluations}
-        libraryEvaluations={baseStandardKpiEvaluations}
-        libraryReady={!allRows.length || completeLibraryEvaluations !== null}
+        libraryEvaluations={scopedLibraryEvaluations ?? standardKpiEvaluations}
+        libraryReady={!isFilterUpdatePending && (!allRows.length || scopedLibraryEvaluations !== null)}
         evaluateKpiOnDemand={evaluateKpiOnDemand}
         rows={filteredRows}
         numericColumns={numericColumns}

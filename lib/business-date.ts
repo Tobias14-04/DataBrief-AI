@@ -21,8 +21,8 @@ export function parseBusinessDate(value: unknown): Date | null {
   }
   if (typeof value !== "string") return null;
   const text = value.trim();
-  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(text);
-  if (iso) return calendarDate(Number(iso[1]), Number(iso[2]), Number(iso[3]));
+  const iso = /^(\d{4})([-/])(\d{1,2})\2(\d{1,2})$/.exec(text);
+  if (iso) return calendarDate(Number(iso[1]), Number(iso[3]), Number(iso[4]));
   const timestamp = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})?$/.exec(text);
   if (timestamp) {
     if (!calendarDate(Number(timestamp[1]), Number(timestamp[2]), Number(timestamp[3]))

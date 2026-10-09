@@ -92,7 +92,7 @@ test("EDGE DB: rapport/strategi bruger ikke ufuldstændigt DB som evidens", () =
   assert.equal(v.insights.snapshot.find((x) => x.metric === "revenue").value, 20_200);
 });
 
-for (const date of ["14-02-2026", "14/02/2026", "14.02.2026", "2026-02-14", "14-02-26", new Date(2026, 1, 14), 46067, 46067.9]) {
+for (const date of ["14-02-2026", "14/02/2026", "14.02.2026", "2026-02-14", "2026/02/14", "14-02-26", new Date(2026, 1, 14), 46067, 46067.9]) {
   test(`EDGE DATE: ${String(date)} periodiseres ens i import, filtre og KPI`, () => {
     assert.equal(businessDayKey(date), "2026-02-14");
     const v = views(imported([sale(40, date)]).rows);
@@ -104,7 +104,7 @@ for (const date of ["14-02-2026", "14/02/2026", "14.02.2026", "2026-02-14", "14-
 }
 
 test("EDGE DATE: ugyldige og ikke-kontraktlige datoer gættes ikke", () => {
-  for (const date of ["31-02-2026", "2026-02-31", "02/14/2026", "14/02-2026", "01/02/03/04", "46067", "Feb 14", "ukendt", 60, NaN, Infinity]) {
+  for (const date of ["31-02-2026", "2026-02-31", "2026/02/31", "2026/04-16", "2026-04/16", "02/14/2026", "14/02-2026", "01/02/03/04", "46067", "Feb 14", "ukendt", 60, NaN, Infinity]) {
     assert.equal(parseBusinessDate(date), null, String(date));
     assert.equal(businessDayKey(date), null, String(date));
   }
