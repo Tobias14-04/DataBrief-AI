@@ -3760,7 +3760,7 @@ export default function UploadDashboard() {
             <CategoryAnalysisDashboard
               categories={metrics.categoryGroups}
               hasSourceCategories={baseMetrics.categoryGroups.length > 0}
-              hasGrossProfit={baseMetrics.hasGrossProfit}
+              hasGrossProfit={metrics.hasGrossProfit}
               hasCosts={(metrics.costBasis.source === "row-cost" && metrics.hasCosts) || (metrics.costBasis.source === "variable-only" && metrics.costBasis.variableCosts !== null)}
               variableOnly={metrics.costBasis.source === "variable-only"}
             />

@@ -100,3 +100,73 @@ export async function verifyPeriodDrivers(tab) {
   }
   return "April import and four May/April driver views verified";
 }
+
+export const customerLibraryNames = ["Antal kunder", "Gennemsnitlig omsætning pr. kunde", "Nye kunder",
+  "Tilbagevendende kunder", "Kunde med højeste dækningsbidrag", "Kunde med størst omsætning",
+  "Gennemsnitligt antal køb pr. kunde"];
+
+async function openMainArea(tab, name) {
+  const button = tab.playwright.getByRole("button", { name, exact: true });
+  if (!await button.isVisible()) await tab.playwright.getByRole("button", { name: "Åbn navigation", exact: true }).click();
+  await button.click();
+}
+
+export async function verifyCategoryScope(tab, available) {
+  await openMainArea(tab, "Analyse");
+  await tab.playwright.getByRole("button", { name: "Kategorier", exact: true }).click();
+  const card = tab.playwright.getByRole("article").filter({ hasText: "Højeste dækningsgrad" });
+  const text = await card.innerText();
+  if (available) {
+    requireText(text, "Opbevaring");
+    requireText(text, "56,3");
+    if (text.includes("mangler") || text.includes("Ikke tilgængelig")) throw new Error("Complete category scope is unavailable");
+  } else {
+    requireText(text, "Ikke tilgængelig");
+    requireText(text, "Dækningsbidrag mangler");
+  }
+  return { categoryMarginAvailable: available };
+}
+
+export async function verifyCategoryCustomerTransitions(tab) {
+  await verifyCategoryScope(tab, false);
+  for (let repeat = 0; repeat < 2; repeat++) {
+    await tab.playwright.getByRole("button", { name: "Kategori Alle kategorier", exact: true }).click();
+    await tab.playwright.getByRole("button", { name: "Opbevaring", exact: true }).click();
+    await tab.playwright.getByRole("button", { name: "Kategori Opbevaring", exact: true }).click();
+    await verifyCategoryScope(tab, true);
+    await openMainArea(tab, "Overblik");
+    await verifyLibrary(tab, true, customerLibraryNames);
+    await tab.playwright.getByRole("button", { name: "Nulstil", exact: true }).click();
+    await tab.playwright.getByRole("button", { name: "Produkt Alle produkter", exact: true }).click();
+    await tab.playwright.getByRole("button", { name: "Kontorstol Atlas", exact: true }).click();
+    await tab.playwright.getByRole("button", { name: "Produkt Kontorstol Atlas", exact: true }).click();
+    await verifyCategoryScope(tab, false);
+    await tab.playwright.getByRole("button", { name: "Nulstil", exact: true }).click();
+    await verifyCategoryScope(tab, false);
+    await openMainArea(tab, "Overblik");
+    await verifyLibrary(tab, false, customerLibraryNames);
+  }
+  return "Two complete/incomplete/reset journeys passed for categories and all seven customer KPIs";
+}
+
+export async function verifyCustomerPreview(tab) {
+  // Run last, on a disposable Opbevaring tab. Do not save the test draft.
+  await openMainArea(tab, "Overblik");
+  await tab.playwright.getByRole("button", { name: "Tilpas nøgletal", exact: true }).click();
+  await tab.playwright.getByRole("tab", { name: "Tilføj nøgletal", exact: true }).click();
+  const search = tab.playwright.getByRole("searchbox", { name: "Søg efter nøgletal", exact: true });
+  await search.waitFor({ state: "visible", timeoutMs: 30000 });
+  for (const name of ["Antal kunder", "Tilbagevendende kunder", "Gennemsnitlig omsætning pr. kunde"]) {
+    await search.fill(name);
+    const card = tab.playwright.getByRole("article").filter({ has: tab.playwright.getByRole("heading", { name, exact: true }) });
+    await card.getByRole("button", { name: "Tilføj", exact: true }).click();
+    const secondary = card.getByRole("button", { name: /^Sekundært/ });
+    if (await secondary.isVisible()) await secondary.click();
+  }
+  await tab.playwright.getByRole("tab", { name: "Forhåndsvisning", exact: true }).click();
+  const text = await tab.playwright.getByRole("tabpanel").innerText();
+  requireText(text, "Antal kunder 114");
+  requireText(text, "Tilbagevendende kunder 8");
+  requireText(text, "Gennemsnitlig omsætning pr. kunde 2.686,96 kr.");
+  return "Customer preview values verified: 114, 8 and 2.686,96 kr.";
+}

@@ -57,3 +57,33 @@ unavailable states. April had no unknown-month group; May/April showed +24463 kr
 and +5.5% at the existing display precision for all four driver dimensions.
 The raw-value integration assertions separately verify +24462.69 kr. and the
 unrounded growth ratio. Browser console had no errors.
+
+## Category/customer availability follow-up
+
+The category component now receives `metrics.hasGrossProfit`, from the same
+filtered aggregates as its category rows, not `baseMetrics.hasGrossProfit`.
+The category calculations, completeness and CSV definitions are unchanged.
+
+The canonical evaluator selects `context.salesProfile` for customer-category
+KPIs before both requirements and calculation. All customer formulas and
+identity/order/history guards remain unchanged. Supplemental budget rows stay
+in the workbook profile for other metrics, but are not customer purchases.
+Standalone registry callers without an explicit sales profile continue to
+supply their sales-only profile as before. No extra full-dataset scan is added.
+
+The browser follow-up passed two repetitions of global → Opbevaring →
+Kontorstol Atlas → reset through Analyse → Kategorier and all seven
+identity-dependent customer library entries. Use
+`verifyCategoryCustomerTransitions(tab)` after importing the edge workbook.
+`verifyCustomerPreview(tab)` is a final check on a disposable Opbevaring tab:
+114 customers, 8 returning customers and 2686.96 kr. average revenue/customer.
+Do not save its test draft. Category card/table show 56.3% and 172.4 t.kr. at
+existing display precision. Raw tests assert 172416.12 kr. and 56.29% rounded.
+Indsigter and Rapport show the same 56.3% snapshot and 131-row scope; existing
+partial-period/result-allocation explanations remain in effect.
+
+Integration coverage includes sales-only workbooks, supplemental budgets with
+and without customer/order/date fields, missing IDs on actual sales, missing
+orders that cannot be supplied by budget rows, canonical rankings, unique
+orders rather than sales lines, category rows/CSV/observations, and repeated
+complete/incomplete/reset transitions. The 50k/150k control totals are unchanged.

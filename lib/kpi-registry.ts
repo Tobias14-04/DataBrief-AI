@@ -1522,7 +1522,12 @@ export function evaluateRegisteredKpi(
   const canonicalId = canonicalRegisteredKpiId(id);
   const definition = standardKpiDefinitionMap.get(canonicalId);
   if (!definition) return { available: false, value: null, detail: "Ukendt nøgletal", reason: "Ukendt nøgletal" };
-  const status = requirementStatus(definition, profile);
+  // Customer metrics share the accepted, filtered sales profile. Supplemental
+  // workbook rows (e.g. budgets) are not purchases, even with a revenue field.
+  const calculationProfile = definition.category === "Kunder"
+    ? context.salesProfile ?? profile
+    : profile;
+  const status = requirementStatus(definition, calculationProfile);
   const usesDocumentedCost = id === "total-costs" || id === "result" || id === "profit-margin";
   if (usesDocumentedCost && context.totalCosts === null) {
     const reason = context.costBasis?.reason ?? "Samlede omkostninger er ikke dokumenteret i den aktuelle visning.";
@@ -1538,7 +1543,7 @@ export function evaluateRegisteredKpi(
     return { available: false, value: null, detail: reason, reason, missingFields: missing, matchedFields: status.matched };
   }
   try {
-    const result = definition.calculate({ context, profile });
+    const result = definition.calculate({ context, profile: calculationProfile });
     if (typeof result.value === "number" && !isFiniteNumber(result.value)) {
       throw new Error("Beregningen gav ikke et gyldigt endeligt tal.");
     }

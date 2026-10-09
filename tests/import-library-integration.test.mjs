@@ -7,6 +7,7 @@ import { analyzeSalesSheetStructure } from "../lib/spreadsheet-fields.ts";
 import { parseSalesRows, rowsToRecords } from "../lib/sales-import.ts";
 import { applyDashboardFilters, toggleDashboardFilterValue } from "../lib/dashboard-filtering.ts";
 import { calculateDashboardMetrics } from "../lib/dashboard-metrics.ts";
+import { buildCategoryAnalysis, buildCategoryCsv, buildCategoryInsights } from "../lib/category-analysis.ts";
 import { buildKpiDataProfile } from "../lib/kpi-registry.ts";
 import { evaluateStandardKpis, standardKpiDefinitions } from "../lib/kpi-customization.ts";
 import { buildInsightAnalysis } from "../lib/insight-engine.ts";
@@ -43,12 +44,13 @@ function libraryScope(allRows, filters, supplemental = []) {
     customerHistoryProfile: comparisonProfile, selectedMonths: filters.month, partialMonths, periodComparison,
     revenueGrowth: summarizeComparisonMetric(history, periodComparison, (r) => r.revenue),
     inventoryFilters: filters, financialFilters: filters };
-  return { rows, metrics, context, profile, evaluations: evaluateStandardKpis(standardKpiDefinitions.map((d) => d.id), context, profile) };
+  const categories = buildCategoryAnalysis(metrics.categoryGroups, { hasGrossProfit: metrics.hasGrossProfit, hasCosts: metrics.hasCosts });
+  return { rows, metrics, categories, context, profile, evaluations: evaluateStandardKpis(standardKpiDefinitions.map((d) => d.id), context, profile) };
 }
-function workbook(values) {
+function workbook(values, extraHeaders = []) {
   const book = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
-    ["Dato", "Måned", "Produkt", "Kategori", "Antal", "Nettoomsætning", "Kostpris pr. stk.", "Kundenummer", "Kanal", "Region"], ...values,
+    ["Dato", "Måned", "Produkt", "Kategori", "Antal", "Nettoomsætning", "Kostpris pr. stk.", "Kundenummer", "Kanal", "Region", ...extraHeaders], ...values,
   ]), "Salg");
   return XLSX.write(book, { type: "array", bookType: "xlsx", cellDates: true });
 }
@@ -119,6 +121,86 @@ test("REG LIB: customer count uses the filtered sales profile, not supplemental 
   assert.equal(libraryScope(rows, emptyFilters(), supplemental).evaluations["customer-count"].value, null);
 });
 
+const customerIds = ["customer-count", "avg-revenue-customer", "new-customers", "returning-customers",
+  "highest-gross-profit-customer", "highest-revenue-customer", "average-purchases-customer"];
+
+test("AVAIL customer integration: all customer KPIs ignore supplemental budgets, with/without budget", () => {
+  const rows = importWorkbook(workbook([
+    ["2026-04-01", "2026-04", "A", "Opbevaring", 1, 100, 0, "K1", "Web", "Øst", "O1"],
+    ["2026-04-01", "2026-04", "B", "Opbevaring", 1, 200, 40, "K1", "Web", "Øst", "O1"],
+    ["2026-04-16", "2026-04", "A", "Opbevaring", 1, 50, 20, "K1", "Web", "Øst", "O2"],
+    ["2026-04-30", "2026-04", "B", "Opbevaring", 1, 100, 10, "K2", "Web", "Øst", "O3"],
+  ], ["Ordrenummer"])).rows;
+  const supplemental = [
+    { sourceValues: { Nettoomsætning: 1000, Måned: "2026-04", __sheet: "Budget" } },
+    { sourceValues: { Dato: "2026-04-20", Nettoomsætning: 1e9, Kundenummer: "Budget-ID", Ordrenummer: "Budget-ordre", __sheet: "Budget" } },
+  ];
+  const withoutBudget = libraryScope(rows, emptyFilters());
+  const withBudget = libraryScope(rows, emptyFilters(), supplemental);
+  for (const id of customerIds) {
+    assert.equal(withBudget.evaluations[id].available, true, id);
+    assert.deepEqual(withBudget.evaluations[id], withoutBudget.evaluations[id], id);
+  }
+  assert.equal(withBudget.evaluations["customer-count"].value, 2);
+  assert.equal(withBudget.evaluations["returning-customers"].value, 1);
+  assert.equal(withBudget.evaluations["average-purchases-customer"].value, 1.5);
+  assert.equal(withBudget.evaluations["avg-revenue-customer"].value, 225);
+  assert.equal(withBudget.evaluations["new-customers"].value, 2);
+  assert.equal(withBudget.evaluations["highest-revenue-customer"].value, "K1");
+  assert.equal(withBudget.evaluations["highest-gross-profit-customer"].value, "K1");
+});
+
+test("AVAIL customer requirements cannot be satisfied by budget-only IDs, dates or orders", () => {
+  const rows = importWorkbook(workbook([
+    ["2026-04-16", "2026-04", "A", "Opbevaring", 1, 100, 0, "", "Web", "Øst"],
+  ])).rows;
+  const supplemental = [{ sourceValues: { Dato: "2026-04-16", Kundenummer: "Budget-ID", Ordrenummer: "Budget-ordre", Nettoomsætning: 1000, __sheet: "Budget" } }];
+  const scope = libraryScope(rows, emptyFilters(), supplemental);
+  for (const id of customerIds) {
+    assert.equal(scope.evaluations[id].available, false, id);
+    assert.equal(scope.evaluations[id].value, null, id);
+  }
+  const validRows = importWorkbook(workbook([
+    ["2026-04-16", "2026-04", "A", "Opbevaring", 1, 100, 0, "K1", "Web", "Øst"],
+  ])).rows;
+  const missingOrders = libraryScope(validRows, emptyFilters(), supplemental);
+  assert.equal(missingOrders.evaluations["customer-count"].value, 1);
+  for (const id of ["returning-customers", "average-purchases-customer"]) {
+    assert.equal(missingOrders.evaluations[id].available, false, id);
+    assert.match(missingOrders.evaluations[id].reason, /Ordre-id/u);
+  }
+});
+
+test("AVAIL real missing sales ID still blocks all customer KPIs and scope transitions reset it", () => {
+  const parsed = importWorkbook(workbook([
+    ["2026-04-01", "2026-04", "A", "Opbevaring", 1, 100, 0, "K1", "Web", "Øst", "O1"],
+    ["2026-04-30", "2026-04", "B", "Ergonomi", 1, 200, "", "", "Web", "Øst", "O2"],
+  ], ["Ordrenummer"]));
+  const supplemental = [{ sourceValues: { Nettoomsætning: 1000, __sheet: "Budget" } }];
+  for (let repeat = 0; repeat < 3; repeat++) {
+    const complete = libraryScope(parsed.rows, { ...emptyFilters(), category: ["Opbevaring"] }, supplemental);
+    const global = libraryScope(parsed.rows, emptyFilters(), supplemental);
+    for (const id of customerIds) {
+      assert.equal(complete.evaluations[id].available, true, id);
+      assert.equal(global.evaluations[id].available, false, id);
+      assert.equal(global.evaluations[id].value, null, id);
+      assert.match(global.evaluations[id].reason, /Kunde-id mangler/u);
+    }
+    assert.equal(complete.categories.hasGrossMargin, true);
+    assert.equal(global.categories.totalGrossProfit, null);
+    assert.equal(global.categories.hasGrossMargin, false);
+  }
+});
+
+test("AVAIL category component wiring uses current scope, not global availability", () => {
+  const source = readFileSync(new URL("../components/upload-dashboard.tsx", import.meta.url), "utf8");
+  const categoryProps = source.match(/<CategoryAnalysisDashboard[\s\S]*?\/>/u)?.[0];
+  assert.ok(categoryProps);
+  assert.match(categoryProps, /categories=\{metrics.categoryGroups\}/u);
+  assert.match(categoryProps, /hasGrossProfit=\{metrics.hasGrossProfit\}/u);
+  assert.doesNotMatch(categoryProps, /hasGrossProfit=\{baseMetrics.hasGrossProfit\}/u);
+});
+
 test("REG actual edge workbook: period import, four driver reconciliations and library scopes", {
   skip: !process.env.SENVORIQ_EDGE_CASE_FILE && "Set SENVORIQ_EDGE_CASE_FILE to the unchanged control workbook",
 }, () => {
@@ -155,7 +237,22 @@ test("REG actual edge workbook: period import, four driver reconciliations and l
   close(complete.evaluations["gross-profit"].value, 172416.12);
   close(complete.evaluations["gross-margin"].value, 172416.12 / 306313.12);
   assert.equal(complete.evaluations["customer-count"].value, 114);
+  assert.equal(complete.evaluations["returning-customers"].value, 8);
+  close(complete.evaluations["avg-revenue-customer"].value, 306313.12 / 114);
+  for (const id of customerIds) assert.equal(complete.evaluations[id].available, true, `${id}: ${complete.evaluations[id].reason}`);
+  const salesOnly = libraryScope(rows, filters);
+  for (const id of customerIds) assert.deepEqual(complete.evaluations[id], salesOnly.evaluations[id], id);
+  close(complete.categories.totalGrossProfit, 172416.12);
+  close(complete.categories.aggregateGrossMargin, 172416.12 / 306313.12);
+  assert.equal(complete.categories.highestGrossMargin.name, "Opbevaring");
+  close(complete.categories.rows[0].grossProfit, 172416.12);
+  close(complete.categories.rows[0].grossMargin, complete.evaluations["gross-margin"].value);
+  assert.doesNotMatch(JSON.stringify(buildCategoryInsights(complete.categories)), /mangler/u);
+  const csv = buildCategoryCsv(complete.categories.rows, ["name", "grossProfit", "grossMargin"], ["name", "grossProfit", "grossMargin"]);
+  assert.match(csv, /172416,12/u);
   const incomplete = scope({ ...emptyFilters(), product: ["Kontorstol Atlas"] });
   for (const id of ["gross-profit", "gross-margin"]) assert.equal(incomplete.evaluations[id].available, false, id);
-  for (const id of ["gross-profit", "gross-margin", "customer-count"]) assert.equal(scope(emptyFilters()).evaluations[id].value, null, id);
+  assert.equal(incomplete.categories.totalGrossProfit, null);
+  assert.equal(incomplete.categories.hasGrossMargin, false);
+  for (const id of ["gross-profit", "gross-margin", ...customerIds]) assert.equal(scope(emptyFilters()).evaluations[id].value, null, id);
 });
