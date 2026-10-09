@@ -11,6 +11,8 @@ import { describeCostBasis, type CostBasis } from "./result-basis.ts";
 import { formatSignedPercentage, formatSignedPercentagePoints } from "./display-change.ts";
 import { growthChange, resolvePeriodComparison } from "./period-comparison.ts";
 import { COST_TO_REVENUE_LABEL, costToRevenue } from "./cost-share.ts";
+import { dimensionIdentity } from "./dimension-identity.ts";
+import { BUDGET_MODEL_EXPLANATION } from "./budget-basis.ts";
 import {
   chooseRepresentativeLabel,
   comparableLabel,
@@ -505,7 +507,7 @@ function combinePeriods(periods: readonly PeriodAccumulator[], keyPrefix: string
 function addDimensionRow(period: PeriodAccumulator, dimension: InsightDimension, rawValue: string, row: InsightSourceRow) {
   const comparisonKey = normalizeForComparison(rawValue);
   const isUnknown = !comparisonKey || ["ukategoriseret", "ukendt", "unknown", "ikke angivet", "n/a", "ukendt/ufordelt"].includes(comparisonKey);
-  const identity = isUnknown
+  const identity = !comparisonKey ? dimensionIdentity(rawValue, dimension) : isUnknown
     ? { key: UNKNOWN_DIMENSION_KEY, label: UNKNOWN_DIMENSION_LABEL }
     : comparableLabel(rawValue);
   const current = period.dimensions[dimension].get(identity.key) ?? {
@@ -631,7 +633,7 @@ function buildDrivers(
     positiveDrivers: items.filter((item) => item.absoluteChange > 0).sort(sortDrivers),
     negativeDrivers: items.filter((item) => item.absoluteChange < 0).sort(sortDrivers),
     unchangedDrivers: items.filter((item) => item.absoluteChange === 0).sort(sortDrivers),
-    hasKnownMembers: keys.size > (keys.has(UNKNOWN_DIMENSION_KEY) ? 1 : 0),
+    hasKnownMembers: [...keys].some((key) => key !== UNKNOWN_DIMENSION_KEY && !key.startsWith("\u0000senvoriq:missing:")),
     reconciliationDifference: Math.abs(reconciliationDifference) > tolerance ? reconciliationDifference : 0,
     scopeFilters,
     previousPeriod: previous.label,
@@ -1099,7 +1101,7 @@ export function buildInsightAnalysis(
       if (currentValue === null) continue;
       const id = evidenceId("budget", metric, scopeKey);
       budgetEvidenceIds.push(id);
-      evidence.push({ id, type: "budget", title: `${metricLabels[metric]} mod budget`, metric, currentValue, previousValue: value, absoluteChange: currentValue - value, sampleSize: scope?.rowCount ?? 0, reliability: budget.basis === "proportional" ? "medium" : "high", supportingFacts: [`${endSentence(`Faktisk: ${formatMetric(metric, currentValue)}`)} ${endSentence(`Budget: ${formatMetric(metric, value)}`)}`] });
+      evidence.push({ id, type: "budget", title: `${metricLabels[metric]} mod budget`, metric, currentValue, previousValue: value, absoluteChange: currentValue - value, sampleSize: scope?.rowCount ?? 0, reliability: budget.basis === "proportional" ? "medium" : "high", supportingFacts: [`${endSentence(`Faktisk: ${formatMetric(metric, currentValue)}`)} ${endSentence(`Budget: ${formatMetric(metric, value)}`)}`, ...(budget.basis === "proportional" ? [BUDGET_MODEL_EXPLANATION] : [])] });
     }
   }
   for (const [index, id] of budgetEvidenceIds.entries()) {
@@ -1270,6 +1272,7 @@ export function buildInsightAnalysis(
       `Datakilde: ${sourceName}.`,
       `Analyseomfang: ${scopeLabel}.`,
       `Aktive filtre: ${activeFilterText}.`,
+      ...(budget?.basis === "proportional" ? [BUDGET_MODEL_EXPLANATION] : []),
       `${formatDanishNumber(allPeriods.length)} perioder er registreret; ${formatDanishNumber(orderedPeriods.length)} kan indgå i en kronologisk sammenligning.`,
       ...(invalidPeriodRows > 0
         ? [`${formatDanishNumber(invalidPeriodRows)} rækker uden en gyldig periode indgår i totalen, men ikke i periodeudviklingen.`]

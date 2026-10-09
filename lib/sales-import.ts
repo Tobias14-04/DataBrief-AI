@@ -59,6 +59,7 @@ export function parseSalesRows(candidate: { rows: unknown[][]; headerIndex: numb
   const records = rowsToRecords(candidate.rows, candidate.headerIndex, candidate.headers);
   const skippedRows: number[] = [];
   const rejections = createImportRejections();
+  const classification = { count: 0, product: 0, category: 0, details: [] as Array<{ excelRow: number; product: boolean; category: boolean }> };
   let revenueSource = "";
 
   const rows = records
@@ -86,11 +87,10 @@ export function parseSalesRows(candidate: { rows: unknown[][]; headerIndex: numb
         return null;
       }
 
-      if (!product || !category || units === null || revenue.value === null || (!date && !month)) {
+      if (units === null || revenue.value === null || (!date && !month)) {
         const excelRow = candidate.headerIndex + index + 2;
         skippedRows.push(excelRow);
         recordImportRejection(rejections, { excelRow, reasons: [
-          ...(!product ? ["Produkt mangler"] : []), ...(!category ? ["Kategori mangler"] : []),
           ...(units === null ? ["Antal mangler eller er ugyldigt"] : []),
           ...(revenue.value === null ? ["Omsætning mangler eller er ugyldig"] : []),
           ...(!date && !month ? ["Periode mangler"] : []),
@@ -99,6 +99,13 @@ export function parseSalesRows(candidate: { rows: unknown[][]; headerIndex: numb
       }
 
       revenueSource ||= revenue.source;
+      const excelRow = candidate.headerIndex + index + 2;
+      if (!product || !category) {
+        classification.count += 1;
+        if (!product) classification.product += 1;
+        if (!category) classification.category += 1;
+        if (classification.details.length < 100) classification.details.push({ excelRow, product: !product, category: !category });
+      }
       const economics = deriveSaleRowCosts({
         revenue: revenue.value, units, unitCost, rowCost,
         rowCostHeader: mappings.cost, grossProfit,
@@ -120,9 +127,10 @@ export function parseSalesRows(candidate: { rows: unknown[][]; headerIndex: numb
         unitCost,
         variableCost: economics.variableCost,
         sourceValues: row,
+        excelRow,
       };
     })
     .filter((row) => row !== null);
 
-  return { rows, revenueSource, skippedRows, rejections };
+  return { rows, revenueSource, skippedRows, rejections, classification };
 }

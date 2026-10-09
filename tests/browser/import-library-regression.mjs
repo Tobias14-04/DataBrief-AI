@@ -15,9 +15,14 @@ export async function importEdgeWorkbook(tab, path) {
   await chooser.setFiles(path);
   const apply = tab.playwright.getByRole("button", { name: "Anvend og fortsæt til dashboard", exact: true });
   await apply.waitFor({ state: "visible", timeoutMs: 30000 });
-  const warning = await tab.playwright.getByTestId("import-rejections").innerText();
-  requireText(warning, "13.589,88");
-  requireText(warning, "18");
+  const warning = await tab.playwright.getByTestId("import-classification").innerText();
+  requireText(warning, "2 salgsrækker mangler produkt eller kategori");
+  requireText(warning, "medtaget i totalerne");
+  const accept = tab.playwright.getByRole("radio", { name: "Jeg accepterer samlet rækkeproportional fordeling", exact: true });
+  if (await accept.isVisible()) {
+    if (await apply.isEnabled()) throw new Error("Period budget silently accepted");
+    await accept.check();
+  }
   await apply.click();
   const skip = tab.playwright.getByRole("button", { name: "Spring over", exact: true });
   if (await skip.isVisible()) await skip.click();

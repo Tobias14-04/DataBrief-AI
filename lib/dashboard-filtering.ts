@@ -1,4 +1,5 @@
 import { normalizeForComparison } from "./data-labels.ts";
+import { dimensionFilterValue } from "./dimension-identity.ts";
 
 export const dashboardFilterKeys = [
   "month",
@@ -62,7 +63,7 @@ export function rowMatchesDashboardFilters(
   for (const field of dashboardFilterKeys) {
     const values = filters[field];
     if (field === ignoredField || !values.length) continue;
-    const rowKey = normalizeForComparison(row[field]);
+    const rowKey = normalizeForComparison(field === "month" ? row[field] : dimensionFilterValue(row[field], field));
     if (!values.some((value) => normalizeForComparison(value) === rowKey)) {
       return false;
     }
@@ -86,6 +87,6 @@ export function applyDashboardFilters<T extends DashboardFilterRow>(
   if (!activeFields.length) return rows;
 
   return rows.filter((row) =>
-    activeFields.every(({ field, values }) => values.has(normalizeForComparison(row[field]))),
+    activeFields.every(({ field, values }) => values.has(normalizeForComparison(field === "month" ? row[field] : dimensionFilterValue(row[field], field)))),
   );
 }

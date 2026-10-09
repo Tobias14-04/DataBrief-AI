@@ -2,6 +2,16 @@ import type { ImportRejections } from "@/lib/import-rejections";
 import { formatDanishCurrencyPrecise, formatDanishNumber } from "@/lib/dashboard-insights";
 import { isFiniteNumber } from "@/lib/numeric-foundation";
 
+export function ImportClassificationNotice({ summary }: { summary?: { count: number; product: number; category: number; details: Array<{ excelRow: number }> } }) {
+  if (!summary?.count) return null;
+  return <section role="status" aria-label="Manglende klassifikation" data-testid="import-classification" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-950">
+    <p>{formatDanishNumber(summary.count)} {summary.count === 1 ? "salgsrække mangler produkt eller kategori. Rækken er medtaget" : "salgsrækker mangler produkt eller kategori. Rækkerne er medtaget"} i totalerne og vises særskilt i fordelingerne.</p>
+    <details className="mt-1"><summary className="cursor-pointer font-semibold underline underline-offset-2">Se klassifikationsmangler</summary>
+      <p>Produkt mangler: {summary.product} · Kategori mangler: {summary.category}. Excel-rækker: {summary.details.map((row) => row.excelRow).join(", ")}{summary.count > summary.details.length ? " (første 100)" : ""}.</p>
+    </details>
+  </section>;
+}
+
 export function ImportRejectionNotice({ summary }: { summary: ImportRejections | null | undefined }) {
   if (!summary?.count) return null;
   const coverage = (count: number) => count === summary.count ? "" : ` (dokumenteret på ${formatDanishNumber(count)} af ${formatDanishNumber(summary.count)} rækker)`;

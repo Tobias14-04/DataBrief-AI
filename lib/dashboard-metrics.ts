@@ -1,10 +1,11 @@
 import { formatDanishMonth, monthSortKey } from "./dashboard-insights.ts";
 import {
   chooseRepresentativeLabel,
-  comparableLabel,
 } from "./data-labels.ts";
 import { addGrossMarginRow, createGrossMarginBasis, resolveGrossMargin, resolveGrossProfit, type GrossMarginBasis } from "./gross-margin.ts";
 import { isFiniteNumber } from "./numeric-foundation.ts";
+import { dimensionIdentity, type SalesDimension } from "./dimension-identity.ts";
+import { resolveBudgetBasis, type WorkbookBudget } from "./budget-basis.ts";
 import { documentedVariableRowCost, resolveCostBasis, type CostBasis, type WorkbookCostSource } from "./result-basis.ts";
 
 export type DashboardMetricRow = {
@@ -22,6 +23,8 @@ export type DashboardMetricRow = {
 };
 
 type GroupedValue = {
+  id?: string;
+  missing?: boolean;
   name: string;
   revenue: number;
   units: number;
@@ -46,7 +49,7 @@ type MonthValue = GroupedValue & {
 
 type DashboardMetricFeedback = {
   costs?: WorkbookCostSource;
-  budget?: { revenue: number; costs: number };
+  budget?: WorkbookBudget;
 };
 
 export function documentedMonthlyCost(month: Pick<MonthValue, "cost" | "variableCost" | "variableCostCount" | "rowCount">, basis: CostBasis): number | null {
@@ -85,10 +88,12 @@ export function calculateDashboardMetrics(
   let hasRevenueData = false;
   let hasUnitsData = false;
 
-  function addGroup(groups: Map<string, GroupAccumulator>, rawKey: string, row: DashboardMetricRow) {
-    const identity = comparableLabel(rawKey);
+  function addGroup(groups: Map<string, GroupAccumulator>, rawKey: string, row: DashboardMetricRow, dimension: SalesDimension) {
+    const identity = dimensionIdentity(rawKey, dimension);
     const current = groups.get(identity.key) ?? {
       name: identity.label,
+      id: identity.key,
+      missing: identity.missing,
       revenue: 0,
       units: 0,
       grossProfit: 0,
@@ -125,8 +130,8 @@ export function calculateDashboardMetrics(
     if (Number.isFinite(row.revenue)) hasRevenueData = true;
     if (Number.isFinite(row.units)) hasUnitsData = true;
 
-    addGroup(products, row.product, row);
-    addGroup(categories, row.category, row);
+    addGroup(products, row.product, row, "product");
+    addGroup(categories, row.category, row, "category");
 
     const parsedMonthSortKey = row.date
       ? new Date(row.date.getFullYear(), row.date.getMonth(), 1).getTime()
@@ -193,13 +198,8 @@ export function calculateDashboardMetrics(
     ...month, grossProfit: resolveGrossProfit(month).value,
   })).sort((a, b) => a.sortKey - b.sortKey);
   const monthsByRevenue = [...monthly].sort((a, b) => b.revenue - a.revenue);
-  const budgetScale = options.fullRows?.length ? rows.length / options.fullRows.length : 1;
-  const budgetRevenue = (feedback?.budget?.revenue ?? 0) * budgetScale;
-  const budgetCosts = (feedback?.budget?.costs ?? 0) * budgetScale;
-  const revenueVsBudget = feedback?.budget ? totalRevenue - budgetRevenue : 0;
-  const budgetStatus: "På budget" | "Over budgettet" | "Under budgettet" | null = feedback?.budget
-    ? revenueVsBudget === 0 ? "På budget" : revenueVsBudget > 0 ? "Over budgettet" : "Under budgettet"
-    : null;
+  const budgetBasis = resolveBudgetBasis(feedback?.budget, totalRevenue, rows.length, options.fullRows?.length ?? rows.length);
+  const { revenue: budgetRevenue, costs: budgetCosts, deviation: revenueVsBudget, status: budgetStatus } = budgetBasis;
 
   return {
     totalRevenue,
@@ -218,10 +218,11 @@ export function calculateDashboardMetrics(
     actualResult,
     budgetRevenue,
     budgetCosts,
-    budgetResult: budgetRevenue - budgetCosts,
+    budgetBasis,
+    budgetResult: budgetBasis.result,
     revenueVsBudget,
     budgetStatus,
-    bestProduct: productsByRevenue[0],
+    bestProduct: productsByRevenue.some((product) => product.missing) ? undefined : productsByRevenue[0],
     products: productsByRevenue,
     hasProductData,
     hasRevenueData,

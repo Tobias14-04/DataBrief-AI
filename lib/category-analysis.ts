@@ -15,6 +15,8 @@ export type CategoryColumnKey = "name" | CategoryMetricKey;
 export type CategorySortDirection = "asc" | "desc";
 
 export type CategoryMetricInput = {
+  id?: string;
+  missing?: boolean;
   name: string;
   revenue: number;
   grossProfit: number | null;
@@ -29,6 +31,8 @@ export type CategoryMetricInput = {
 };
 
 export type CategoryAnalysisRow = {
+  id?: string;
+  missing?: boolean;
   name: string;
   revenue: number;
   revenueShare: number | null;
@@ -209,6 +213,8 @@ export function buildCategoryAnalysis(
         && (rowCount === 0 || costCount === rowCount);
       return {
         name,
+        id: category.id,
+        missing: category.missing,
         revenue,
         grossProfit: grossProfitAvailable
           ? finiteOrNull(category.grossProfit)

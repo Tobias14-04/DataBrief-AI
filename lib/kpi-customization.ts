@@ -77,10 +77,11 @@ export type StandardKpiContext = {
   totalCosts: number | null;
   actualResult: number | null;
   costBasis?: { reason: string | null };
-  revenueVsBudget: number;
-  budgetRevenue: number;
-  budgetCosts: number;
-  budgetResult: number;
+  revenueVsBudget: number | null;
+  budgetRevenue: number | null;
+  budgetCosts: number | null;
+  budgetResult: number | null;
+  budgetBasis?: ReturnType<typeof import("./budget-basis.ts").resolveBudgetBasis>;
   rowCount: number;
   hasGrossProfit: boolean;
   hasGrossMargin: boolean;
@@ -110,6 +111,7 @@ export type KpiEvaluation = {
   reason?: string;
   missingFields?: string[];
   matchedFields?: string[];
+  dataSourceDetected?: boolean;
 };
 
 export function defaultKpiConfiguration(context: Pick<StandardKpiContext, "hasBudget" | "hasGrossProfit" | "hasGrossMargin" | "hasCosts">): KpiConfiguration {

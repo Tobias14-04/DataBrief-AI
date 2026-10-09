@@ -193,8 +193,6 @@ export function detectSalesHeaderRow(rows: unknown[][]) {
 
 export function getMissingRequiredSalesFields(mappings: SalesFieldMappings) {
   const missing: string[] = [];
-  if (!mappings.product) missing.push("Produkt / Product");
-  if (!mappings.category) missing.push("Kategori / Category");
   if (!mappings.units) missing.push("Antal / Units");
   if (!mappings.date && !mappings.month) missing.push("Dato / Date eller Måned / Month");
   if (!mappings.netRevenue && !mappings.grossRevenue && !mappings.revenue && !mappings.unitPrice) {
@@ -210,8 +208,6 @@ export function analyzeSalesSheetStructure(name: string, rows: unknown[][]) {
   const missingFields = getMissingRequiredSalesFields(mappings);
   const requiredMatches = [
     Boolean(mappings.date || mappings.month),
-    Boolean(mappings.product),
-    Boolean(mappings.category),
     Boolean(mappings.units),
     Boolean(mappings.netRevenue || mappings.grossRevenue || mappings.revenue || (mappings.units && mappings.unitPrice)),
   ];

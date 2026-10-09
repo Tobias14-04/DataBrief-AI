@@ -279,7 +279,7 @@ type NormalizedKpiSourceRow = {
 };
 
 type KpiCalculationResult = {
-  value: number | string;
+  value: number | string | null;
   detail: string;
 };
 
@@ -498,6 +498,7 @@ type KpiProfileAnalysisCache = {
   groupedSums: Map<string, RankedValue[]>;
   periodRevenue: Map<PeriodUnit, PeriodRevenueValue[]>;
   parsedDates: WeakMap<KpiDataProfile["rows"][number], Date | null>;
+  hasMissingProduct?: boolean;
 };
 
 const profileAnalysisCaches = new WeakMap<KpiDataProfile, KpiProfileAnalysisCache>();
@@ -550,7 +551,7 @@ function uniqueCount(profile: KpiDataProfile, field: KpiDataField) {
   return value;
 }
 
-function ratio(numerator: number, denominator: number, label: string) {
+function ratio(numerator: number | null, denominator: number | null, label: string) {
   const result = safeRatio(numerator, denominator);
   if (result === null) throw new Error(`${label} kan ikke beregnes ud fra det aktuelle grundlag.`);
   return result;
@@ -564,6 +565,12 @@ function documentedCosts(context: StandardKpiContext): number {
 function documentedResult(context: StandardKpiContext): number {
   if (context.actualResult === null) throw new Error(context.costBasis?.reason ?? "Resultat er ikke dokumenteret i den aktuelle visning.");
   return context.actualResult;
+}
+
+function budgetValue(context: StandardKpiContext, field: "budgetResult" | "revenueVsBudget") {
+  const value = context[field];
+  if (!isFiniteNumber(value)) throw new Error(context.budgetBasis?.reason ?? "Budgetgrundlaget er ikke komplet dokumenteret.");
+  return value;
 }
 
 function documentedRevenueGrowth(context: StandardKpiContext) {
@@ -1455,9 +1462,9 @@ export const standardKpiDefinitions: RegisteredKpiDefinition[] = [
   defineKpi({ id: "average-profit-order", name: "Gennemsnitlig profit pr. ordre", description: "Resultat divideret med unikke ordrer", category: "Indtjening", level: "advanced", format: "currency", decimals: 2, icon: "calculator", color: "green", requirements: requirements(["orderId"], [{ fields: ["grossProfit", "netProfit", "cost"], label: "Dækningsbidrag, resultat eller omkostninger" }]), calculate: ({ context, profile }) => ({ value: ratio(documentedResult(context), uniqueCount(profile, "orderId"), "Profit pr. ordre"), detail: "Gennemsnitligt dokumenteret resultat pr. ordre" }) }),
   defineKpi({ id: "budget-variance-percent", name: "Budgetafvigelse %", description: "Omsætningsafvigelsen målt i procent af budgettet", category: "Budget", format: "percent", decimals: 1, icon: "target", color: "orange", requirements: requirements(["revenue", "budgetRevenue"]), calculate: ({ context }) => ({ value: ratio(context.revenueVsBudget, context.budgetRevenue, "Budgetafvigelse"), detail: "Afvigelse i procent af budgettet" }) }),
   defineKpi({ id: "budget-attainment", name: "Budgetopfyldelse %", description: "Faktisk omsætning som andel af budgettet", category: "Budget", level: "recommended", format: "percent", decimals: 1, icon: "target", color: "green", requirements: requirements(["revenue", "budgetRevenue"]), calculate: ({ context }) => ({ value: ratio(context.totalRevenue, context.budgetRevenue, "Budgetopfyldelse"), detail: "Andel af omsætningsbudgettet realiseret" }) }),
-  defineKpi({ id: "budget-vs-result", name: "Budget mod resultat", description: "Forskellen mellem faktisk og budgetteret resultat", category: "Budget", level: "advanced", format: "currency", icon: "target", color: "orange", requirements: requirements(["budgetRevenue", "budgetCosts"], [{ fields: ["cost", "grossProfit", "netProfit"], label: "Omkostninger, dækningsbidrag eller resultat" }]), calculate: ({ context }) => ({ value: documentedResult(context) - context.budgetResult, detail: "Faktisk resultat minus budgetteret resultat" }) }),
-  defineKpi({ id: "over-budget-status", name: "Over budget", description: "Viser om omsætningen ligger over det budgetterede niveau", category: "Budget", format: "text", icon: "target", color: "green", requirements: requirements(["revenue", "budgetRevenue"]), calculate: ({ context }) => ({ value: context.revenueVsBudget > 0 ? "Ja" : "Nej", detail: context.revenueVsBudget > 0 ? "Omsætningen ligger over budgettet" : "Omsætningen ligger ikke over budgettet" }) }),
-  defineKpi({ id: "under-budget-status", name: "Under budget", description: "Viser om omsætningen ligger under det budgetterede niveau", category: "Budget", format: "text", icon: "target", color: "orange", requirements: requirements(["revenue", "budgetRevenue"]), calculate: ({ context }) => ({ value: context.revenueVsBudget < 0 ? "Ja" : "Nej", detail: context.revenueVsBudget < 0 ? "Omsætningen ligger under budgettet" : "Omsætningen ligger ikke under budgettet" }) }),
+  defineKpi({ id: "budget-vs-result", name: "Budget mod resultat", description: "Forskellen mellem faktisk og budgetteret resultat", category: "Budget", level: "advanced", format: "currency", icon: "target", color: "orange", requirements: requirements(["budgetRevenue", "budgetCosts"], [{ fields: ["cost", "grossProfit", "netProfit"], label: "Omkostninger, dækningsbidrag eller resultat" }]), calculate: ({ context }) => ({ value: documentedResult(context) - budgetValue(context, "budgetResult"), detail: "Faktisk resultat minus budgetteret resultat" }) }),
+  defineKpi({ id: "over-budget-status", name: "Over budget", description: "Viser om omsætningen ligger over det budgetterede niveau", category: "Budget", format: "text", icon: "target", color: "green", requirements: requirements(["revenue", "budgetRevenue"]), calculate: ({ context }) => ({ value: budgetValue(context, "revenueVsBudget") > 0 ? "Ja" : "Nej", detail: budgetValue(context, "revenueVsBudget") > 0 ? "Omsætningen ligger over budgettet" : "Omsætningen ligger ikke over budgettet" }) }),
+  defineKpi({ id: "under-budget-status", name: "Under budget", description: "Viser om omsætningen ligger under det budgetterede niveau", category: "Budget", format: "text", icon: "target", color: "orange", requirements: requirements(["revenue", "budgetRevenue"]), calculate: ({ context }) => ({ value: budgetValue(context, "revenueVsBudget") < 0 ? "Ja" : "Nej", detail: budgetValue(context, "revenueVsBudget") < 0 ? "Omsætningen ligger under budgettet" : "Omsætningen ligger ikke under budgettet" }) }),
   defineKpi({ id: "cash-ratio", name: "Cash Ratio", description: "Likvide beholdninger / kortfristet gæld på samme balancedato", category: "Likviditet", level: "advanced", format: "decimal", decimals: 2, icon: "calculator", color: "cyan", requirements: requirements(["cash", "currentLiabilities"]), calculate: ({ context, profile }) => financialStockRatio(context, profile, "cash", "currentLiabilities", "Cash Ratio") }),
   defineKpi({ id: "asset-turnover", name: "Aktivernes omsætningshastighed", description: "Periodens omsætning / gennemsnitlige aktiver ved periodens start og slut", category: "Finansielle nøgletal", level: "advanced", format: "decimal", decimals: 2, icon: "calculator", color: "navy", requirements: requirements(["revenue", "assets"]), calculate: ({ context, profile }) => financialReturn(context, profile, "revenue", "assets", "Aktivernes omsætningshastighed") }),
   defineKpi({ id: "average-inventory-value", name: "Gennemsnitlig lagerværdi", description: "Gennemsnit af komplette snapshot-totaler i det valgte scope", category: "Lager", format: "currency", decimals: 2, icon: "calculator", color: "orange", requirements: requirements(["inventoryValue"]), calculate: ({ context, profile }) => { const basis = averageInventory(context, profile); return { value: basis.value, detail: `Gennemsnit af ${basis.snapshots.length} komplette snapshots` }; } }),
@@ -1528,12 +1535,30 @@ export function evaluateRegisteredKpi(
     ? context.salesProfile ?? profile
     : profile;
   const status = requirementStatus(definition, calculationProfile);
+  const productProfile = context.salesProfile ?? calculationProfile;
+  const requiresProduct = definition.requirements.some((requirement) => requirement.fields.includes("product"));
+  const productCache = getProfileAnalysisCache(productProfile);
+  if (requiresProduct && canonicalId !== "product-count") productCache.hasMissingProduct ??= productProfile.rows.some((row) =>
+    (row.fields.includes("revenue") || row.fields.includes("units")) && !rowText(row, "product"));
+  if (requiresProduct && canonicalId !== "product-count" && productCache.hasMissingProduct) {
+    const reason = "Produktidentitet mangler på salgsrækker i det aktuelle scope. Gruppen uden produkt er ikke et reelt produkt.";
+    return { available: false, value: null, detail: reason, reason };
+  }
+  if (definition.category === "Budget") {
+    const needsCosts = ["budget-costs", "budget-result", "budget-vs-result"].includes(canonicalId);
+    const needsRevenue = canonicalId !== "budget-costs";
+    if ((needsRevenue && !isFiniteNumber(context.budgetRevenue)) || (needsCosts && !isFiniteNumber(context.budgetCosts))) {
+      const reason = context.budgetBasis?.reason ?? "Budget er ikke komplet dokumenteret for de nødvendige komponenter.";
+      return { available: false, value: null, detail: reason, reason, dataSourceDetected: context.budgetBasis?.sourcePresent };
+    }
+  }
   const usesDocumentedCost = id === "total-costs" || id === "result" || id === "profit-margin";
   if (usesDocumentedCost && context.totalCosts === null) {
     const reason = context.costBasis?.reason ?? "Samlede omkostninger er ikke dokumenteret i den aktuelle visning.";
     return { available: false, value: null, detail: reason, reason, missingFields: [], matchedFields: status.matched };
   }
-  const missing = usesDocumentedCost && context.totalCosts !== null
+  const missing = definition.category === "Budget" ? status.missing.filter((field) =>
+    ![kpiFieldRegistry.budgetRevenue.label, kpiFieldRegistry.budgetCosts.label].includes(field)) : usesDocumentedCost && context.totalCosts !== null
     ? status.missing.filter((field) => field === kpiFieldRegistry.revenue.label)
     : status.missing;
   if (missing.length) {
@@ -1547,7 +1572,9 @@ export function evaluateRegisteredKpi(
     if (typeof result.value === "number" && !isFiniteNumber(result.value)) {
       throw new Error("Beregningen gav ikke et gyldigt endeligt tal.");
     }
-    return { available: true, value: result.value, detail: result.detail, missingFields: [], matchedFields: status.matched };
+    if (result.value === null) throw new Error("Nøgletallet er ikke dokumenteret i det aktuelle scope.");
+    return { available: true, value: result.value, detail: definition.category === "Budget" && context.budgetBasis
+      ? `${result.detail} · ${context.budgetBasis.label}. ${context.budgetBasis.explanation}` : result.detail, missingFields: [], matchedFields: status.matched };
   } catch (error) {
     const reason = error instanceof Error ? error.message : "Beregningen kunne ikke udføres.";
     return { available: false, value: null, detail: reason, reason, missingFields: [], matchedFields: status.matched };
@@ -1591,7 +1618,7 @@ export function relevantKpiCategories(
     const categoryDetected = signals
       ? evaluation?.matchedFields?.some((field) => signals.includes(field))
       : evaluation?.available || evaluation?.matchedFields?.length;
-    if (definition.isCustom || evaluation?.available || categoryDetected) categories.add(category);
+    if (definition.isCustom || evaluation?.available || categoryDetected || (category === "Budget" && evaluation?.dataSourceDetected)) categories.add(category);
   });
   return Array.from(categories);
 }

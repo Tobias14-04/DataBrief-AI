@@ -12,6 +12,7 @@ import { buildKpiDataProfile } from "../lib/kpi-registry.ts";
 import { evaluateStandardKpis, standardKpiDefinitions } from "../lib/kpi-customization.ts";
 import { buildInsightAnalysis } from "../lib/insight-engine.ts";
 import { inferBoundaryPartialMonths, resolvePeriodComparison, summarizeComparisonMetric } from "../lib/period-comparison.ts";
+import { parseWorkbookBudget, selectWorkbookBudgetModel } from "../lib/budget-basis.ts";
 
 const emptyFilters = () => ({ month: [], category: [], product: [], channel: [], region: [] });
 const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-6, `${actual} != ${expected}`);
@@ -207,10 +208,23 @@ test("REG actual edge workbook: period import, four driver reconciliations and l
   const buffer = readFileSync(process.env.SENVORIQ_EDGE_CASE_FILE);
   const parsed = importWorkbook(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength));
   const rows = parsed.rows;
-  assert.equal(rows.length, 1248);
-  assert.deepEqual(parsed.rejections.details.map((r) => r.excelRow), [7, 18]);
-  close(parsed.rejections.revenue, 13589.88);
-  assert.equal(parsed.rejections.units, 18);
+  assert.equal(rows.length, 1250);
+  assert.equal(parsed.rejections.count, 0);
+  assert.deepEqual(parsed.classification.details.map((r) => r.excelRow), [7, 18]);
+  const totals = calculateDashboardMetrics(rows);
+  close(totals.totalRevenue, 4008395.13);
+  assert.equal(totals.totalUnits, 9960);
+  close(rows.reduce((sum, row) => sum + (row.variableCost ?? 0), 0), 2120396.90);
+  close(rows.reduce((sum, row) => sum + (row.grossProfit ?? 0), 0), 1884503.23);
+  assert.equal(totals.totalGrossProfit, null);
+  assert.equal(totals.grossMargin, null);
+  const budget = selectWorkbookBudgetModel(parseWorkbookBudget(parseExcelWorkbook(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength))), true);
+  close(budget.revenue, 4054727.33);
+  for (const [filters, expected] of [[{ ...emptyFilters(), month: ["maj 2026"] }, "671462.85"], [{ ...emptyFilters(), category: ["Opbevaring"] }, "424935.42"]]) {
+    const selected = applyDashboardFilters(rows, filters);
+    const allocated = calculateDashboardMetrics(selected, { budget }, { fullRows: rows });
+    assert.equal(allocated.budgetRevenue.toFixed(2), expected);
+  }
   assert.equal(rows.some((r) => r.month === "Ukendt måned"), false);
   const scope = (filters) => libraryScope(rows, filters, parsed.supplemental);
   const april = scope({ ...emptyFilters(), month: ["april 2026"] });

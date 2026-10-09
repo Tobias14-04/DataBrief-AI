@@ -143,18 +143,17 @@ test("EDGE CUST: antal kunder kræver kunde-id på alle køb i samme scope", () 
   assert.equal(views(imported([sale(40, "14-02-2026", "0")]).rows).evaluate("customer-count").value, 1);
 });
 
-test("EDGE IMPORT: afvisningsårsager, Excel-rækkenumre og bortfald afstemmer", () => {
+test("EDGE IMPORT: valide salg uden klassifikation medtages med Excel-rækkenumre", () => {
   const good = sale();
   const missingProduct = [...sale()]; missingProduct[1] = ""; missingProduct[3] = 4; missingProduct[4] = 2379.24;
   const missingCategory = [...sale()]; missingCategory[2] = ""; missingCategory[3] = 14; missingCategory[4] = 11210.64;
   const parsed = imported([good, missingProduct, missingCategory], [["Titel"], []]);
-  assert.equal(parsed.rows.length, 1);
-  assert.deepEqual(parsed.skippedRows, [5, 6]);
-  assert.deepEqual(parsed.rejections.details.map((x) => x.reasons), [["Produkt mangler"], ["Kategori mangler"]]);
-  assert.equal(parsed.rejections.count, 2);
-  assert.ok(Math.abs(parsed.rejections.revenue - 13589.88) < 1e-8);
-  assert.equal(parsed.rejections.units, 18);
-  assert.equal(calculateDashboardMetrics(parsed.rows).totalRevenue, 100);
+  assert.equal(parsed.rows.length, 3);
+  assert.deepEqual(parsed.skippedRows, []);
+  assert.equal(parsed.rejections.count, 0);
+  assert.equal(parsed.classification.count, 2);
+  assert.deepEqual(parsed.classification.details.map((row) => row.excelRow), [5, 6]);
+  assert.ok(Math.abs(calculateDashboardMetrics(parsed.rows).totalRevenue - 13689.88) < 1e-8);
 });
 
 test("EDGE IMPORT: ukendte beløb opfindes ikke og store advarsler har begrænset detaljeliste", () => {
@@ -164,9 +163,10 @@ test("EDGE IMPORT: ukendte beløb opfindes ikke og store advarsler har begrænse
   assert.equal(parsed.rejections.units, null);
   assert.equal(parsed.rejections.revenueCount, 0);
   const many = imported(Array.from({ length: 5000 }, () => { const v = sale(); v[1] = ""; return v; }));
-  assert.equal(many.rejections.count, 5000);
-  assert.equal(many.rejections.revenue, 500_000);
-  assert.equal(many.rejections.details.length, MAX_REJECTION_DETAILS);
-  assert.equal(many.rejections.reasonCounts["Produkt mangler"], 5000);
-  assert.equal(many.rejections.details[0].excelRow, 2);
+  assert.equal(many.rejections.count, 0);
+  assert.equal(many.rows.length, 5000);
+  assert.equal(calculateDashboardMetrics(many.rows).totalRevenue, 500_000);
+  assert.equal(many.classification.details.length, MAX_REJECTION_DETAILS);
+  assert.equal(many.classification.product, 5000);
+  assert.equal(many.classification.details[0].excelRow, 2);
 });

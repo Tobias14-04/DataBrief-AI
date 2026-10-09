@@ -11,12 +11,16 @@ export type ProductTableColumnKey = "name" | ProductMetricKey;
 export type ProductSortDirection = "asc" | "desc";
 
 export type ProductMetricInput = {
+  id?: string;
+  missing?: boolean;
   name: string;
   revenue: number | null;
   units: number | null;
 };
 
 export type ProductAnalysisRow = {
+  id?: string;
+  missing?: boolean;
   name: string;
   revenue: number | null;
   units: number | null;
@@ -92,7 +96,9 @@ function highestBy(
   rows: ReadonlyArray<ProductAnalysisRow>,
   key: ProductMetricKey,
 ) {
+  if (rows.some((row) => row.missing)) return null;
   return rows.reduce<ProductAnalysisRow | null>((highest, row) => {
+    if (row.missing) return highest;
     const value = row[key];
     if (value === null) return highest;
     if (key === "units" && value <= 0) return highest;
@@ -117,6 +123,8 @@ export function buildProductAnalysis(
   const normalized = products
     .map((product) => ({
       name: displayLabel(product.name, ""),
+      id: product.id,
+      missing: product.missing,
       revenue: hasRevenue ? finiteOrNull(product.revenue) : null,
       units: hasUnits ? finiteOrNull(product.units) : null,
     }))

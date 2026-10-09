@@ -174,7 +174,7 @@ function ProductRanking({
           ? Math.min(100, Math.abs(value) / largestValue * 100)
           : 0;
         return (
-          <li key={row.name} className="grid min-w-0 grid-cols-[26px_minmax(0,1fr)_auto] items-center gap-x-2.5">
+          <li key={row.id ?? row.name} className="grid min-w-0 grid-cols-[26px_minmax(0,1fr)_auto] items-center gap-x-2.5">
             <span className="text-[11px] font-semibold tabular-nums text-slate-400">
               {String(index + 1).padStart(2, "0")}
             </span>
@@ -395,7 +395,7 @@ export function ProductAnalysisDashboard({
       <CommandPageIntro
         eyebrow="Produktperformance"
         title="Produkter"
-        description={`${formatDanishNumber(analysis.rows.length)} produkter i den aktuelle visning.`}
+        description={`${formatDanishNumber(analysis.rows.filter((row) => !row.missing).length)} registrerede produkter i den aktuelle visning.${analysis.rows.some((row) => row.missing) ? " Salg uden produkt vises særskilt." : ""}`}
         action={(
           <PremiumSelect
             value={rankingMetric}
@@ -415,7 +415,7 @@ export function ProductAnalysisDashboard({
           value={revenueLeader?.name ?? "Ikke tilgængelig"}
           detail={revenueLeader?.revenue !== null && revenueLeader
             ? formatDanishCurrency(revenueLeader.revenue)
-            : "Ingen omsætning registreret"}
+            : analysis.rows.some((row) => row.missing) ? "Produkt mangler på en del af salgsgrundlaget" : "Ingen omsætning registreret"}
           icon={PackageCheck}
           tone="cyan"
         />
@@ -424,7 +424,7 @@ export function ProductAnalysisDashboard({
           value={unitsLeader?.units !== null && unitsLeader
             ? formatDanishNumber(unitsLeader.units)
             : "Ikke tilgængelig"}
-          detail={unitsLeader?.name ?? "Antalsdata mangler"}
+          detail={unitsLeader?.name ?? (analysis.rows.some((row) => row.missing) ? "Produkt mangler på en del af salgsgrundlaget" : "Antalsdata mangler")}
           icon={ShoppingBasket}
           tone={unitsLeader ? "orange" : "slate"}
         />
@@ -433,7 +433,7 @@ export function ProductAnalysisDashboard({
           value={averagePriceLeader?.averagePrice !== null && averagePriceLeader
             ? formatDanishCurrencyPrecise(averagePriceLeader.averagePrice)
             : "Ikke beregnelig"}
-          detail={averagePriceLeader?.name ?? "Kræver et gyldigt antal"}
+          detail={averagePriceLeader?.name ?? (analysis.rows.some((row) => row.missing) ? "Produkt mangler på en del af salgsgrundlaget" : "Kræver et gyldigt antal")}
           icon={Tag}
           tone={averagePriceLeader ? "cyan" : "slate"}
         />
@@ -443,7 +443,7 @@ export function ProductAnalysisDashboard({
         <CommandPanel
           eyebrow="Rangering"
           title={PRODUCT_METRIC_LABELS[rankingMetric].title}
-          description={PRODUCT_METRIC_LABELS[rankingMetric].description}
+          description={`${PRODUCT_METRIC_LABELS[rankingMetric].description}${analysis.rows.some((row) => row.missing) ? " · inkl. særskilt gruppe uden produkt" : ""}`}
           icon={Boxes}
           className="self-start"
         >
@@ -535,7 +535,7 @@ export function ProductAnalysisDashboard({
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white text-sm tabular-nums">
                 {sortedRows.map((row) => (
-                  <tr key={row.name} className="transition-colors hover:bg-slate-50/70">
+                  <tr key={row.id ?? row.name} className="transition-colors hover:bg-slate-50/70">
                     {visibleColumns.map((key) => {
                       const value = key === "name" ? null : row[key];
                       const highlighted = key !== "name"
@@ -568,7 +568,7 @@ export function ProductAnalysisDashboard({
           </div>
           <div className="flex flex-col gap-1.5 border-t border-slate-100 px-4 py-2.5 text-[11px] leading-4 text-slate-500 sm:flex-row sm:items-center sm:justify-between">
             <span aria-live="polite">
-              Viser {formatDanishNumber(sortedRows.length)} af {formatDanishNumber(analysis.rows.length)} produkter.
+              Viser {formatDanishNumber(sortedRows.length)} af {formatDanishNumber(analysis.rows.length)} {analysis.rows.some((row) => row.missing) ? "produktgrupper" : "produkter"}.
             </span>
             {!averagePriceAvailable && analysis.hasUnits ? (
               <span>Gennemsnitspris kræver mindst ét produkt med et gyldigt antal over 0.</span>

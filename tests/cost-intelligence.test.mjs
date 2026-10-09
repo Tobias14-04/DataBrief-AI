@@ -116,7 +116,7 @@ test("omkostningsbudget uden navngivne kategorier bevares uden opdigtet fordelin
   ], { budgetCosts: 100 });
 
   assert.equal(analysis.budget?.status, "favorable");
-  assert.deepEqual(analysis.distribution.map((item) => item.name), ["Ukategoriseret"]);
+  assert.deepEqual(analysis.distribution.map((item) => item.name), ["Ikke kategoriseret"]);
 });
 
 test("omsætning og omkostninger giver korrekt andel og resultat", () => {

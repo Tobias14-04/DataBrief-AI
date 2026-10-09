@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { dimensionFilterLabel, dimensionFilterOptions } from "@/lib/dimension-identity";
+import { BUDGET_MODEL_LABEL, BUDGET_MODEL_EXPLANATION, parseWorkbookBudget, selectWorkbookBudgetModel, type WorkbookBudget } from "@/lib/budget-basis";
 import * as XLSX from "xlsx";
 import {
   ArrowLeft,
@@ -124,7 +126,6 @@ import {
 } from "@/lib/dashboard-insights";
 import {
   analyzeSalesSheetStructure,
-  buildSalesColumnMappings,
   detectSalesHeaderRow,
   findSalesColumnMatches,
   getMissingRequiredSalesFields,
@@ -137,7 +138,7 @@ import type { SalesCostScope } from "@/lib/sales-cost";
 import { parseBusinessDate } from "@/lib/business-date";
 import { parseSalesRows, rowsToRecords } from "@/lib/sales-import";
 import type { ImportRejections } from "@/lib/import-rejections";
-import { ImportRejectionNotice } from "@/components/import-rejection-notice";
+import { ImportClassificationNotice, ImportRejectionNotice } from "@/components/import-rejection-notice";
 import type {
   ExcelWorkerRequest,
   ExcelWorkerResponse,
@@ -164,7 +165,6 @@ import { inferBoundaryPartialMonths, latestAvailablePeriodComparison, resolvePer
 import {
   chooseRepresentativeLabel,
   comparableLabel,
-  displayLabel,
   normalizeForComparison,
 } from "@/lib/data-labels";
 import { demoOperatingCostDefinitions } from "@/lib/demo-dataset";
@@ -229,13 +229,7 @@ type OptionalSheetSummary = {
   byCategory: GroupedValue[];
 };
 
-type BudgetSummary = {
-  sheetName: string;
-  revenue: number;
-  costs: number;
-  result: number;
-  byCategory: GroupedValue[];
-};
+type BudgetSummary = WorkbookBudget;
 
 type TrendMetric = AnalysisOverviewTrendMetric;
 
@@ -257,6 +251,7 @@ type MappingFeedback = {
   status: MappingStatus;
   warnings: string[];
   rejections: ImportRejections;
+  classification: ReturnType<typeof parseSalesRows>["classification"];
   costs?: OptionalSheetSummary;
   budget?: BudgetSummary;
 };
@@ -269,8 +264,8 @@ type ParseResult = {
 
 type FieldKey = SalesFieldKey;
 
-type RequiredManualField = "dateOrMonth" | "product" | "category" | "units" | "revenue";
-type OptionalManualField = "channel" | "region" | "cost" | "unitCost" | "grossProfit" | "grossMargin" | "unitPrice";
+type RequiredManualField = "dateOrMonth" | "units" | "revenue";
+type OptionalManualField = "product" | "category" | "channel" | "region" | "cost" | "unitCost" | "grossProfit" | "grossMargin" | "unitPrice";
 type ManualField = RequiredManualField | OptionalManualField;
 type FieldMappings = SalesFieldMappings;
 type ManualMappings = Record<ManualField, string>;
@@ -499,21 +494,12 @@ function paddedChartDomain(values: number[]): [number, number] {
     : [domainMinimum, domainMaximum];
 }
 
-function getCell(row: Record<string, unknown>, mappings: FieldMappings, field: FieldKey) {
-  const header = mappings[field];
-  return header ? row[header] : undefined;
-}
-
 function findMatchingHeader(headers: string[], field: FieldKey) {
   return findMatchingHeaders(headers, field)[0];
 }
 
 function findMatchingHeaders(headers: string[], field: FieldKey) {
   return findSalesColumnMatches(headers, field);
-}
-
-function buildMappings(headers: string[]) {
-  return buildSalesColumnMappings(headers);
 }
 
 function rowToHeaders(row: unknown[]) {
@@ -757,6 +743,7 @@ function buildParseResult({
       status,
       warnings,
       rejections: parsed.rejections,
+      classification: parsed.classification,
       costs: analysis.costs,
       budget: analysis.budget,
     },
@@ -768,16 +755,10 @@ function uniqueValues(rows: SaleRow[], field: DashboardFilterKey) {
     return groupRowsByMonth(rows).map((month) => month.name);
   }
 
-  const labels = new Map<string, string>();
-  rows.forEach((row) => {
-    if (!row[field]) return;
-    const identity = comparableLabel(row[field]);
-    labels.set(
-      identity.key,
-      chooseRepresentativeLabel(labels.get(identity.key) ?? identity.label, identity.label),
-    );
-  });
-  return Array.from(labels.values()).sort((a, b) => a.localeCompare(b, "da"));
+  function* values() {
+    for (const row of rows) yield row[field];
+  }
+  return dimensionFilterOptions(values(), field);
 }
 
 function getActiveFilters(filters: DashboardFilters): ActiveFilter[] {
@@ -879,60 +860,7 @@ function parseCostSheet(workbook: ParsedWorkbookRows) {
 }
 
 function parseBudgetSheet(workbook: ParsedWorkbookRows) {
-  const budgetSheetName = workbook.sheetNames.find((name) => normalizeHeader(name).includes("budget"));
-  if (!budgetSheetName) {
-    return undefined;
-  }
-
-  const rows = workbook.sheets[budgetSheetName] ?? [];
-  const headerIndex = detectHeaderRow(rows).index;
-  const headers = rowToHeaders(rows[headerIndex] ?? []);
-  const mappings = buildMappings(headers);
-  const records = rowsToRecords(rows, headerIndex, headers);
-  const categoryHeader =
-    findMatchingHeader(headers, "category") ??
-    headers.find((header) => ["type", "omkostningskategori", "costcategory"].includes(normalizeHeader(header)));
-
-  let revenue = 0;
-  let costs = 0;
-  const categoryBudgets = new Map<string, GroupedValue>();
-
-  records.forEach((row) => {
-    const rowRevenue =
-      toNumber(getCell(row, mappings, "netRevenue")) ??
-      toNumber(getCell(row, mappings, "grossRevenue")) ??
-      toNumber(getCell(row, mappings, "revenue"));
-    const rowCosts = toNumber(getCell(row, mappings, "cost"));
-
-    revenue += rowRevenue ?? 0;
-    costs += Math.abs(rowCosts ?? 0);
-    const category = categoryHeader ? displayLabel(row[categoryHeader], "") : "";
-    if (category && rowCosts !== null) {
-      const identity = comparableLabel(category);
-      const current = categoryBudgets.get(identity.key) ?? {
-        name: identity.label,
-        revenue: 0,
-        units: 0,
-        grossProfit: 0,
-        cost: 0,
-      };
-      current.name = chooseRepresentativeLabel(current.name, identity.label);
-      current.cost += Math.abs(rowCosts);
-      categoryBudgets.set(identity.key, current);
-    }
-  });
-
-  if (!revenue && !costs) {
-    return undefined;
-  }
-
-  return {
-    sheetName: budgetSheetName,
-    revenue,
-    costs,
-    result: revenue - costs,
-    byCategory: Array.from(categoryBudgets.values()).sort((a, b) => b.cost - a.cost),
-  };
+  return parseWorkbookBudget(workbook);
 }
 
 function waitForBrowserPaint() {
@@ -1060,7 +988,7 @@ async function analyzeWorkbook(
   });
 
   await moveToPhase("calculating");
-  const autoResult = autoMappingDecision.canOpenDashboard
+  const autoResult = autoMappingDecision.canOpenDashboard && !analysis.budget?.hasPeriodColumn
     ? buildParseResult({
         fileName,
         analysis,
@@ -1074,7 +1002,7 @@ async function analyzeWorkbook(
   return {
     analysis,
     autoResult,
-    reviewReasons: autoMappingDecision.reasons,
+    reviewReasons: [...autoMappingDecision.reasons, ...(analysis.budget?.hasPeriodColumn ? ["Budgetarket indeholder perioder. Vælg samlet budgetfordeling, eller fortsæt uden budgetanalyse."] : [])],
   };
 }
 
@@ -1092,7 +1020,7 @@ function buildExecutiveSummary(
   context: { totalRows?: number; activeFilters?: string[] } = {},
   preferences: AnalysisPreferences = createEmptyAnalysisPreferences(),
 ) {
-  if (!metrics.rowCount || !metrics.bestProduct || !metrics.bestCategory || !metrics.bestMonth) {
+  if (!metrics.rowCount || !metrics.bestCategory || !metrics.bestMonth) {
     return {
       insights: [
         "Ingen salgsrækker passer til de valgte filtre.",
@@ -1116,8 +1044,9 @@ function buildExecutiveSummary(
       : metrics.costBasis.reason
         ? `Resultat er utilgængeligt. ${metrics.costBasis.reason}`
       : `${formatDanishMonth(metrics.bestMonth.name)} er den stærkeste måned med en omsætning på ${currency(metrics.bestMonth.revenue)}`;
-  const conclusion = feedback?.budget
-    ? `Omsætningen ligger ${currency(Math.abs(metrics.revenueVsBudget))} ${metrics.revenueVsBudget >= 0 ? "over" : "under"} budgettet i denne visning.`
+  const conclusion = metrics.revenueVsBudget !== null
+    ? metrics.budgetStatus === "På budget" ? "Omsætningen er på budget i denne visning."
+      : `Omsætningen ligger ${currency(Math.abs(metrics.revenueVsBudget))} ${metrics.revenueVsBudget >= 0 ? "over" : "under"} budgettet i denne visning.`
     : `${formatDanishMonth(metrics.bestMonth.name)} er den stærkeste periode med ${metrics.bestCategory.name} som førende kategori.`;
   const supportingInsights: AnalysisSupportingInsight[] = [
     {
@@ -1125,7 +1054,9 @@ function buildExecutiveSummary(
       topics: ["sales", "trends"],
     },
     {
-      text: `${metrics.bestProduct.name} er det førende produkt, mens ${metrics.bestCategory.name} er den største kategori.`,
+      text: metrics.bestProduct
+        ? `${metrics.bestProduct.name} er det førende produkt, mens ${metrics.bestCategory.name} er den største kategori.`
+        : `Produktrangering kræver komplet produktidentitet. ${metrics.bestCategory.name} er den største kategori.`,
       topics: ["products", "sales"],
     },
     {
@@ -1281,7 +1212,10 @@ function FeedbackPanel({ feedback, rowCount }: { feedback?: MappingFeedback; row
                 <p className="mt-2 text-sm text-slate-600">Der blev ikke fundet kolonner for dækningsbidrag, dækningsgrad eller omkostninger.</p>
               )}
               {feedback.costs ? <p className="mt-2 text-xs text-slate-500">Omkostningsark: {feedback.costs.sheetName}</p> : null}
-              {feedback.budget ? <p className="mt-1 text-xs text-slate-500">Budgetark: {feedback.budget.sheetName}</p> : null}
+              {feedback.budget ? <div className="mt-1 text-xs text-slate-500"><p>Budgetark: {feedback.budget.sheetName}</p>
+                <p>{feedback.budget.accepted === false ? "Budgetanalyse er ikke aktiveret." : BUDGET_MODEL_LABEL}</p>
+                <details><summary className="cursor-pointer underline underline-offset-2">Se budgetgrundlag</summary><p>{feedback.budget.accepted === false ? "Oprindelige månedsbudgetter understøttes ikke. Den samlede fordelingsmodel er ikke accepteret." : BUDGET_MODEL_EXPLANATION}</p></details>
+              </div> : null}
             </div>
           </div>
         </div>
@@ -1299,13 +1233,13 @@ type MappingFieldConfig = {
 
 const requiredMappingFields: MappingFieldConfig[] = [
   { key: "dateOrMonth", label: "Dato eller måned", helper: "Bruges til perioder og månedsrapporter.", required: true },
-  { key: "product", label: "Produkt", helper: "Varen eller ydelsen på rækken.", required: true },
-  { key: "category", label: "Kategori", helper: "Produktets kategori eller varegruppe.", required: true },
   { key: "units", label: "Antal", helper: "Solgte enheder på rækken.", required: true },
   { key: "revenue", label: "Omsætning", helper: "Vælg omsætning, eller brug enhedspris nedenfor.", required: true },
 ];
 
 const optionalMappingFields: MappingFieldConfig[] = [
+  { key: "product", label: "Produkt", helper: "Valgfri klassifikation. Salg uden produkt medtages særskilt.", required: false },
+  { key: "category", label: "Kategori", helper: "Valgfri klassifikation. Salg uden kategori medtages særskilt.", required: false },
   { key: "channel", label: "Kanal", helper: "Fx café, webshop eller takeaway.", required: false },
   { key: "region", label: "Region", helper: "Område, distrikt eller salgsregion.", required: false },
   { key: "cost", label: "Samlet rækkeomkostning", helper: "Vareforbrug, COGS eller dokumenteret total pr. række — ikke kostpris pr. stk.", required: false },
@@ -1413,6 +1347,8 @@ function ManualMappingPanel({
   onMappingChange,
   onApply,
   onCancel,
+  budgetModelChoice,
+  onBudgetModelChoice,
 }: {
   analysis: WorkbookAnalysis | null;
   selectedSheet: string;
@@ -1422,6 +1358,8 @@ function ManualMappingPanel({
   onMappingChange: (field: ManualField, column: string) => void;
   onApply: () => void;
   onCancel: () => void;
+  budgetModelChoice: "" | "accepted" | "declined";
+  onBudgetModelChoice: (choice: "accepted" | "declined") => void;
 }) {
   if (!analysis) {
     return null;
@@ -1450,7 +1388,7 @@ function ManualMappingPanel({
     : null;
   const previewRows = previewImport?.rows ?? [];
   const validRowCount = previewRows.length;
-  const canApply = requiredMappingsValid && validRowCount > 0;
+  const canApply = requiredMappingsValid && validRowCount > 0 && (!analysis.budget?.hasPeriodColumn || Boolean(budgetModelChoice));
   const optionalMatchedCount = optionalMappingFields.filter((field) => Boolean(mappings[field.key])).length;
   const invalidItems = [
     ...missingRequiredFields.map((field) => `${field.label} mangler`),
@@ -1541,7 +1479,7 @@ function ManualMappingPanel({
             <span className="grid h-7 w-7 place-items-center rounded-md border border-brand-100 bg-brand-50 text-xs font-semibold text-brand-700">2</span>
             <div>
               <h4 id="mapping-step-required" className="text-base font-semibold text-ink">Match nødvendige kolonner</h4>
-              <p className="mt-0.5 text-[13px] leading-5 text-slate-500">Alle fem områder skal være dækket, før dashboardet kan oprettes.</p>
+              <p className="mt-0.5 text-[13px] leading-5 text-slate-500">Alle tre områder skal være dækket, før dashboardet kan oprettes.</p>
             </div>
           </div>
           <div className="mt-3 grid gap-2.5 md:grid-cols-2">
@@ -1590,7 +1528,16 @@ function ManualMappingPanel({
         </details>
 
         <section className="rounded-xl border border-brand-100 bg-[#edf7f7] p-4 sm:p-5" aria-labelledby="mapping-step-review">
-          <div className="mb-3"><ImportRejectionNotice summary={previewImport?.rejections} /></div>
+          <div className="mb-3 space-y-2"><ImportRejectionNotice summary={previewImport?.rejections} /><ImportClassificationNotice summary={previewImport?.classification} /></div>
+          {analysis.budget ? <fieldset className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5">
+            <legend className="px-1 font-semibold">{BUDGET_MODEL_LABEL}</legend>
+            <p>{BUDGET_MODEL_EXPLANATION}</p>
+            {analysis.budget.hasPeriodColumn ? <>
+              <p className="mt-1">Budgetarket indeholder perioder. Oprindelige månedsbudgetter understøttes ikke og bruges ikke som månedsværdier.</p>
+              <label className="mt-2 flex items-start gap-2"><input type="radio" name="budget-model" checked={budgetModelChoice === "accepted"} onChange={() => onBudgetModelChoice("accepted")} />Jeg accepterer samlet rækkeproportional fordeling</label>
+              <label className="mt-2 flex items-start gap-2"><input type="radio" name="budget-model" checked={budgetModelChoice === "declined"} onChange={() => onBudgetModelChoice("declined")} />Fortsæt uden budgetanalyse</label>
+            </> : null}
+          </fieldset> : null}
           <div className="flex items-center gap-3 border-b border-brand-100/80 pb-2.5">
             <span className="grid h-7 w-7 place-items-center rounded-md border border-brand-200 bg-white text-xs font-semibold text-brand-700">4</span>
             <div>
@@ -2097,7 +2044,7 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
     });
 
     const reportMetrics = calculateMetrics(matchingRows, feedback, { fullRows: rows });
-    const hasBudget = Boolean(feedback?.budget && matchingRows.length);
+    const hasBudget = reportMetrics.revenueVsBudget !== null && reportMetrics.budgetStatus !== null;
     const deviation = reportMetrics.revenueVsBudget;
     const budgetStatus = reportMetrics.budgetStatus ?? "På budget";
     const statusClasses =
@@ -2118,7 +2065,8 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
         grossProfit: reportMetrics.grossMarginSource === "gross-profit" ? reportMetrics.totalGrossProfit : null,
         grossMargin: reportMetrics.grossMarginSource === "weighted-margin" ? reportMetrics.grossMargin : null,
         costBasis: reportMetrics.costBasis,
-        budget: hasBudget ? { deviation, status: budgetStatus } : null,
+        budgetBasis: feedback?.budget ? reportMetrics.budgetBasis : undefined,
+        budget: hasBudget && deviation !== null ? { deviation, status: budgetStatus } : null,
       }),
     };
   }, [feedback, filters, reportMonth, rows]);
@@ -2187,6 +2135,7 @@ const MonthlyReportCard = memo(function MonthlyReportCard({
             {report.costBasis.reason ? ` ${report.costBasis.reason}` : ""}
           </p>
         ) : null}
+        {feedback?.budget ? <details className="mt-2 pl-3 text-[11px] leading-4 text-slate-500"><summary className="cursor-pointer">{feedback.budget.accepted === false ? "Budget ikke dokumenteret" : BUDGET_MODEL_LABEL}</summary><p className="mt-1">{feedback.budget.accepted === false ? "Den samlede budgetmodel er ikke accepteret. Oprindelige månedsbudgetter understøttes ikke." : BUDGET_MODEL_EXPLANATION}</p></details> : null}
       </div>
     </section>
   );
@@ -2404,6 +2353,7 @@ export default function UploadDashboard() {
   const [analysis, setAnalysis] = useState<WorkbookAnalysis | null>(null);
   const [selectedSheet, setSelectedSheet] = useState("");
   const [manualMappings, setManualMappings] = useState<ManualMappings>(emptyManualMappings);
+  const [budgetModelChoice, setBudgetModelChoice] = useState<"" | "accepted" | "declined">("");
   const [showManualMapping, setShowManualMapping] = useState(false);
   const [error, setError] = useState("");
   const [mappingReviewReason, setMappingReviewReason] = useState("");
@@ -2439,8 +2389,7 @@ export default function UploadDashboard() {
   const deferredFilters = useDeferredValue(filters);
   const isFilterUpdatePending = deferredFilters !== filters;
   const activeFilters = useMemo(() => getActiveFilters(deferredFilters), [deferredFilters]);
-  const activeFilterLabels = useMemo(() => activeFilters.map((filter) => filter.value), [activeFilters]);
-  const isFiltered = activeFilterLabels.length > 0;
+  const activeFilterLabels = useMemo(() => activeFilters.map((filter) => dimensionFilterLabel(filter.value, filter.field)), [activeFilters]);
   const filteredRows = useMemo(
     () => applyDashboardFilters(allRows, deferredFilters),
     [allRows, deferredFilters],
@@ -2493,7 +2442,7 @@ export default function UploadDashboard() {
   const hasData = allRows.length > 0;
   const hasFilteredData = metrics.rowCount > 0;
   const showCosts = hasData && (Boolean(data?.feedback.costs) || baseMetrics.hasCosts || baseMetrics.costBasis.variableCosts !== null);
-  const showBudget = hasData && Boolean(data?.feedback.budget);
+  const showBudget = hasData && baseMetrics.budgetRevenue !== null;
   const costsByCategory = useMemo(() => (metrics.costBasis.status === "unavailable" && metrics.costBasis.source !== "variable-only") || metrics.costBasis.source === "workbook-additional"
     ? []
     : metrics.costBasis.source === "workbook-total" || metrics.costBasis.source === "workbook-components"
@@ -2543,22 +2492,16 @@ export default function UploadDashboard() {
           distribution: (metrics.costBasis.source === "workbook-total" || metrics.costBasis.source === "workbook-components") && metrics.costBasis.status === "available" && data?.feedback.costs
             ? data.feedback.costs.byCategory.map((item) => ({ name: item.name, cost: item.cost }))
             : undefined,
-          budgetCosts: data?.feedback.budget?.costs ? metrics.budgetCosts : null,
-          budgetDistribution: !isFiltered && data?.feedback.budget?.byCategory.length
-            ? data.feedback.budget.byCategory.map((item) => ({ name: item.name, cost: item.cost }))
-            : undefined,
-          budgetBasis: isFiltered ? "proportional" : "registered",
+          budgetCosts: metrics.budgetCosts,
+          budgetBasis: "proportional",
         })
       : null,
     [
       activeView,
-      data?.feedback.budget?.byCategory,
-      data?.feedback.budget?.costs,
       data?.feedback.costs,
       filteredRows,
       comparisonSourceRows,
       deferredFilters.month,
-      isFiltered,
       metrics.budgetCosts,
       metrics.costBasis,
       partialMonths,
@@ -2586,12 +2529,12 @@ export default function UploadDashboard() {
           actualCostBasis: metrics.hasCosts
             ? metrics.costBasis.source.startsWith("workbook") ? "registered" : "row-derived"
             : undefined,
-          budget: showBudget
+          budget: metrics.budgetRevenue !== null || metrics.budgetCosts !== null
             ? {
                 revenue: metrics.budgetRevenue,
                 costs: metrics.budgetCosts,
                 result: metrics.budgetResult,
-                basis: isFiltered ? "proportional" : "registered",
+                basis: "proportional",
               }
             : null,
         })
@@ -2604,7 +2547,6 @@ export default function UploadDashboard() {
       data?.feedback.salesSheetName,
       deferredFilters.month,
       insightSourceRows,
-      isFiltered,
       metrics.hasCosts,
       metrics.budgetCosts,
       metrics.budgetResult,
@@ -2612,7 +2554,6 @@ export default function UploadDashboard() {
       metrics.costBasis,
       partialMonths,
       selectedSheet,
-      showBudget,
       showCosts,
     ],
   );
@@ -2672,21 +2613,21 @@ export default function UploadDashboard() {
     () => buildKpiDataProfile(
       [...allRows, ...supplementalKpiRows],
       {
-        budgetRevenue: showBudget ? [baseMetrics.budgetRevenue] : [],
-        budgetCosts: showBudget ? [baseMetrics.budgetCosts] : [],
+        budgetRevenue: baseMetrics.budgetRevenue !== null ? [baseMetrics.budgetRevenue] : [],
+        budgetCosts: baseMetrics.budgetCosts !== null ? [baseMetrics.budgetCosts] : [],
       },
     ),
-    [allRows, baseMetrics.budgetCosts, baseMetrics.budgetRevenue, showBudget, supplementalKpiRows],
+    [allRows, baseMetrics.budgetCosts, baseMetrics.budgetRevenue, supplementalKpiRows],
   );
   const currentKpiDataProfile = useMemo(
     () => filteredRows === allRows ? baseKpiDataProfile : buildKpiDataProfile(
       [...filteredRows, ...supplementalKpiRows],
       {
-        budgetRevenue: showBudget ? [metrics.budgetRevenue] : [],
-        budgetCosts: showBudget ? [metrics.budgetCosts] : [],
+        budgetRevenue: metrics.budgetRevenue !== null ? [metrics.budgetRevenue] : [],
+        budgetCosts: metrics.budgetCosts !== null ? [metrics.budgetCosts] : [],
       },
     ),
-    [allRows, baseKpiDataProfile, filteredRows, metrics.budgetCosts, metrics.budgetRevenue, showBudget, supplementalKpiRows],
+    [allRows, baseKpiDataProfile, filteredRows, metrics.budgetCosts, metrics.budgetRevenue, supplementalKpiRows],
   );
   const defaultKpis = useMemo(
     () => defaultKpiConfiguration(baseKpiContext),
@@ -3053,6 +2994,7 @@ export default function UploadDashboard() {
       await waitForBrowserPaint();
       const best = parsed.analysis.candidates[0];
       setAnalysis(parsed.analysis);
+      setBudgetModelChoice("");
       selectSheet(best.name, parsed.analysis);
       if (parsed.autoResult) {
         setData(parsed.autoResult);
@@ -3124,9 +3066,10 @@ export default function UploadDashboard() {
     const mappings = manualToFieldMappingsForCandidate(manualMappings, candidate);
 
     try {
+      if (analysis.budget?.hasPeriodColumn && !budgetModelChoice) throw new Error("Vælg budgetmodel, eller fortsæt uden budgetanalyse.");
       const result = buildParseResult({
         fileName: analysis.fileName,
-        analysis,
+        analysis: { ...analysis, budget: selectWorkbookBudgetModel(analysis.budget, !analysis.budget?.hasPeriodColumn || budgetModelChoice === "accepted") },
         candidate,
         mappings,
         manual: true,
@@ -3379,6 +3322,8 @@ export default function UploadDashboard() {
           {shouldShowManualMapping ? (
             <section className="mx-auto max-w-6xl">
               <ManualMappingPanel
+                budgetModelChoice={budgetModelChoice}
+                onBudgetModelChoice={setBudgetModelChoice}
                 analysis={analysis}
                 selectedSheet={selectedSheet}
                 mappings={manualMappings}
@@ -3417,6 +3362,7 @@ export default function UploadDashboard() {
                 onDismiss={() => setAnalysisReadyNotice(null)}
               />
               {data?.feedback.rejections.count ? <div className="mt-2"><ImportRejectionNotice summary={data.feedback.rejections} /></div> : null}
+              {data?.feedback.classification.count ? <div className="mt-2"><ImportClassificationNotice summary={data.feedback.classification} /></div> : null}
             </div>
           ) : null}
           {mainDashboardView(activeView) === "analysis" ? (
@@ -3453,6 +3399,7 @@ export default function UploadDashboard() {
                 onChange={commitDashboardFilters}
                 variant={activeView === "overview" ? "overview" : mainDashboardView(activeView) === "analysis" ? "analysis" : "default"}
               />
+              {data?.feedback.budget ? <details className="mt-1.5 text-[11px] leading-4 text-slate-500" data-testid="budget-model-basis"><summary className="w-fit cursor-pointer">{data.feedback.budget.accepted === false ? "Budgetanalyse ikke aktiveret" : BUDGET_MODEL_LABEL}</summary><p className="mt-1">{data.feedback.budget.accepted === false ? metrics.budgetBasis.reason : BUDGET_MODEL_EXPLANATION} Oprindelige månedsbudgetter understøttes ikke.</p></details> : null}
               {mainDashboardView(activeView) === "analysis" ? (
                 <p className="mt-1.5 text-[11px] leading-4 text-slate-500" data-testid="analysis-scope-label">
                   {(activeView === "channels" || activeView === "regions") && insightAnalysis?.comparisonPeriod && insightAnalysis.currentPeriod
@@ -3824,6 +3771,7 @@ export default function UploadDashboard() {
               />
               <FeedbackPanel feedback={data?.feedback} rowCount={allRows.length} />
               <ImportRejectionNotice summary={data?.feedback.rejections} />
+              <ImportClassificationNotice summary={data?.feedback.classification} />
               <CommandPanel title="Arbejd med datasættet" description="Skift fil eller brug et kontrolleret eksempel" icon={FileSpreadsheet}>
                 <div className="flex flex-wrap gap-2 p-4">
                   <button

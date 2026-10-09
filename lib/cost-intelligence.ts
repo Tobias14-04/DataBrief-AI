@@ -14,6 +14,7 @@ import { resolveCostBasis, type CostBasis } from "./result-basis.ts";
 import { growthChange, resolvePeriodComparison } from "./period-comparison.ts";
 import { COST_TO_REVENUE_LABEL, costDistributionShare, costToRevenue } from "./cost-share.ts";
 import { resolveGrossProfit } from "./gross-margin.ts";
+import { dimensionIdentity, type SalesDimension } from "./dimension-identity.ts";
 
 export const COST_BUDGET_THRESHOLDS = {
   materialOverrun: 0.08,
@@ -167,8 +168,9 @@ function addDimension(
   dimensions: Map<string, DimensionAccumulator>,
   rawName: string,
   values: Pick<DimensionAccumulator, "revenue" | "cost" | "grossProfit" | "units">,
+  dimension: SalesDimension,
 ) {
-  const identity = comparableLabel(rawName);
+  const identity = dimensionIdentity(rawName, dimension);
   const current = dimensions.get(identity.key) ?? {
     name: identity.label,
     revenue: 0,
@@ -334,10 +336,10 @@ export function buildCostIntelligence(
     period.rowCount += 1;
 
     const dimensionValuesForRow = { revenue, cost, grossProfit, units };
-    addDimension(categories, row.category, dimensionValuesForRow);
-    addDimension(products, row.product, dimensionValuesForRow);
-    addDimension(period.categories, row.category, dimensionValuesForRow);
-    addDimension(period.products, row.product, dimensionValuesForRow);
+    addDimension(categories, row.category, dimensionValuesForRow, "category");
+    addDimension(products, row.product, dimensionValuesForRow, "product");
+    addDimension(period.categories, row.category, dimensionValuesForRow, "category");
+    addDimension(period.products, row.product, dimensionValuesForRow, "product");
     periods.set(identity.key, period);
   });
 
@@ -363,8 +365,8 @@ export function buildCostIntelligence(
       if (typeof row.grossProfit === "number" && Number.isFinite(row.grossProfit)) period.grossProfitCount += 1;
       period.units += values.units;
       period.rowCount += 1;
-      addDimension(period.categories, row.category, values);
-      addDimension(period.products, row.product, values);
+      addDimension(period.categories, row.category, values, "category");
+      addDimension(period.products, row.product, values, "product");
       periods.set(identity.key, period);
     });
   }
@@ -508,7 +510,7 @@ export function buildCostIntelligence(
 
   const budgetCosts = typeof options.budgetCosts === "number"
     && Number.isFinite(options.budgetCosts)
-    && options.budgetCosts > 0
+    && options.budgetCosts >= 0
     ? options.budgetCosts
     : null;
   const budget = budgetCosts === null || totalCosts === null ? null : calculateCostBudgetVariance(totalCosts, budgetCosts);

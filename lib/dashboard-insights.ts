@@ -186,6 +186,7 @@ export type MonthlyReportInput = {
   grossMargin?: number | null;
   result?: number | null;
   costBasis?: import("./result-basis.ts").CostBasis | null;
+  budgetBasis?: ReturnType<typeof import("./budget-basis.ts").resolveBudgetBasis>;
   budget?: {
     deviation: number;
     status: "På budget" | "Over budgettet" | "Under budgettet";
@@ -222,6 +223,8 @@ export function buildMonthlyReport(input: MonthlyReportInput) {
 
   if (input.budget) {
     metrics.push({ key: "budgetStatus", label: "Budgetstatus", value: input.budget.status });
+  } else if (input.budgetBasis) {
+    metrics.push({ key: "budgetStatus", label: "Budgetstatus", value: "Budget ikke dokumenteret" });
   }
   metrics.push({ key: "rows", label: dashboardMetricLabels.rows, value: formatDanishNumber(input.rowCount) });
 
@@ -255,9 +258,9 @@ export function buildMonthlyReport(input: MonthlyReportInput) {
   if (input.budget) {
     const deviation = formatDanishCurrency(Math.abs(input.budget.deviation));
     if (input.budget.status === "På budget") {
-      summary += ", og omsætningen var på det fordelte månedsbudget";
+      summary += ", og omsætningen var på det fordelte samlede budget";
     } else {
-      summary += `, og omsætningen lå ${deviation} ${input.budget.deviation >= 0 ? "over" : "under"} det fordelte månedsbudget`;
+      summary += `, og omsætningen lå ${deviation} ${input.budget.deviation >= 0 ? "over" : "under"} det fordelte samlede budget`;
     }
   }
   summary += `, baseret på ${rowText(input.rowCount)}`;

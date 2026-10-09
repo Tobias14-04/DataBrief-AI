@@ -216,7 +216,7 @@ function CategoryRanking({
         const formattedValue = valueFormatter(value);
         return (
           <li
-            key={row.name}
+            key={row.id ?? row.name}
             className="grid min-w-0 grid-cols-[26px_minmax(0,1fr)_auto] items-center gap-x-2.5"
             title={`${row.name}: ${formattedValue}`}
             aria-label={`${row.name}, ${formattedValue}`}
@@ -667,7 +667,7 @@ export function CategoryAnalysisDashboard({
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white text-sm tabular-nums">
               {sortedRows.map((row) => (
-                <tr key={row.name} className="transition-colors hover:bg-slate-50/70">
+                <tr key={row.id ?? row.name} className="transition-colors hover:bg-slate-50/70">
                   {visibleColumns.map((key) => {
                     const highlight = categoryCellHighlight(
                       row,

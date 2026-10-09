@@ -18,6 +18,7 @@ import {
 } from "@/lib/dashboard-filtering";
 import { buildPeriodMenuOptions } from "@/lib/dashboard-insights";
 import { normalizeForComparison } from "@/lib/data-labels";
+import { dimensionFilterLabel } from "@/lib/dimension-identity";
 
 export type DashboardControlKey = "month" | "product" | "category" | "channel" | "region";
 export type DashboardControlValues = Record<DashboardControlKey, string[]>;
@@ -69,7 +70,7 @@ const FilterMenu = memo(function FilterMenu({
   const menuOptions = useMemo(
     () => field === "month"
       ? buildPeriodMenuOptions(options)
-      : options.map((option) => ({ value: option, label: option, year: null })),
+      : options.map((option) => ({ value: option, label: dimensionFilterLabel(option, field), year: null })),
     [field, options],
   );
   const visibleOptions = useMemo(
@@ -83,7 +84,7 @@ const FilterMenu = memo(function FilterMenu({
   const summary = displayValues.length === 0
     ? allLabels[field]
     : displayValues.length === 1
-      ? displayValues[0]
+      ? dimensionFilterLabel(displayValues[0], field)
       : `${displayValues.length} valgt`;
 
   return (
@@ -431,7 +432,7 @@ export const DashboardControlBar = memo(function DashboardControlBar({
                               }`}
                               aria-pressed={selected}
                             >
-                              <span className="truncate">{option}</span>
+                              <span className="truncate">{dimensionFilterLabel(option, field)}</span>
                               {selected ? <Check className="h-3 w-3 shrink-0" aria-hidden="true" /> : null}
                             </button>
                           );
@@ -487,9 +488,9 @@ export const DashboardControlBar = memo(function DashboardControlBar({
               type="button"
               onClick={() => toggleDraftFilter(field, value)}
               className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-800 transition duration-200 hover:bg-cyan-100"
-              title={`Fjern ${labels[field]}: ${value}`}
+              title={`Fjern ${labels[field]}: ${dimensionFilterLabel(value, field)}`}
             >
-              <span className="truncate">{labels[field]}: {value}</span>
+              <span className="truncate">{labels[field]}: {dimensionFilterLabel(value, field)}</span>
               <X className="h-3 w-3 shrink-0" aria-hidden="true" />
             </button>
           ))}

@@ -79,8 +79,8 @@ test("05: manglende kategori opdages uden at opfinde et match", () => {
   const result = analyzeSalesSheetStructure("Salgsdata", [["Dato", "Produkt", "Antal", "Omsætning"]]);
 
   assert.equal(result.mappings.category, undefined);
-  assert.match(result.missingFields.join(" "), /Kategori/);
-  assert.ok(result.confidence < 100);
+  assert.deepEqual(result.missingFields, []);
+  assert.equal(result.confidence, 100, "economic required fields complete without category");
 });
 
 test("06: et komplet salgsark rangerer over forside-, budget- og noteark", () => {
@@ -189,7 +189,7 @@ test("månedsrapporten beskriver en vist budgetstatus", () => {
     budget: { deviation: 5_630, status: "Over budgettet" },
   });
   assert.deepEqual(report.metrics.map((metric) => metric.key), ["revenue", "grossProfit", "budgetStatus", "rows"]);
-  assert.match(report.summary, /5\.630.*over det fordelte månedsbudget.*30 medtagne rækker/);
+  assert.match(report.summary, /5\.630.*over det fordelte samlede budget.*30 medtagne rækker/);
 });
 
 test("den adaptive indtjeningsgraf prioriterer DB, derefter DG og ellers tom tilstand", () => {

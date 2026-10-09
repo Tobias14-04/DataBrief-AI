@@ -81,11 +81,11 @@ for (const dimension of dimensions) {
       sale(1, dimension, "D", 40), sale(1, dimension, "", 0),
     ], dimension);
     assert.deepEqual(new Set(members.map((item) => item.dimensionValue)),
-      new Set(["A", "B", "C", "D", "Ukendt/ufordelt"]));
+      new Set(["A", "B", "C", "D", { product: "Produkt ikke registreret", category: "Ikke kategoriseret", channel: "Kanal ikke registreret", region: "Region ikke registreret" }[dimension]]));
     assert.equal(members.find((item) => item.dimensionValue === "A").absoluteChange, 0);
     assert.equal(members.find((item) => item.dimensionValue === "B").absoluteChange, -50);
     assert.equal(members.find((item) => item.dimensionValue === "D").absoluteChange, 40);
-    assert.equal(members.find((item) => item.dimensionValue === "Ukendt/ufordelt").absoluteChange, -10);
+    assert.equal(members.find((item) => item.dimensionValue === { product: "Produkt ikke registreret", category: "Ikke kategoriseret", channel: "Kanal ikke registreret", region: "Region ikke registreret" }[dimension]).absoluteChange, -10);
     assert.equal(members.reduce((sum, item) => sum + item.absoluteChange, 0), result.totalChange);
   });
 }
@@ -101,7 +101,7 @@ test("DRV: én region +10 vises, og kendt +20/ukendt -10 afstemmes", () => {
     sale(1, "region", "Nord", 120), sale(1, "region", "", 90),
   ], "region");
   assert.equal(mixed.result.totalChange, 10);
-  assert.equal(mixed.members.find((item) => item.dimensionValue === "Ukendt/ufordelt").absoluteChange, -10);
+  assert.equal(mixed.members.find((item) => item.dimensionValue === "Region ikke registreret").absoluteChange, -10);
   assert.equal(mixed.members.reduce((sum, item) => sum + item.absoluteChange, 0), 10);
 });
 
